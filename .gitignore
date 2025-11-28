@@ -1,0 +1,22 @@
+# Byte-compiled
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Testing / linting / type checking cache 
+.pytest_cache/ 
+.mypy_cache/ 
+.ruff_cache/
+
+# IDE settings
+.idea/
+*.iml

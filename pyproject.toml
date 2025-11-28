@@ -1,0 +1,19 @@
+[project]
+name = "tlmtc"
+version = "0.0.1"
+description = "Transfer Learning for Multi-Label Text Classification"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest"]
+lint = [
+    "ruff",
+    "mypy"
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
