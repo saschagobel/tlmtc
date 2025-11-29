@@ -17,3 +17,21 @@ lint = [
 [build-system]
 requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+ignore-var-parameters = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+disallow_any_generics = false
+warn_return_any = false
