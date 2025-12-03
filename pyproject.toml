@@ -5,7 +5,12 @@ description = "Transfer Learning for Multi-Label Text Classification"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "numpy ~= 2.3",
+    "pandas ~= 2.2",
+    "pyarrow ~= 22.0",
+    "iterative-stratification ~= 0.1",
+]
 
 [project.optional-dependencies]
 test = ["pytest>=9.0"]
