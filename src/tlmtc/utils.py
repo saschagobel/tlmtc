@@ -4,7 +4,6 @@ Transfer Learning for Multi-Label Text Classification.
 Helper functions
 """
 
-
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -14,7 +13,7 @@ from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
 
 def _df_preprocess(
-        df_path: Union[str, Path],
+    df_path: Union[str, Path],
 ) -> Tuple[pd.DataFrame, List[str], np.ndarray, np.ndarray]:
     """
     Import, preprocess and extract column labels from raw train/test data.
@@ -58,11 +57,11 @@ def _df_preprocess(
 
 
 def _df_split(
-        df: pd.DataFrame,
-        X: np.ndarray,
-        y: np.ndarray,
-        test_size: float,
-        random_seed: int,
+    df: pd.DataFrame,
+    X: np.ndarray,
+    y: np.ndarray,
+    test_size: float,
+    random_seed: int,
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Split preprocessed data into stratified train and test sets.
@@ -87,9 +86,7 @@ def _df_split(
     test_data : pd.DataFrame
         Test set
     """
-    msss = MultilabelStratifiedShuffleSplit(n_splits=1,
-                                            test_size=test_size,
-                                            random_state=random_seed)
+    msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=random_seed)
     for train_idx, test_idx in msss.split(X, y):
         train_data = df.iloc[train_idx].reset_index(drop=True)
         test_data = df.iloc[test_idx].reset_index(drop=True)
@@ -97,8 +94,8 @@ def _df_split(
 
 
 def _df_save(
-        df: pd.DataFrame,
-        path: Union[str, Path],
+    df: pd.DataFrame,
+    path: Union[str, Path],
 ) -> None:
     """
     Save a DataFrame to disk as parquet files.

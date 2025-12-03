@@ -4,7 +4,6 @@ Transfer Learning for Multi-Label Text Classification.
 Default configuration
 """
 
-
 from pathlib import Path
 
 # PATHS

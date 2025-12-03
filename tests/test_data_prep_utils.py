@@ -12,16 +12,18 @@ from tlmtc.utils import _df_preprocess, _df_save, _df_split
 def test_df_preprocess_valid_input(tmp_path: Path):
     """Test success with valid input."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "text": ["a", None, "c"],
-        "label_1": [1, 0, 1],
-        "label_2": [0, 1, None],
-    })
+    df_in = pd.DataFrame(
+        {
+            "text": ["a", None, "c"],
+            "label_1": [1, 0, 1],
+            "label_2": [0, 1, None],
+        }
+    )
     df_in.to_csv(csv_path, index=False)
 
     df, label_cols, X, y = _df_preprocess(csv_path)
 
-    assert len(df) == 1 # Should drop rows with NA
+    assert len(df) == 1  # Should drop rows with NA
     assert set(label_cols) == {"label_1", "label_2"}
     assert np.array_equal(X, np.array(["a"]))
     assert y.shape == (1, 2)
@@ -31,11 +33,13 @@ def test_df_preprocess_valid_input(tmp_path: Path):
 def test_df_preprocess_empty_data(tmp_path: Path):
     """Test failure with empty data frame."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "text": [None],
-        "label_1": [1],
-        "label_2": [0],
-    })
+    df_in = pd.DataFrame(
+        {
+            "text": [None],
+            "label_1": [1],
+            "label_2": [0],
+        }
+    )
     df_in.to_csv(csv_path, index=False)
 
     with pytest.raises(ValueError, match="no valid samples"):
@@ -45,10 +49,12 @@ def test_df_preprocess_empty_data(tmp_path: Path):
 def test_df_preprocess_missing_text_column(tmp_path: Path):
     """Test failure with missing text column."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "label_1": [1],
-        "label_2": [0],
-    })
+    df_in = pd.DataFrame(
+        {
+            "label_1": [1],
+            "label_2": [0],
+        }
+    )
     df_in.to_csv(csv_path, index=False)
 
     with pytest.raises(ValueError, match="text"):
@@ -58,9 +64,7 @@ def test_df_preprocess_missing_text_column(tmp_path: Path):
 def test_df_preprocess_not_enough_label_columns(tmp_path: Path):
     """Test failure with only one label column."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "text": ["a"], "label_1": [1]
-    })
+    df_in = pd.DataFrame({"text": ["a"], "label_1": [1]})
     df_in.to_csv(csv_path, index=False)
 
     with pytest.raises(ValueError, match="at least two"):
@@ -70,11 +74,13 @@ def test_df_preprocess_not_enough_label_columns(tmp_path: Path):
 def test_df_preprocess_label_not_integer(tmp_path: Path):
     """Test failure with non-integer-like label column."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "text": ["a"],
-        "label_1": [1],
-        "label_2": ["b"],
-    })
+    df_in = pd.DataFrame(
+        {
+            "text": ["a"],
+            "label_1": [1],
+            "label_2": ["b"],
+        }
+    )
     df_in.to_csv(csv_path, index=False)
 
     with pytest.raises(TypeError):
@@ -84,11 +90,13 @@ def test_df_preprocess_label_not_integer(tmp_path: Path):
 def test_df_preprocess_label_out_of_bounds(tmp_path: Path):
     """Test failure with non-binary label column."""
     csv_path = tmp_path / "data.csv"
-    df_in = pd.DataFrame({
-        "text": ["a"],
-        "label_1": [1],
-        "label_2": [2],
-    })
+    df_in = pd.DataFrame(
+        {
+            "text": ["a"],
+            "label_1": [1],
+            "label_2": [2],
+        }
+    )
     df_in.to_csv(csv_path, index=False)
 
     with pytest.raises(ValueError, match="binary values"):
@@ -97,11 +105,13 @@ def test_df_preprocess_label_out_of_bounds(tmp_path: Path):
 
 def test_df_split_basic_shapes():
     """Test output shapes with valid input."""
-    df = pd.DataFrame({
-        "text": [f"sample {i}" for i in range(10)],
-        "label_a": np.random.randint(0,2,10),
-        "label_b": np.random.randint(0,2,10),
-    })
+    df = pd.DataFrame(
+        {
+            "text": [f"sample {i}" for i in range(10)],
+            "label_a": np.random.randint(0, 2, 10),
+            "label_b": np.random.randint(0, 2, 10),
+        }
+    )
     X = df["text"].values
     y = df[["label_a", "label_b"]].values
 
@@ -116,11 +126,13 @@ def test_df_split_basic_shapes():
 
 def test_df_split_reproducible():
     """Test deterministic behavior."""
-    df = pd.DataFrame({
-        "text": [f"sample {i}" for i in range(12)],
-        "label_a": np.random.randint(0,2,12),
-        "label_b": np.random.randint(0,2,12),
-    })
+    df = pd.DataFrame(
+        {
+            "text": [f"sample {i}" for i in range(12)],
+            "label_a": np.random.randint(0, 2, 12),
+            "label_b": np.random.randint(0, 2, 12),
+        }
+    )
     X = df["text"].values
     y = df[["label_a", "label_b"]].values
 
@@ -134,11 +146,13 @@ def test_df_split_reproducible():
 
 def test_df_split_no_overlap():
     """Test overlap between train and test."""
-    df = pd.DataFrame({
-        "text": [f"sample {i}" for i in range(20)],
-        "label_a": np.random.randint(0,2,20),
-        "label_b": np.random.randint(0,2,20),
-    })
+    df = pd.DataFrame(
+        {
+            "text": [f"sample {i}" for i in range(20)],
+            "label_a": np.random.randint(0, 2, 20),
+            "label_b": np.random.randint(0, 2, 20),
+        }
+    )
     X = df["text"].values
     y = df[["label_a", "label_b"]].values
 
@@ -153,11 +167,13 @@ def test_df_split_no_overlap():
 
 def test_df_split_stratifies_labels():
     """Test presence of label categories in splits."""
-    df = pd.DataFrame({
-        "text": [f"sample {i}" for i in range(30)],
-        "label_a": [0]*10 + [1]*20,
-        "label_b": [1]*15 + [0]*15,
-    })
+    df = pd.DataFrame(
+        {
+            "text": [f"sample {i}" for i in range(30)],
+            "label_a": [0] * 10 + [1] * 20,
+            "label_b": [1] * 15 + [0] * 15,
+        }
+    )
     X = df["text"].values
     y = df[["label_a", "label_b"]].values
 
@@ -171,9 +187,7 @@ def test_df_split_stratifies_labels():
 def test_df_save_creates_parquet_file(tmp_path: Path):
     """Test presence of parquet files."""
     out_path = tmp_path / "data" / "train.parquet"
-    df = pd.DataFrame({
-        "text": ["a", "b"], "label_x": [1, 0]
-    })
+    df = pd.DataFrame({"text": ["a", "b"], "label_x": [1, 0]})
 
     _df_save(df, out_path)
 
@@ -183,11 +197,13 @@ def test_df_save_creates_parquet_file(tmp_path: Path):
 def test_df_save_roundtrip_content(tmp_path: Path):
     """Test preservation of columns and values."""
     out_path = tmp_path / "data" / "train.parquet"
-    df = pd.DataFrame({
-        "text": ["hello", "world"],
-        "label_a": [1, 0],
-        "label_b": [0, 1],
-    })
+    df = pd.DataFrame(
+        {
+            "text": ["hello", "world"],
+            "label_a": [1, 0],
+            "label_b": [0, 1],
+        }
+    )
 
     _df_save(df, out_path)
     loaded = pd.read_parquet(out_path)
