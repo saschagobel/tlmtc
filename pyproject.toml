@@ -43,3 +43,6 @@ strict = true
 ignore_missing_imports = true
 disallow_any_generics = false
 warn_return_any = false
+untyped_calls_exclude = [
+    "transformers",
+]

@@ -19,11 +19,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: "3.12"
+        cache: "pip"
 
-    - name: Install lint dependencies
+    - name: Install lint-only dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .
+        pip install -e . --no-deps
         pip install ".[lint]"
 
     - name: Run Ruff formatter (check only)
