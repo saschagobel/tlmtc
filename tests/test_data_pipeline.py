@@ -12,11 +12,13 @@ from tlmtc.data_pipeline import DataPipeline
 @pytest.fixture
 def sample_raw_csv(tmp_path: Path):
     """Create a small synthetic multi-label dataset and write it to raw.csv."""
-    df = pd.DataFrame({
-        "text": ["hello world ooqz", "foo bar", "hello", "bar world qooz"],
-        "label_a": [1, 0, 1, 0],
-        "label_b": [0, 1, 1, 0],
-    })
+    df = pd.DataFrame(
+        {
+            "text": ["hello world ooqz", "foo bar", "hello", "bar world qooz"],
+            "label_a": [1, 0, 1, 0],
+            "label_b": [0, 1, 1, 0],
+        }
+    )
     csv_path = tmp_path / "raw.csv"
     df.to_csv(csv_path, index=False)
     return csv_path
@@ -25,11 +27,13 @@ def sample_raw_csv(tmp_path: Path):
 @pytest.fixture
 def sample_raw_test_csv(tmp_path: Path):
     """Create a small synthetic multi-label test dataset and write it to raw_test.csv."""
-    df = pd.DataFrame({
-        "text": ["ooqz world", "foo Hello", "hello bar"],
-        "label_a": [1, 1, 0],
-        "label_b": [1, 0, 0],
-    })
+    df = pd.DataFrame(
+        {
+            "text": ["ooqz world", "foo Hello", "hello bar"],
+            "label_a": [1, 1, 0],
+            "label_b": [1, 0, 0],
+        }
+    )
     csv_path = tmp_path / "raw_test.csv"
     df.to_csv(csv_path, index=False)
     return csv_path
@@ -40,9 +44,9 @@ def pipeline_instance_factory(tmp_path: Path):
     """Create a factory fixture for creating DataPipeline instances with configurable inputs."""
 
     def _factory(
-            raw_csv: Path,
-            raw_test_csv: Path,
-            hyperparameter_tuning: bool,
+        raw_csv: Path,
+        raw_test_csv: Path,
+        hyperparameter_tuning: bool,
     ):
         """Instantiate a DataPipeline with temporary directories for outputs."""
         train_path = tmp_path / "train.parquet"
@@ -73,7 +77,7 @@ def pipeline_instance_factory(tmp_path: Path):
         (True, True),
         (False, False),
         (False, True),
-    ]
+    ],
 )
 def test_split_data(
     tmp_path: Path,
@@ -148,11 +152,13 @@ def test_split_data_raises_mismatched_label_columns(
     pipeline_instance_factory: Callable,
 ):
     """Test raise when train/test label columns differ."""
-    df_test = pd.DataFrame({
-        "text": ["x", "y"],
-        "label_x": [1, 0],
-        "label_b": [0, 1],
-    })
+    df_test = pd.DataFrame(
+        {
+            "text": ["x", "y"],
+            "label_x": [1, 0],
+            "label_b": [0, 1],
+        }
+    )
     mismatched_test_path = tmp_path / "raw_test_mismatch.csv"
     df_test.to_csv(mismatched_test_path, index=False)
 
