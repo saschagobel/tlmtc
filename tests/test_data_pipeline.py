@@ -5,6 +5,7 @@ from typing import Callable
 
 import pandas as pd
 import pytest
+from datasets import Dataset, DatasetDict
 
 from tlmtc.data_pipeline import DataPipeline
 
