@@ -1,4 +1,4 @@
-"""Tests for data preparation utility functions."""
+"""Tests for the DataPipeline class."""
 
 from pathlib import Path
 from typing import Callable
