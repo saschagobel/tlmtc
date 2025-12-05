@@ -170,3 +170,149 @@ def test_split_data_raises_mismatched_label_columns(
 
     with pytest.raises(ValueError, match="Mismatch between train/test label columns"):
         dp.split_data()
+
+
+@pytest.mark.parametrize("hyperparameter_tuning", [True, False])
+def test_get_multi_hot_vectors(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+    hyperparameter_tuning: bool,
+):
+    """Test two behavioral branches of DataPipeline.get_multi_hot_vectors()."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=hyperparameter_tuning,
+    )
+
+    dp.split_data().get_multi_hot_vectors()
+
+    expected_splits = ["train_data", "test_data"]
+    if hyperparameter_tuning:
+        expected_splits.insert(1, "val_data")
+
+    for split_attr in expected_splits:
+        df = getattr(dp, split_attr)
+
+        assert list(df.columns) == ["text", "labels"]
+
+        labels = df["labels"].iloc[0]
+        assert isinstance(labels, list)
+        assert len(labels) == 2
+        assert set(labels).issubset({0, 1})
+
+
+@pytest.mark.parametrize(
+    "hyperparameter_tuning, expected_error",
+    [
+        (True, "Validation data not found"),
+        (False, "Train/test data not found"),
+    ],
+)
+def test_get_multi_hot_vectors_raises_when_called_before_split(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+    hyperparameter_tuning: bool,
+    expected_error: str,
+):
+    """Test raise if called before split_data."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=hyperparameter_tuning,
+    )
+
+    with pytest.raises(RuntimeError, match=expected_error):
+        dp.get_multi_hot_vectors()
+
+
+import pytest
+from datasets import DatasetDict, Dataset
+
+
+@pytest.mark.parametrize("hyperparameter_tuning", [True, False])
+def test_create_hf_dataset(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+    hyperparameter_tuning: bool,
+):
+    """Test two behavioral branches of DataPipeline.create_hf_dataset()."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=hyperparameter_tuning,
+    )
+
+    dp.split_data().get_multi_hot_vectors()
+    dp.create_hf_dataset()
+
+    assert isinstance(dp.hf_dataset, DatasetDict)
+
+    expected_keys = ["train", "test", "validation"] if hyperparameter_tuning else ["train", "test"]
+
+    assert list(dp.hf_dataset.keys()) == expected_keys
+
+    train_split = dp.hf_dataset["train"]
+    assert isinstance(train_split, Dataset)
+
+    assert "text" in train_split.features
+    assert "labels" in train_split.features
+
+    labels_feature = train_split.features["labels"]
+    assert labels_feature.feature.dtype == "int64"
+
+
+def test_create_hf_dataset_raises_if_val_missing_when_required(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+):
+    """Test raise if hyperparameter_tuning=True but val_data is missing."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=True,
+    )
+
+    dp.split_data()
+    dp.val_data = None
+
+    with pytest.raises(RuntimeError, match="Validation data not found"):
+        dp.create_hf_dataset()
+
+
+def test_create_hf_dataset_raises_if_split_data_not_run(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+):
+    """Test raise if called before split_data()."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=False,
+    )
+
+    with pytest.raises(RuntimeError, match="Train/test data not found"):
+        dp.create_hf_dataset()
+
+
+def test_create_hf_dataset_raises_if_labels_missing(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+):
+    """Test raise if called before get_multi_hot_vectors."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=True,
+    )
+
+    dp.split_data()
+
+    with pytest.raises(RuntimeError, match="Missing 'labels'"):
+        dp.create_hf_dataset()
