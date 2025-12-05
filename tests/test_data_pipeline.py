@@ -228,10 +228,6 @@ def test_get_multi_hot_vectors_raises_when_called_before_split(
         dp.get_multi_hot_vectors()
 
 
-import pytest
-from datasets import DatasetDict, Dataset
-
-
 @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
 def test_create_hf_dataset(
     sample_raw_csv: Path,
