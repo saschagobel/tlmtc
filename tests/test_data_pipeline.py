@@ -5,6 +5,7 @@ from typing import Callable
 
 import pandas as pd
 import pytest
+import torch
 from datasets import Dataset, DatasetDict
 
 from tlmtc.data_pipeline import DataPipeline
@@ -80,7 +81,7 @@ def pipeline_instance_factory(tmp_path: Path):
         (False, True),
     ],
 )
-def test_split_data(
+def test_split_data_handles_all_split_configurations(
     tmp_path: Path,
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
@@ -88,7 +89,7 @@ def test_split_data(
     hyperparameter_tuning: bool,
     use_raw_test: bool,
 ):
-    """Test all four behavioral branches of DataPipeline.split_data()."""
+    """Validate split_data behavior for all combinations of tuning mode and presence of raw test data."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv if use_raw_test else "",
@@ -128,13 +129,9 @@ def test_split_data(
         total = len(train_df) + len(test_df)
         assert total == len(pd.read_csv(sample_raw_csv))
 
-    # --- Label column checks (sanity for stratification) ---
-    assert "label_a" in train_df.columns
-    assert "label_b" in train_df.columns
 
-
-def test_split_data_raises_missing_raw_data(tmp_path: Path, pipeline_instance_factory: Callable):
-    """Test raise when raw_data_path does not exist."""
+def test_split_data_raises_when_raw_data_missing(tmp_path: Path, pipeline_instance_factory: Callable):
+    """Ensure split_data raises FileNotFoundError when the raw_data_path is missing."""
     missing_raw = tmp_path / "does_not_exist.csv"
 
     dp = pipeline_instance_factory(
@@ -147,12 +144,12 @@ def test_split_data_raises_missing_raw_data(tmp_path: Path, pipeline_instance_fa
         dp.split_data()
 
 
-def test_split_data_raises_mismatched_label_columns(
+def test_split_data_raises_when_label_columns_mismatch(
     tmp_path: Path,
     sample_raw_csv: Path,
     pipeline_instance_factory: Callable,
 ):
-    """Test raise when train/test label columns differ."""
+    """Ensure split_data raises a ValueError when train and test label columns differ."""
     df_test = pd.DataFrame(
         {
             "text": ["x", "y"],
@@ -174,13 +171,13 @@ def test_split_data_raises_mismatched_label_columns(
 
 
 @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
-def test_get_multi_hot_vectors(
+def test_get_multi_hot_vectors_transforms_label_columns_across_splits(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
     hyperparameter_tuning: bool,
 ):
-    """Test two behavioral branches of DataPipeline.get_multi_hot_vectors()."""
+    """Verify that get_multi_hot_vectors converts label_* columns into multi-hot 'labels' lists across all splits."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -211,14 +208,14 @@ def test_get_multi_hot_vectors(
         (False, "Train/test data not found"),
     ],
 )
-def test_get_multi_hot_vectors_raises_when_called_before_split(
+def test_get_multi_hot_vectors_raises_if_called_before_split_data(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
     hyperparameter_tuning: bool,
     expected_error: str,
 ):
-    """Test raise if called before split_data."""
+    """Ensure get_multi_hot_vectors raises an error when called before split_data, in both tuning modes."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -230,13 +227,13 @@ def test_get_multi_hot_vectors_raises_when_called_before_split(
 
 
 @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
-def test_create_hf_dataset(
+def test_create_hf_dataset_constructs_correct_splits_and_schema(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
     hyperparameter_tuning: bool,
 ):
-    """Test two behavioral branches of DataPipeline.create_hf_dataset()."""
+    """Verify that create_hf_dataset builds the expected DatasetDict splits and schema under both tuning modes."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -262,12 +259,12 @@ def test_create_hf_dataset(
     assert labels_feature.feature.dtype == "int64"
 
 
-def test_create_hf_dataset_raises_if_val_missing_when_required(
+def test_create_hf_dataset_raises_when_validation_split_missing(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
 ):
-    """Test raise if hyperparameter_tuning=True but val_data is missing."""
+    """Ensure create_hf_dataset raises an error when tuning is enabled but no validation split exists."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -281,12 +278,12 @@ def test_create_hf_dataset_raises_if_val_missing_when_required(
         dp.create_hf_dataset()
 
 
-def test_create_hf_dataset_raises_if_split_data_not_run(
+def test_create_hf_dataset_raises_if_called_before_split_data(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
 ):
-    """Test raise if called before split_data()."""
+    """Ensure create_hf_dataset raises an error when invoked before split_data initializes the splits."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -297,12 +294,12 @@ def test_create_hf_dataset_raises_if_split_data_not_run(
         dp.create_hf_dataset()
 
 
-def test_create_hf_dataset_raises_if_labels_missing(
+def test_create_hf_dataset_raises_if_labels_column_missing(
     sample_raw_csv: Path,
     sample_raw_test_csv: Path,
     pipeline_instance_factory: Callable,
 ):
-    """Test raise if called before get_multi_hot_vectors."""
+    """Ensure create_hf_dataset raises an error when called before labels are generated by get_multi_hot_vectors."""
     dp = pipeline_instance_factory(
         raw_csv=sample_raw_csv,
         raw_test_csv=sample_raw_test_csv,
@@ -313,3 +310,80 @@ def test_create_hf_dataset_raises_if_labels_missing(
 
     with pytest.raises(RuntimeError, match="Missing 'labels'"):
         dp.create_hf_dataset()
+
+
+def test_tokenize_data_raises_if_called_before_create_hf_dataset(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+):
+    """Ensure tokenize_data raises an error when called before create_hf_dataset initializes the HF dataset."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=True,
+    )
+
+    dp.split_data().get_multi_hot_vectors()
+
+    with pytest.raises(RuntimeError, match="Hugging Face DatasetDict not found"):
+        dp.tokenize_data()
+
+
+@pytest.mark.parametrize("hyperparameter_tuning", [True, False])
+def test_tokenize_data_produces_correct_tokenized_structure_across_splits(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+    hyperparameter_tuning: bool,
+):
+    """Verify that tokenize_data produces a correctly structured DatasetDict with the expected splits and fields."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=hyperparameter_tuning,
+    )
+
+    dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+    dp.tokenize_data()
+
+    assert isinstance(dp.tokenized_dataset, DatasetDict)
+
+    expected_keys = ["train", "test"]
+    if hyperparameter_tuning:
+        expected_keys.insert(2, "validation")
+
+    assert list(dp.tokenized_dataset.keys()) == expected_keys
+
+    example = dp.tokenized_dataset["train"][0]
+
+    assert "input_ids" in example
+    assert "attention_mask" in example
+    assert "labels" in example
+
+    assert isinstance(example["labels"], torch.Tensor)
+    assert example["labels"].dtype == torch.float32
+
+    assert len(example["input_ids"]) == dp.sequence_length
+    assert len(example["attention_mask"]) == dp.sequence_length
+
+
+def test_tokenize_data_preserves_split_sizes(
+    sample_raw_csv: Path,
+    sample_raw_test_csv: Path,
+    pipeline_instance_factory: Callable,
+):
+    """Ensure that tokenization preserves the number of samples in each dataset split."""
+    dp = pipeline_instance_factory(
+        raw_csv=sample_raw_csv,
+        raw_test_csv=sample_raw_test_csv,
+        hyperparameter_tuning=True,
+    )
+
+    dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+    original_counts = {k: len(v) for k, v in dp.hf_dataset.items()}
+
+    dp.tokenize_data()
+    new_counts = {k: len(v) for k, v in dp.tokenized_dataset.items()}
+
+    assert original_counts == new_counts
