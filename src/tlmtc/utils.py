@@ -5,13 +5,14 @@ Helper functions
 """
 
 from pathlib import Path
-from typing import List, Literal, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import numpy as np
+import optuna
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-from peft import LoraConfig, PeftModel, TaskType, get_peft_model
-from transformers import PreTrainedModel, TrainingArguments
+from peft import LoraConfig, TaskType, get_peft_model
+from transformers import AutoModelForSequenceClassification, PreTrainedModel, TrainingArguments
 
 
 def _df_preprocess(
@@ -215,16 +216,148 @@ def _wrap_peft(
     return model
 
 
-def _make_model_init():
-    pass
+def _make_model_init(
+    checkpoint: str,
+    num_labels: int,
+    wrap_peft: bool,
+    lora_r: int,
+    lora_alpha: int,
+    lora_dropout: float,
+    lora_bias: Literal["none", "all", "lora_only"],
+) -> Callable[[Optional[optuna.trial.Trial]], PreTrainedModel]:
+    """
+    Create a model initialization function for hyperparameter search.
+
+    Parameters
+    ----------
+    checkpoint : str
+        Name of the pretrained model checkpoint on the Hugging Face Hub
+    num_labels : int
+        Number of labels in the multi-label classification task
+    wrap_peft: bool
+        Flag whether to wrap model in parameter-efficient fine-tuning
+    lora_r : int
+        Rank of the LoRA matrices. Controls adapter capacity
+    lora_alpha : int
+        Scaling factor for the LoRA updates
+    lora_dropout : float
+        Dropout probability for LoRA layers
+    lora_bias : str
+        Whether to train bias terms, 'none', 'all', or 'lora_only'
+
+    Returns
+    -------
+    model_init : callable
+        A function that initializes and returns a model instance during each Optuna trial
+    """
+
+    def model_init(trial: Optional[optuna.trial.Trial] = None) -> PreTrainedModel:
+        """
+        Initialize a new model instance for the current trial.
+
+        Parameters
+        ----------
+        trial : optuna.trial.Trial, optional
+            Current Optuna trial object
+
+        Returns
+        -------
+        model : transformers.PreTrainedModel
+            Pretrained model ready for fine-tuning
+        """
+        model = AutoModelForSequenceClassification.from_pretrained(
+            checkpoint, num_labels=num_labels, problem_type="multi_label_classification"
+        )
+        if wrap_peft:
+            model = _wrap_peft(
+                model=model,
+                lora_r=lora_r,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                lora_bias=lora_bias,
+            )
+        return model
+
+    return model_init
 
 
-def _make_compute_objective():
-    pass
+def _make_compute_objective(
+    best_model_metric: str,
+) -> Callable[[Dict[str, Any]], float]:
+    """
+    Create an objective function for Optuna hyperparameter search.
+
+    Parameters
+    ----------
+    best_model_metric : str
+        Metric to monitor for selecting the best-performing model checkpoint
+
+    Returns
+    -------
+    compute_objective : callable
+        A function that extracts and returns the target metric from the Trainer evaluation output
+    """
+
+    def compute_objective(metrics: Dict[str, Any]) -> float:
+        """
+        Extract the objective value for the current Optuna trial.
+
+        Parameters
+        ----------
+        metrics : dict
+            Dictionary of evaluation results returned by the Trainer
+
+        Returns
+        -------
+        float
+            Value of the target metric to be optimized
+        """
+        return metrics["eval_" + best_model_metric]
+
+    return compute_objective
 
 
-def _optuna_hp_space():
-    pass
+def _optuna_hp_space(
+    trial: optuna.trial.Trial,
+    space: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Define the hyperparameter search space for Optuna tuning.
+
+    Parameters
+    ----------
+    trial : optuna.trial.Trial
+        Current Optuna trial object
+    space: dict
+        A fully resolved hyperparameter search space dictionary.
+
+    Returns
+    -------
+    dict
+        Dictionary specifying the sampled hyperparameters and their values for the current trial
+    """
+    return {
+        "learning_rate": trial.suggest_float(
+            "learning_rate",
+            space["lr_low"],
+            space["lr_high"],
+            log=True,
+        ),
+        "per_device_train_batch_size": trial.suggest_categorical(
+            "per_device_train_batch_size",
+            space["batch_sizes"],
+        ),
+        "weight_decay": trial.suggest_float(
+            "weight_decay",
+            space["wd_low"],
+            space["wd_high"],
+        ),
+        "lr_scheduler_type": trial.suggest_categorical(
+            "lr_scheduler_type",
+            space["schedulers"],
+        ),
+        "num_train_epochs": trial.suggest_int("num_train_epochs", space["epoch_low"], space["epoch_high"]),
+    }
 
 
 def _get_scaled_lr():
