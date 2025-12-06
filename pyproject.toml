@@ -11,12 +11,12 @@ dependencies = [
     "numpy ~= 2.3",
     "optuna ~= 4.6",
     "pandas ~= 2.2",
-    "peft ~= 0.18",
     "pyarrow ~= 22.0",
     "transformers ~= 4.57"
 ]
 
 [project.optional-dependencies]
+peft = ["peft ~= 0.18"]
 torch = ["torch ~= 2.9"]
 test = ["pytest>=9.0"]
 lint = [
