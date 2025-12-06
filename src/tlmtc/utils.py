@@ -10,9 +10,18 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 import numpy as np
 import optuna
 import pandas as pd
+import torch
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import AutoConfig, AutoModelForSequenceClassification, PreTrainedModel, TrainingArguments
+from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.utils.class_weight import compute_class_weight
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    EvalPrediction,
+    PreTrainedModel,
+    TrainingArguments,
+)
 
 
 def _df_preprocess(
@@ -212,7 +221,7 @@ def _wrap_peft(
         init_lora_weights=True,
         bias=lora_bias,
     )
-    model = get_peft_model(model, peft_config)
+    model = get_peft_model(model, peft_config) # type: ignore[assignment]
     return model
 
 
@@ -393,17 +402,158 @@ def _get_scaled_lr(
         return learning_rate * (proxy_checkpoint_hidden_size / checkpoint_hidden_size)
 
 
-def _get_class_weights():
-    pass
+def _get_class_weights(
+    train_data_path: Union[str, Path],
+    val_data_path: Optional[Union[str, Path]] = None,
+) -> torch.Tensor:
+    """
+    Compute label-specific weights for positive classes.
+
+    Parameters
+    ----------
+    train_data_path : str
+           Path to train split
+    val_data_path : str
+           Path to validation split
+
+    Returns
+    -------
+    torch.Tensor
+        Tensor with class weights for each label
+    """
+    train_data = pd.read_parquet(train_data_path)
+
+    if val_data_path is not None:
+        val_data = pd.read_parquet(val_data_path)
+        train_data = pd.concat([train_data, val_data], axis=0, ignore_index=True)
+
+    label_cols = [col for col in train_data.columns if col.startswith("label_")]
+    labels_array = train_data[label_cols].values
+    num_labels = labels_array.shape[1]
+    class_weights = [
+        compute_class_weight(class_weight="balanced", classes=np.array([0, 1]), y=labels_array[:, i])[1]
+        for i in range(num_labels)
+    ]
+    return torch.tensor(class_weights, dtype=torch.float)
 
 
-def _multi_label_metrics():
-    pass
+def _find_optimal_threshold(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    best_threshold_metric: str,
+    threshold_type: str,
+) -> np.ndarray:
+    """
+    Compute the optimal global threshold for multi-label classification.
+
+    Parameters
+    ----------
+    y_true : np.ndarray
+        Ground-truth binary label matrix of shape (n_samples, n_labels)
+    y_prob : np.ndarray
+        Predicted probabilities of the same shape as y_true
+    best_threshold_metric: str
+        Metric to monitor for selecting the best-performing global threshold
+    threshold_type: str
+        Type of threshold to compute, 'global' or 'label'
+
+    Returns
+    -------
+    best_threshold or best_thresholds: float
+        Optimal global threshold or label-specific threshold
+    """
+    thresholds = np.linspace(0.0, 1.0, 101)
+    num_labels = y_true.shape[1]
+
+    if threshold_type == "global":
+        best_threshold, best_score = 0.5, float("-inf")
+        for threshold in thresholds:
+            y_pred = (y_prob >= threshold).astype(int)
+            if best_threshold_metric == "f1_micro":
+                score = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
+            elif best_threshold_metric == "f1_macro":
+                score = f1_score(y_true=y_true, y_pred=y_pred, average="macro")
+            else:
+                raise ValueError("Unsupported metric. Use 'f1_micro' or 'f1_macro' as best_threshold_metric")
+            if score > best_score:
+                best_threshold, best_score = threshold, score
+        return np.array([best_threshold], dtype=float)
+    elif threshold_type == "label":
+        best_thresholds = np.zeros(num_labels, dtype=float)
+        for i in range(num_labels):
+            best_threshold, best_score = 0.5, float("-inf")
+            for threshold in thresholds:
+                y_pred_i = (y_prob[:, i] >= threshold).astype(int)
+                score = f1_score(y_true=y_true[:, i], y_pred=y_pred_i, zero_division=0)
+                if score > best_score:
+                    best_threshold, best_score = threshold, score
+            best_thresholds[i] = best_threshold
+        return best_thresholds
+    else:
+        raise ValueError("threshold_type must be 'global' or 'label'.")
 
 
-def _compute_metrics():
-    pass
+def _multi_label_metrics(
+    predictions: Union[np.ndarray, torch.Tensor],
+    labels: Union[np.ndarray, torch.Tensor],
+) -> Dict[str, float]:
+    """
+    Compute evaluation metrics for multi-label classification.
+
+    Parameters
+    ----------
+    predictions : array-like or torch.Tensor
+        Model outputs (logits) for each sample and label
+    labels : array-like
+        Binary labels
+
+    Returns
+    -------
+    dict
+        Dictionary containing the following metrics:
+        - 'f1_micro': Micro-averaged F1 score
+        - 'f1_macro': Macro-averaged F1 score
+        - 'roc_auc_micro': Micro-averaged ROC-AUC score
+        - 'roc_auc_macro': Macro-averaged ROC-AUC score
+        - 'accuracy': Standard accuracy computed over all labels
+    """
+    probs = torch.sigmoid(torch.tensor(predictions)).numpy()
+    y_true = np.array(labels)
+    threshold = _find_optimal_threshold(
+        y_true=y_true, y_prob=probs, best_threshold_metric="f1_macro", threshold_type="global"
+    )
+    y_pred = (probs >= threshold).astype(int)
+    f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
+    f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average="macro")
+    roc_auc_micro = roc_auc_score(y_true, probs, average="micro")
+    roc_auc_macro = roc_auc_score(y_true, probs, average="macro")
+    metrics = {
+        "f1_micro": f1_micro,
+        "f1_macro": f1_macro,
+        "roc_auc_micro": roc_auc_micro,
+        "roc_auc_macro": roc_auc_macro,
+    }
+    return metrics
 
 
-def _find_optimal_threshold():
-    pass
+def _compute_metrics(
+    p: EvalPrediction,
+) -> Dict[str, Any]:
+    """
+    Wrap a Hugging Face `EvalPrediction` object to compute multi-label metrics.
+
+    Parameters
+    ----------
+    p : EvalPrediction
+        Evaluation prediction object from Hugging Face Trainer, with attributes:
+        - `predictions`: Model output logits
+        - `label_ids`: Ground-truth labels
+
+    Returns
+    -------
+    dict
+        Dictionary of evaluation metrics as returned by 'multi_label_metrics'
+    """
+    preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
+    result = _multi_label_metrics(predictions=preds, labels=p.label_ids) # type: ignore[arg-type]
+    return result
