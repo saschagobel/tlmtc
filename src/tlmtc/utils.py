@@ -221,7 +221,7 @@ def _wrap_peft(
         init_lora_weights=True,
         bias=lora_bias,
     )
-    model = get_peft_model(model, peft_config)  # type: ignore[assignment]
+    model = get_peft_model(model, peft_config)
     return model
 
 
@@ -555,5 +555,5 @@ def _compute_metrics(
         Dictionary of evaluation metrics as returned by 'multi_label_metrics'
     """
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-    result = _multi_label_metrics(predictions=preds, labels=p.label_ids)  # type: ignore[arg-type]
+    result = _multi_label_metrics(predictions=preds, labels=p.label_ids)
     return result
