@@ -5,11 +5,13 @@ Helper functions
 """
 
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Literal, Tuple, Union
 
 import numpy as np
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+from peft import LoraConfig, PeftModel, TaskType, get_peft_model
+from transformers import PreTrainedModel, TrainingArguments
 
 
 def _df_preprocess(
@@ -110,3 +112,136 @@ def _df_save(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
+
+
+def _get_training_args(
+    logging_path: Union[str, Path],
+    batch_size: int,
+    epochs: int,
+    weight_decay: float,
+    learning_rate: float,
+    lr_scheduler: str,
+    best_model_metric: str,
+    use_cpu: bool,
+) -> TrainingArguments:
+    """
+    Initialize a TrainingArguments object with set hyperparameters.
+
+    Parameters
+    ----------
+    logging_path : str or Path
+        Path where intermediate checkpoints and logs will be saved
+    batch_size : int
+        Batch size for training and evaluation
+    epochs : int
+        Maximum number of training epochs
+    weight_decay: float
+        Strength of weight decay regularization applied to model parameters
+    learning_rate: float
+        Initial learning rate for optimizer
+    lr_scheduler: str
+        Type of learning rate scheduler to use
+    best_model_metric : str
+        Metric to monitor for selecting the best-performing model checkpoint
+    use_cpu : bool
+        Flag whether to force training on CPU instead of GPU
+
+    Returns
+    -------
+    transformers.TrainingArguments
+        Configured TrainingArguments instance for the Trainer class
+    """
+    return TrainingArguments(
+        output_dir=str(logging_path),
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        save_total_limit=1,
+        logging_strategy="epoch",
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        num_train_epochs=epochs,
+        weight_decay=weight_decay,
+        learning_rate=learning_rate,
+        lr_scheduler_type=lr_scheduler,
+        load_best_model_at_end=True,
+        metric_for_best_model=best_model_metric,
+        greater_is_better=True,
+        disable_tqdm=True,
+        use_cpu=use_cpu,
+        report_to="none",
+    )
+
+
+def _wrap_peft(
+    model: PreTrainedModel,
+    lora_r: int,
+    lora_alpha: int,
+    lora_dropout: float,
+    lora_bias: Literal["none", "all", "lora_only"],
+) -> PreTrainedModel:
+    """
+    Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
+
+    Parameters
+    ----------
+    model: transformers.PreTrainedModel
+        Pretrained model ready for fine-tuning
+    lora_r : int
+        Rank of the LoRA matrices. Controls adapter capacity
+    lora_alpha : int
+        Scaling factor for the LoRA updates
+    lora_dropout : float
+        Dropout probability for LoRA layers
+    lora_bias : str
+        Whether to train bias terms, 'none', 'all', or 'lora_only'
+
+    Returns
+    -------
+    model: transformers.PreTrainedModel
+        The model pretrained model wrapped with LoRA adapters, ready for fine-tuning.
+    """
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        inference_mode=False,
+        target_modules="all-linear",
+        r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        use_rslora=True,
+        init_lora_weights=True,
+        bias=lora_bias,
+    )
+    model = get_peft_model(model, peft_config)
+    return model
+
+
+def _make_model_init():
+    pass
+
+
+def _make_compute_objective():
+    pass
+
+
+def _optuna_hp_space():
+    pass
+
+
+def _get_scaled_lr():
+    pass
+
+
+def _get_class_weights():
+    pass
+
+
+def _multi_label_metrics():
+    pass
+
+
+def _compute_metrics():
+    pass
+
+
+def _find_optimal_threshold():
+    pass
