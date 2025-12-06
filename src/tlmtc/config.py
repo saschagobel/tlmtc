@@ -18,6 +18,7 @@ OUTPUT_DATA_PATH = BASE_PATH.parent / "outputs"
 OUTPUT_LOGGING_PATH = OUTPUT_DATA_PATH / "logging"
 
 # MODEL CHECKPOINTS
+PROXY_CHECKPOINT = "microsoft/deberta-v3-xsmall"
 CHECKPOINT = "microsoft/deberta-v3-base"
 
 # SPLITTING

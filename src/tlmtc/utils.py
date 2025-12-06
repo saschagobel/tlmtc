@@ -12,7 +12,7 @@ import optuna
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from peft import LoraConfig, TaskType, get_peft_model
-from transformers import AutoModelForSequenceClassification, PreTrainedModel, TrainingArguments
+from transformers import AutoConfig, AutoModelForSequenceClassification, PreTrainedModel, TrainingArguments
 
 
 def _df_preprocess(
@@ -360,8 +360,37 @@ def _optuna_hp_space(
     }
 
 
-def _get_scaled_lr():
-    pass
+def _get_scaled_lr(
+    learning_rate: float,
+    checkpoint: str,
+    proxy_checkpoint: str,
+    peft: bool,
+) -> float:
+    """
+    Scale the learning rate by hidden size.
+
+    Parameters
+    ----------
+    learning_rate: float
+        Learning rate for optimizer
+    checkpoint : str
+        Name of the pretrained model checkpoint on the Hugging Face Hub
+    proxy_checkpoint : str
+        Name of the proxy pretrained model checkpoint on the Hugging Face Hub
+    peft : bool
+        Flag whether model uses parameter-efficient fine-tuning
+
+    Returns
+    -------
+    float
+        Scaled learning rate
+    """
+    checkpoint_hidden_size = AutoConfig.from_pretrained(checkpoint).hidden_size
+    proxy_checkpoint_hidden_size = AutoConfig.from_pretrained(proxy_checkpoint).hidden_size
+    if peft:
+        return learning_rate * (checkpoint_hidden_size / proxy_checkpoint_hidden_size) ** 0.5
+    else:
+        return learning_rate * (proxy_checkpoint_hidden_size / checkpoint_hidden_size)
 
 
 def _get_class_weights():
