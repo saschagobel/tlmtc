@@ -9,6 +9,7 @@ dependencies = [
     "datasets ~= 4.4",
     "iterative-stratification ~= 0.1",
     "numpy ~= 2.3",
+    "optuna ~= 4.6",
     "pandas ~= 2.2",
     "peft ~= 0.18",
     "pyarrow ~= 22.0",
