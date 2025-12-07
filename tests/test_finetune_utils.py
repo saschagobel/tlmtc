@@ -42,7 +42,7 @@ def patched_model_loader(base_test_model, monkeypatch):
         return base_test_model
 
     monkeypatch.setattr(
-        "src.tlmtc.utils.AutoModelForSequenceClassification.from_pretrained",
+        "tlmtc.utils.AutoModelForSequenceClassification.from_pretrained",
         fake_from_pretrained,
     )
 
