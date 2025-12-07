@@ -14,8 +14,11 @@ RAW_TEST_DATA_PATH = DATA_PATH / "raw_test.csv"
 TRAIN_DATA_PATH = DATA_PATH / "train.parquet"
 VAL_DATA_PATH = DATA_PATH / "val.parquet"
 TEST_DATA_PATH = DATA_PATH / "test.parquet"
+OUTPUT_DATA_PATH = BASE_PATH.parent / "outputs"
+OUTPUT_LOGGING_PATH = OUTPUT_DATA_PATH / "logging"
 
 # MODEL CHECKPOINTS
+PROXY_CHECKPOINT = "microsoft/deberta-v3-xsmall"
 CHECKPOINT = "microsoft/deberta-v3-base"
 
 # SPLITTING
@@ -28,3 +31,42 @@ HYPERPARAMETER_TUNING = True
 
 # HYPERPARAMETERS
 SEQUENCE_LENGTH = 128
+BEST_MODEL_METRIC = "roc_auc_macro"
+BATCH_SIZE = 16
+TRAIN_EPOCHS = 20
+LEARNING_RATE = 2e-5
+WEIGHT_DECAY = 0.01
+LR_SCHEDULER = "linear"
+THRESHOLD_TYPE = "label"
+BEST_THRESHOLD_METRIC = "f1_macro"
+
+# HYPERPARAMETER SEARCH SPACE
+OPTUNA_SPACE_PEFT = {
+    "lr_low": 3e-5,
+    "lr_high": 5e-4,
+    "batch_sizes": [8, 16, 32, 64],
+    "wd_low": 0.0,
+    "wd_high": 0.05,
+    "schedulers": ["linear", "cosine"],
+    "epoch_low": 5,
+    "epoch_high": 20,
+}
+OPTUNA_SPACE_BASE = {
+    "lr_low": 1e-5,
+    "lr_high": 3e-4,
+    "batch_sizes": [8, 16, 32],
+    "wd_low": 0.0,
+    "wd_high": 0.3,
+    "schedulers": ["linear", "cosine", "polynomial"],
+    "epoch_low": 5,
+    "epoch_high": 30,
+}
+
+# PEFT
+LORA_R = 8
+LORA_ALPHA = 32
+LORA_DROPOUT = 0.1
+LORA_BIAS = "none"
+
+# HARDWARE
+USE_CPU = False
