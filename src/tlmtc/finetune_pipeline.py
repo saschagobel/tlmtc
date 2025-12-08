@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional, Tuple
 import torch
 from torch import Tensor
 from transformers import Trainer
-from transformers.modeling_outputs import ModelOutput
+from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
 
 class WeightedTrainer(Trainer):

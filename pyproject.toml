@@ -48,6 +48,3 @@ warn_return_any = false
 untyped_calls_exclude = [
     "transformers",
 ]
-
-[tool.mypy.transformers.modeling_outputs]
-disable_error_code = ["attr-defined"]
