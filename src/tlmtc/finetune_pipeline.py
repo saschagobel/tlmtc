@@ -33,10 +33,10 @@ class WeightedTrainer(Trainer):
     """
 
     def __init__(
-            self,
-            *args: Any,
-            class_weights: Optional[torch.FloatTensor] = None,
-            **kwargs: Any,
+        self,
+        *args: Any,
+        class_weights: Optional[Tensor] = None,
+        **kwargs: Any,
     ) -> None:
         super().__init__(*args, **kwargs)
 
@@ -49,11 +49,11 @@ class WeightedTrainer(Trainer):
         )
 
     def compute_loss(
-            self,
-            model: torch.nn.Module,
-            inputs:  Dict[str, Tensor],
-            return_outputs: bool = False,
-            num_items_in_batch: Optional[int] = None,
+        self,
+        model: torch.nn.Module,
+        inputs: Dict[str, Tensor],
+        return_outputs: bool = False,
+        num_items_in_batch: Optional[Tensor] = None,
     ) -> Tensor | Tuple[Tensor, ModelOutput]:
         """
         Compute the weighted BCE loss for multi-label classification with multi-GPU support.
@@ -76,7 +76,7 @@ class WeightedTrainer(Trainer):
         outputs : ModelOutput, optional
             Returned only if 'return_outputs' is True, contains model outputs
         """
-        labels = inputs.pop('labels')
+        labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
 
@@ -84,9 +84,6 @@ class WeightedTrainer(Trainer):
         if num_labels is None:
             num_labels = getattr(model.module, "num_labels")
 
-        loss = self.loss_fct(
-            logits.view(-1, num_labels),
-            labels.view(-1, num_labels)
-        )
+        loss = self.loss_fct(logits.view(-1, num_labels), labels.view(-1, num_labels))
 
         return (loss, outputs) if return_outputs else loss
