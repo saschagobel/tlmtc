@@ -581,5 +581,5 @@ class FinetunePipeline:
         if self.updated_trainer is None:
             raise RuntimeError("Instantiated Trainer after fine-tuning not found. Run fine_tune_pretrained() first.")
 
-        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[union-attr,operator]
+        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[union-attr]
         return self
