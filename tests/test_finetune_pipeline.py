@@ -275,7 +275,7 @@ class TestWeightedTrainer:
         assert isinstance(loss, torch.Tensor)
 
 
-class TestFinetunePipelineLoadPretrained:
+class TestLoadPretrained:
     """Test suite for FinetunePipeline.load_pretrained."""
 
     @pytest.mark.parametrize("transfer_learning, expected_call", [(True, True), (False, False)])
@@ -362,7 +362,7 @@ class TestFinetunePipelineLoadPretrained:
             assert pipeline.pretrained_model is fake_model
 
 
-class TestFinetunePipelineTuneHyperparameters:
+class TestTuneHyperparameters:
     """Test suite for FinetunePipeline.tune_hyperparameters."""
 
     def test_returns_self_when_disabled(self, pipeline_factory, dummy_train_parquet):
@@ -593,7 +593,7 @@ class TestFinetunePipelineTuneHyperparameters:
             assert pipeline.tuned_threshold is None
 
 
-class TestFinetunePipelineFineTunePretrained:
+class TestFineTunePretrained:
     """Test suite for FinetunePipeline.fine_tune_pretrained."""
 
     @pytest.mark.parametrize("transfer_learning, expected_call", [(True, True), (False, False)])
@@ -790,7 +790,7 @@ class TestFinetunePipelineFineTunePretrained:
         assert train_dataset[1]["input_ids"] == val[0]["input_ids"]
 
 
-class TestFinetunePipelineSavePretrained:
+class TestSavePretrained:
     """Test suite for FinetunePipeline.save_pretrained."""
 
     def test_noop_when_transfer_learning_disabled(
