@@ -794,6 +794,7 @@ class TestSavePretrained:
     """Test suite for FinetunePipeline.save_pretrained."""
 
     def test_noop_when_transfer_learning_disabled(
+        self,
         pipeline_factory,
         dummy_train_parquet,
     ):
@@ -809,6 +810,7 @@ class TestSavePretrained:
         assert pipeline.updated_trainer is None
 
     def test_raises_if_trainer_missing(
+        self,
         pipeline_factory,
         dummy_train_parquet,
     ):
@@ -821,6 +823,7 @@ class TestSavePretrained:
             pipeline.save_pretrained()
 
     def test_delegates_to_model_with_output_path(
+        self,
         pipeline_factory,
         dummy_train_parquet,
     ):
