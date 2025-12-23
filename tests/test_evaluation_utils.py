@@ -1,9 +1,19 @@
-"""Tests for fine-tuning utility functions."""
+"""Tests for evaluation utility functions."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
-from tlmtc.utils import _get_global_eval_metrics, _get_label_eval_metrics, _round_metric_dict
+from tlmtc.utils import (
+    _get_best_epoch,
+    _get_co_occurrence,
+    _get_global_eval_metrics,
+    _get_label_eval_metrics,
+    _get_losses,
+    _get_pr_curves,
+    _get_roc_curves,
+    _round_metric_dict,
+)
 
 
 @pytest.fixture
@@ -76,6 +86,33 @@ def raw_metric_dict():
         "true_cardinality": 1.3333,
         "pred_cardinality": 1.0000,
     }
+
+
+@pytest.fixture
+def log_history_with_losses():
+    """Provide a minimal Trainer.log_history with train/eval loss entries plus a monitored eval metric."""
+    return [
+        {"epoch": 1.0, "loss": 0.9},
+        {"epoch": 1.0, "eval_loss": 0.8},
+        {"epoch": 1.0, "eval_f1": 0.50},
+        {"epoch": 2.0, "loss": 0.7},
+        {"epoch": 2.0, "learning_rate": 1e-5},
+        {"epoch": 2.0, "eval_f1": 0.60},
+        {"epoch": 3.0, "loss": 0.6},
+        {"epoch": 3.0, "eval_loss": 0.5},
+        {"epoch": 3.0, "eval_f1": 0.55},
+        {"epoch": 4.0, "eval_loss": 0.4},
+    ]
+
+
+def _is_non_decreasing(x: np.ndarray) -> bool:
+    """Return True if a 1D array is non-decreasing."""
+    return bool(np.all(np.diff(x) >= -1e-12))
+
+
+def _is_non_increasing(x: np.ndarray) -> bool:
+    """Return True if a 1D array is non-increasing."""
+    return bool(np.all(np.diff(x) <= 1e-12))
 
 
 class TestMetricsExtractionUtils:
@@ -288,3 +325,210 @@ class TestMetricRoundingUtil:
         """Ensure _round_metric_dict rounds all values using the provided ndigits value."""
         out = _round_metric_dict(raw_metric_dict, ndigits=ndigits)
         assert out == {k: round(v, ndigits) for k, v in raw_metric_dict.items()}
+
+
+class TestEvaluationArtifactsUtils:
+    """Test suite for utilities that extract structured evaluation artifacts."""
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_roc_curves_returns_expected_structure_and_invariants(self, case_fixture, request, label_names_two):
+        """Ensure _get_roc_curves returns the expected schema and basic ROC invariants."""
+        y_true, _, y_prob = request.getfixturevalue(case_fixture)
+
+        out = _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        assert set(out) == {"fpr", "tpr", "roc_auc"}
+
+        for k in [0, 1, "micro", "macro"]:
+            assert k in out["fpr"]
+            assert k in out["tpr"]
+            assert k in out["roc_auc"]
+
+        for i in [0, 1, "micro", "macro"]:
+            fpr = out["fpr"][i]
+            tpr = out["tpr"][i]
+
+            assert isinstance(fpr, np.ndarray)
+            assert isinstance(tpr, np.ndarray)
+            assert fpr.ndim == 1
+            assert tpr.ndim == 1
+            assert fpr.shape == tpr.shape
+            assert np.all((0.0 <= fpr) & (fpr <= 1.0))
+            assert np.all((0.0 <= tpr) & (tpr <= 1.0))
+            assert _is_non_decreasing(fpr)
+            assert _is_non_decreasing(tpr)
+
+            auc_val = out["roc_auc"][i]
+            assert isinstance(auc_val, (float, np.floating))
+            assert 0.0 <= float(auc_val) <= 1.0
+
+    def test_get_roc_curves_auc_is_one_for_perfectly_separable_case(self, perfect_multilabel_case, label_names_two):
+        """Ensure _get_roc_curves yields AUC=1.0 for all aggregates in a perfectly separable case."""
+        y_true, _, y_prob = perfect_multilabel_case
+
+        out = _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        for k in [0, 1, "micro", "macro"]:
+            assert float(out["roc_auc"][k]) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_roc_curves_does_not_modify_inputs_in_place(self, case_fixture, request, label_names_two):
+        """Ensure _get_roc_curves does not modify the input arrays in place."""
+        y_true, _, y_prob = request.getfixturevalue(case_fixture)
+        y_true0, y_prob0 = y_true.copy(), y_prob.copy()
+
+        _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        assert np.array_equal(y_true, y_true0)
+        assert np.array_equal(y_prob, y_prob0)
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_pr_curves_returns_expected_structure_and_invariants(self, case_fixture, request, label_names_two):
+        """Ensure _get_pr_curves returns the expected schema and basic PR invariants."""
+        y_true, _, y_prob = request.getfixturevalue(case_fixture)
+
+        out = _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        assert set(out) == {"precision", "recall", "avg_precision"}
+
+        for k in [0, 1, "micro", "macro"]:
+            assert k in out["precision"]
+            assert k in out["recall"]
+            assert k in out["avg_precision"]
+
+        for i in [0, 1, "micro", "macro"]:
+            p = out["precision"][i]
+            r = out["recall"][i]
+
+            assert isinstance(p, np.ndarray)
+            assert isinstance(r, np.ndarray)
+            assert p.ndim == 1
+            assert r.ndim == 1
+            assert p.shape == r.shape
+            assert np.all((0.0 <= p) & (p <= 1.0))
+            assert np.all((0.0 <= r) & (r <= 1.0))
+
+            if i == "macro":
+                assert _is_non_decreasing(r)
+            else:
+                assert _is_non_increasing(r)
+
+            ap = out["avg_precision"][i]
+            assert isinstance(ap, (float, np.floating))
+            assert 0.0 <= float(ap) <= 1.0
+
+    def test_get_pr_curves_ap_is_one_for_perfectly_separable_case(self, perfect_multilabel_case, label_names_two):
+        """Ensure _get_pr_curves yields AP=1.0 for all aggregates in a perfectly separable case."""
+        y_true, _, y_prob = perfect_multilabel_case
+
+        out = _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        for k in [0, 1, "micro", "macro"]:
+            assert float(out["avg_precision"][k]) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_pr_curves_does_not_modify_inputs_in_place(self, case_fixture, request, label_names_two):
+        """Ensure _get_pr_curves does not modify the input arrays in place."""
+        y_true, _, y_prob = request.getfixturevalue(case_fixture)
+        y_true0, y_prob0 = y_true.copy(), y_prob.copy()
+
+        _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+
+        assert np.array_equal(y_true, y_true0)
+        assert np.array_equal(y_prob, y_prob0)
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_co_occurrence_returns_expected_structure_and_invariants(self, case_fixture, request):
+        """Ensure _get_co_occurrence returns expected schema and invariants."""
+        y_true, y_pred, _ = request.getfixturevalue(case_fixture)
+
+        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+
+        assert set(out) == {"co_true_abs", "co_pred_abs", "co_true_rel", "co_pred_rel"}
+
+        for y, co_abs, co_rel in [
+            (y_true, out["co_true_abs"], out["co_true_rel"]),
+            (y_pred, out["co_pred_abs"], out["co_pred_rel"]),
+        ]:
+            n_labels = y.shape[1]
+
+            assert co_abs.shape == (n_labels, n_labels)
+            assert co_rel.shape == (n_labels, n_labels)
+
+            assert np.array_equal(co_abs, y.T @ y)
+            assert np.allclose(co_abs, co_abs.T)
+
+            assert np.array_equal(np.diag(co_abs), y.sum(axis=0))
+
+            assert np.allclose(co_rel, co_rel.T)
+            assert np.array_equal(np.diag(co_rel), np.ones(n_labels))
+
+            diag = np.diag(co_abs).astype(float)
+            assert np.all(diag > 0)
+            denom = np.sqrt(np.outer(diag, diag))
+            expected_rel = co_abs.astype(float) / denom
+
+            assert np.allclose(co_rel, expected_rel, rtol=1e-12, atol=1e-12)
+            assert np.all((co_rel >= -1e-12) & (co_rel <= 1.0 + 1e-12))
+
+    def test_get_co_occurrence_true_and_pred_matrices_match_for_perfect_case(self, perfect_multilabel_case):
+        """Ensure true/pred co-occurrence outputs match when y_true == y_pred."""
+        y_true, y_pred, _ = perfect_multilabel_case
+        assert np.array_equal(y_true, y_pred)
+
+        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+
+        assert np.array_equal(out["co_true_abs"], out["co_pred_abs"])
+        assert np.allclose(out["co_true_rel"], out["co_pred_rel"], rtol=0.0, atol=0.0)
+
+    def test_get_co_occurrence_reflects_prediction_differences(self, imperfect_multilabel_case):
+        """Ensure predicted co-occurrence differs from true co-occurrence when y_pred differs."""
+        y_true, y_pred, _ = imperfect_multilabel_case
+        assert not np.array_equal(y_true, y_pred)
+
+        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+
+        assert not np.array_equal(out["co_true_abs"], out["co_pred_abs"])
+        assert not np.allclose(out["co_true_rel"], out["co_pred_rel"])
+
+    @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
+    def test_get_co_occurrence_does_not_modify_inputs_in_place(self, case_fixture, request):
+        """Ensure _get_co_occurrence does not modify input arrays in place."""
+        y_true, y_pred, _ = request.getfixturevalue(case_fixture)
+        y_true0, y_pred0 = y_true.copy(), y_pred.copy()
+
+        _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+
+        assert np.array_equal(y_true, y_true0)
+        assert np.array_equal(y_pred, y_pred0)
+
+    def test_get_losses_returns_expected_dataframe_and_inner_join_behavior(self, log_history_with_losses):
+        """Ensure _get_losses returns a well-formed per-epoch loss table and keeps only shared epochs."""
+        df = _get_losses(log_history=log_history_with_losses)
+
+        assert isinstance(df, pd.DataFrame)
+        assert list(df.columns) == ["epoch", "train_loss", "eval_loss"]
+
+        epochs = set(df["epoch"].tolist())
+        assert epochs == {1.0, 3.0}
+
+        df_idx = df.set_index("epoch")
+        assert df_idx.loc[1.0, "train_loss"] == pytest.approx(0.9)
+        assert df_idx.loc[1.0, "eval_loss"] == pytest.approx(0.8)
+        assert df_idx.loc[3.0, "train_loss"] == pytest.approx(0.6)
+        assert df_idx.loc[3.0, "eval_loss"] == pytest.approx(0.5)
+
+    def test_get_losses_does_not_modify_log_history_in_place(self, log_history_with_losses):
+        """Ensure _get_losses does not mutate the input log history."""
+        snapshot = [dict(d) for d in log_history_with_losses]
+
+        _get_losses(log_history=log_history_with_losses)
+
+        assert log_history_with_losses == snapshot
+
+    def test_get_best_epoch_returns_epoch_of_max_metric(self, log_history_with_losses):
+        """Ensure _get_best_epoch selects the epoch with the maximum monitored eval metric."""
+        best = _get_best_epoch(log_history=log_history_with_losses, best_model_metric="f1")
+
+        assert isinstance(best, int)
+        assert best == 2
