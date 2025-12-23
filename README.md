@@ -5,7 +5,8 @@
     style="width: 100%; max-width: 900px;"
   >
 </p>
-<br>
+
+<hr>
 
 In real applications, text classification is rarely a simple single-label or mutually exclusive multiclass problem. 
 
