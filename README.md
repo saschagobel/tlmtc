@@ -1,4 +1,12 @@
-## tlmtc: **T**ransfer **L**earning for **M**ulti-label **T**ext **C**lassification
+<p align="center">
+  <img
+    src="assets/tlmtc-dark.png"
+    alt="tlmtc: Transfer Learning for Multi-label Text Classification"
+    style="width: 100%; max-width: 900px;"
+  >
+</p>
+
+<hr>
 
 **tlmtc** is a Python package that provides an out-of-the-box, end-to-end pipeline for fine-tuning pretrained encoder-only transformer models for robust multi-label text classification.
 
