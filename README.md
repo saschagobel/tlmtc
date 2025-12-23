@@ -1,10 +1,10 @@
-<h1 style="text-align: center;">
+<p align="center">
   <img
     src="assets/tlmtc-dark.png"
-    width="300"
     alt="tlmtc: Transfer Learning for Multi-label Text Classification"
+    style="width: 100%; max-width: 900px;"
   >
-</h1>
+</p>
 <br>
 
 In real applications, text classification is rarely a simple single-label or mutually exclusive multiclass problem. 
