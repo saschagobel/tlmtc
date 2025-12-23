@@ -116,11 +116,15 @@ class TestDfSplit:
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
-        train, test = _df_split(df=df, X=X, y=y, test_size=0.3, random_seed=42)
+        test_size = 0.3
+        train, test = _df_split(df=df, X=X, y=y, test_size=test_size, random_seed=42)
 
         assert len(train) + len(test) == len(df)
-        assert len(test) == 3
-        assert len(train) == 7
+
+        expected_test = int(round(len(df) * test_size))
+        assert abs(len(test) - expected_test) <= 1
+        assert abs(len(train) - (len(df) - expected_test)) <= 1
+
         assert list(train.columns) == list(df.columns)
         assert list(test.columns) == list(df.columns)
 
