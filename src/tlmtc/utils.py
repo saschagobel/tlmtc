@@ -676,7 +676,7 @@ def _get_roc_curves(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     label_names: List[str],
-) -> Dict[str, Dict[Union[int, str], np.ndarray | float]]:
+) -> Dict[str, Dict[int | str, Any]]:
     """
     Compute ROC curve metrics for multi-label classification.
 
@@ -695,9 +695,9 @@ def _get_roc_curves(
         Dictionary containing false positive rate, true positive rate, and AUC values
     """
     num_labels = len(label_names)
-    fpr = dict()
-    tpr = dict()
-    roc_auc = dict()
+    fpr: Dict[Union[int, str], np.ndarray] = dict()
+    tpr: Dict[Union[int, str], np.ndarray] = dict()
+    roc_auc: Dict[Union[int, str], float] = dict()
     for i in range(num_labels):
         fpr[i], tpr[i], _ = roc_curve(y_true[:, i], y_prob[:, i])
         roc_auc[i] = auc(fpr[i], tpr[i])
@@ -718,7 +718,7 @@ def _get_pr_curves(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     label_names: List[str],
-) -> Dict[str, Dict[Union[int, str], np.ndarray | float]]:
+) -> Dict[str, Dict[int | str, Any]]:
     """
     Compute PR curve metrics for multi-label classification.
 
@@ -737,9 +737,9 @@ def _get_pr_curves(
         Dictionary containing precision, recall, and average precision values
     """
     num_labels = len(label_names)
-    precision = dict()
-    recall = dict()
-    avg_precision = dict()
+    precision: Dict[int | str, np.ndarray] = dict()
+    recall: Dict[int | str, np.ndarray] = dict()
+    avg_precision: Dict[int | str, float] = dict()
     for i in range(num_labels):
         precision[i], recall[i], _ = precision_recall_curve(y_true[:, i], y_prob[:, i])
         avg_precision[i] = average_precision_score(y_true[:, i], y_prob[:, i])
@@ -834,4 +834,4 @@ def _get_best_epoch(
         Number of the best epoch
     """
     eval_logs = [entry for entry in log_history if "eval_" + best_model_metric in entry]
-    return int(max(eval_logs, key=lambda x: x["eval_" + best_model_metric]).get("epoch"))
+    return int(max(eval_logs, key=lambda x: x["eval_" + best_model_metric])["epoch"])
