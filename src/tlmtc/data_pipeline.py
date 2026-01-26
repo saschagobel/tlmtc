@@ -34,8 +34,6 @@ class DataPipeline:
         Path where the validation split will be saved
     test_data_path : str or Path
         Path where the test split will be saved
-    hyperparameter_tuning: bool
-        Flag whether hyperparameter tuning should be performed
     validation_size: float
         Proportion of data set to be used for validation
     test_size : float
@@ -76,7 +74,6 @@ class DataPipeline:
         train_data_path: Union[str, Path],
         val_data_path: Union[str, Path],
         test_data_path: Union[str, Path],
-        hyperparameter_tuning: bool,
         validation_size: float,
         test_size: float,
         random_seed: int,
@@ -98,8 +95,6 @@ class DataPipeline:
             Path where the validation split will be saved
         test_data_path : str or Path
             Path where the test split will be saved
-        hyperparameter_tuning: bool
-            Flag whether hyperparameter tuning should be performed
         validation_size: float
             Proportion of data set to be used for validation
         test_size : float
@@ -116,7 +111,6 @@ class DataPipeline:
         self.train_data_path = train_data_path
         self.val_data_path = val_data_path
         self.test_data_path = test_data_path
-        self.hyperparameter_tuning = hyperparameter_tuning
         self.validation_size = validation_size
         self.test_size = test_size
         self.random_seed = random_seed
@@ -146,13 +140,9 @@ class DataPipeline:
         test_data_exists = os.path.exists(self.test_data_path)
         val_data_exists = os.path.exists(self.val_data_path)
 
-        if self.hyperparameter_tuning and train_data_exists and val_data_exists and test_data_exists:
+        if train_data_exists and val_data_exists and test_data_exists:
             self.train_data = pd.read_parquet(self.train_data_path)
             self.val_data = pd.read_parquet(self.val_data_path)
-            self.test_data = pd.read_parquet(self.test_data_path)
-            return self
-        elif not self.hyperparameter_tuning and train_data_exists and test_data_exists:
-            self.train_data = pd.read_parquet(self.train_data_path)
             self.test_data = pd.read_parquet(self.test_data_path)
             return self
 
@@ -164,36 +154,24 @@ class DataPipeline:
             df_test, label_cols_test, _, _ = _df_preprocess(self.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise ValueError("Mismatch between train/test label columns")
-
-        if self.hyperparameter_tuning:
-            if raw_test_data_exists:
-                self.train_data, self.val_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
-                )
-                self.test_data = df_test.reset_index(drop=True)
-            else:
-                full_train_data, self.test_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
-                )
-                self.train_data, self.val_data = _df_split(
-                    df=full_train_data,
-                    X=full_train_data["text"].values,
-                    y=full_train_data[label_cols].values,
-                    test_size=self.validation_size,
-                    random_seed=self.random_seed,
-                )
+            self.train_data, self.val_data = _df_split(
+                df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
+            )
+            self.test_data = df_test.reset_index(drop=True)
         else:
-            if raw_test_data_exists:
-                self.train_data = df.reset_index(drop=True)
-                self.test_data = df_test.reset_index(drop=True)
-            else:
-                self.train_data, self.test_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
-                )
+            full_train_data, self.test_data = _df_split(
+                df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
+            )
+            self.train_data, self.val_data = _df_split(
+                df=full_train_data,
+                X=full_train_data["text"].values,
+                y=full_train_data[label_cols].values,
+                test_size=self.validation_size,
+                random_seed=self.random_seed,
+            )
 
         _df_save(df=self.train_data, path=self.train_data_path)
-        if self.hyperparameter_tuning:
-            _df_save(df=self.val_data, path=self.val_data_path)
+        _df_save(df=self.val_data, path=self.val_data_path)
         _df_save(df=self.test_data, path=self.test_data_path)
         return self
 
@@ -205,15 +183,11 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        if self.hyperparameter_tuning and self.val_data is None:
-            raise RuntimeError("Validation data not found. Run split_data() with hyperparameter_tuning=True first.")
-        if self.train_data is None or self.test_data is None:
-            raise RuntimeError("Train/test data not found. Run split_data() first.")
+        if self.train_data is None or self.test_data is None or self.val_data is None:
+            raise RuntimeError("Train/val/test data not found. Run split_data() first.")
 
         label_cols = [col for col in self.train_data.columns if col.startswith("label_")]
-        splits = ["train_data", "test_data"]
-        if self.hyperparameter_tuning:
-            splits.insert(1, "val_data")
+        splits = ["train_data", "val_data", "test_data"]
         for attr in splits:
             df = getattr(self, attr).copy()
             df["labels"] = df[label_cols].values.tolist()
@@ -229,10 +203,8 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        if self.hyperparameter_tuning and self.val_data is None:
-            raise RuntimeError("Validation data not found. Run split_data() with hyperparameter_tuning=True first.")
-        if self.train_data is None or self.test_data is None:
-            raise RuntimeError("Train/test data not found. Run split_data() first.")
+        if self.train_data is None or self.test_data is None or self.val_data is None:
+            raise RuntimeError("Train/val/test data not found. Run split_data() first.")
         if "labels" not in self.train_data.columns:
             raise RuntimeError("Missing 'labels' column. Run get_multi_hot_vectors() first")
         features = Features(
@@ -242,11 +214,9 @@ class DataPipeline:
             }
         )
         dataset_train = Dataset.from_pandas(self.train_data, features=features)
+        dataset_val = Dataset.from_pandas(self.val_data, features=features)
         dataset_test = Dataset.from_pandas(self.test_data, features=features)
-        dataset_dict = DatasetDict({"train": dataset_train, "test": dataset_test})
-        if self.hyperparameter_tuning:
-            dataset_val = Dataset.from_pandas(self.val_data, features=features)
-            dataset_dict["validation"] = dataset_val
+        dataset_dict = DatasetDict({"train": dataset_train, "validation": dataset_val, "test": dataset_test})
         self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
