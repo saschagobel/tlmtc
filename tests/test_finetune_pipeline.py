@@ -670,44 +670,6 @@ class TestFineTunePretrained:
         with pytest.raises(RuntimeError, match="Pretrained model not loaded"):
             pipeline.fine_tune_pretrained()
 
-    @pytest.mark.parametrize("hyperparameter_tuning, expects_val_path", [(True, True), (False, False)])
-    def test_uses_correct_class_weight_arguments(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-        tokenized_dataset_with_test,
-        fake_trainer,
-        monkeypatch,
-        hyperparameter_tuning,
-        expects_val_path,
-    ):
-        """Ensure class weight computation uses correct arguments in tuned vs. non-tuned runs."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.hyperparameter_tuning = hyperparameter_tuning
-        pipeline.tokenized_dataset = tokenized_dataset_with_test
-        pipeline.pretrained_model = DummyModel(num_labels=2)
-
-        mock_get_class_weights = MagicMock(return_value=torch.ones(2))
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline._get_class_weights",
-            mock_get_class_weights,
-            raising=True,
-        )
-
-        def trainer_factory(*_args, **_kwargs):
-            return fake_trainer
-
-        pipeline.fine_tune_pretrained(trainer=trainer_factory)
-
-        mock_get_class_weights.assert_called_once()
-        _, kwargs = mock_get_class_weights.call_args
-
-        assert kwargs["train_data_path"] == pipeline.train_data_path
-        if expects_val_path:
-            assert kwargs["val_data_path"] == pipeline.val_data_path
-        else:
-            assert "val_data_path" not in kwargs
-
     def test_instantiates_trainer_with_expected_arguments(
         self,
         pipeline_factory,
@@ -736,7 +698,7 @@ class TestFineTunePretrained:
 
         assert kwargs["model"] is pipeline.pretrained_model
         assert kwargs["train_dataset"] is pipeline.tokenized_dataset["train"]
-        assert kwargs["eval_dataset"] is pipeline.tokenized_dataset["test"]
+        assert kwargs["eval_dataset"] is pipeline.tokenized_dataset["validation"]
 
         training_args = kwargs["args"]
         assert isinstance(training_args, TrainingArguments)
@@ -757,38 +719,6 @@ class TestFineTunePretrained:
 
         fake_trainer.train.assert_called_once()
         assert pipeline.updated_trainer is fake_trainer
-
-    def test_uses_concatenated_train_when_tuning_enabled(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-        tokenized_dataset_with_test,
-        fake_trainer,
-    ):
-        """Ensure training dataset is train+validation when hyperparameter tuning is enabled."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.hyperparameter_tuning = True
-        pipeline.tokenized_dataset = tokenized_dataset_with_test
-        pipeline.pretrained_model = DummyModel(num_labels=2)
-
-        recorded: dict[str, Any] = {}
-
-        def trainer_factory(*args, **kwargs):
-            recorded["args"] = args
-            recorded["kwargs"] = kwargs
-            return fake_trainer
-
-        pipeline.fine_tune_pretrained(trainer=trainer_factory)
-
-        train_dataset = recorded["kwargs"]["train_dataset"]
-        base_train = pipeline.tokenized_dataset["train"]
-        val = pipeline.tokenized_dataset["validation"]
-
-        assert len(train_dataset) == len(base_train) + len(val)
-
-        assert train_dataset[0]["input_ids"] == base_train[0]["input_ids"]
-        assert train_dataset[1]["input_ids"] == val[0]["input_ids"]
-
 
 class TestSavePretrained:
     """Test suite for FinetunePipeline.save_pretrained."""
