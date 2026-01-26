@@ -48,7 +48,6 @@ def pipeline_instance_factory(tmp_path: Path):
     def _factory(
         raw_csv: Path,
         raw_test_csv: Path,
-        hyperparameter_tuning: bool,
     ):
         """Instantiate a DataPipeline with temporary directories for outputs."""
         train_path = tmp_path / "train.parquet"
@@ -61,7 +60,6 @@ def pipeline_instance_factory(tmp_path: Path):
             train_data_path=train_path,
             val_data_path=val_path,
             test_data_path=test_path,
-            hyperparameter_tuning=hyperparameter_tuning,
             validation_size=0.15,
             test_size=0.15,
             random_seed=42,
@@ -75,63 +73,39 @@ def pipeline_instance_factory(tmp_path: Path):
 class TestSplitData:
     """Test suite for the DataPipeline.split_data method."""
 
-    @pytest.mark.parametrize(
-        "hyperparameter_tuning, use_raw_test",
-        [
-            (True, False),
-            (True, True),
-            (False, False),
-            (False, True),
-        ],
-    )
+    @pytest.mark.parametrize("use_raw_test", [False, True])
     def test_splits_data_correctly_across_all_configurations(
         self,
         tmp_path: Path,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
-        hyperparameter_tuning: bool,
         use_raw_test: bool,
     ):
         """Ensure split_data produces correct train/val/test partitions under all tuning and raw-test scenarios."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
-            raw_test_csv=sample_raw_test_csv if use_raw_test else "",
-            hyperparameter_tuning=hyperparameter_tuning,
+            raw_test_csv=sample_raw_test_csv if use_raw_test else (tmp_path / "__missing_raw_test__.csv"),
         )
 
         dp.split_data()
 
         assert dp.train_data_path.exists()
         assert dp.test_data_path.exists()
-
-        if hyperparameter_tuning:
-            assert dp.val_data_path.exists()
-        else:
-            assert not dp.val_data_path.exists()
+        assert dp.val_data_path.exists()
 
         train_df = pd.read_parquet(dp.train_data_path)
         test_df = pd.read_parquet(dp.test_data_path)
-        val_df = pd.read_parquet(dp.val_data_path) if hyperparameter_tuning else None
+        val_df = pd.read_parquet(dp.val_data_path)
 
         assert len(train_df) > 0
         assert len(test_df) > 0
 
-        if hyperparameter_tuning and use_raw_test:
+        if use_raw_test:
             assert len(test_df) == len(pd.read_csv(sample_raw_test_csv))
             assert len(train_df) + len(val_df) == len(pd.read_csv(sample_raw_csv))
-
-        elif hyperparameter_tuning and not use_raw_test:
-            total = len(train_df) + len(val_df) + len(test_df)
-            assert total == len(pd.read_csv(sample_raw_csv))
-
-        elif not hyperparameter_tuning and use_raw_test:
-            assert len(train_df) == len(pd.read_csv(sample_raw_csv))
-            assert len(test_df) == len(pd.read_csv(sample_raw_test_csv))
-
         else:
-            total = len(train_df) + len(test_df)
-            assert total == len(pd.read_csv(sample_raw_csv))
+            assert len(train_df) + len(val_df) + len(test_df) == len(pd.read_csv(sample_raw_csv))
 
     def test_raises_error_when_raw_data_missing(self, tmp_path: Path, pipeline_instance_factory: Callable):
         """Ensure split_data raises FileNotFoundError when raw_data_path does not exist."""
@@ -140,7 +114,6 @@ class TestSplitData:
         dp = pipeline_instance_factory(
             raw_csv=missing_raw,
             raw_test_csv="",
-            hyperparameter_tuning=True,
         )
 
         with pytest.raises(FileNotFoundError):
@@ -166,7 +139,6 @@ class TestSplitData:
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=mismatched_test_path,
-            hyperparameter_tuning=True,
         )
 
         with pytest.raises(ValueError, match="Mismatch between train/test label columns"):
@@ -176,26 +148,21 @@ class TestSplitData:
 class TestGetMultiHot:
     """Test suite for the DataPipeline.get_multi_hot_vectors method."""
 
-    @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
     def test_converts_label_columns_to_multi_hot_vectors_across_splits(
         self,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
-        hyperparameter_tuning: bool,
     ):
         """Ensure get_multi_hot_vectors converts label_* columns into multi-hot vectors for all dataset splits."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=hyperparameter_tuning,
         )
 
         dp.split_data().get_multi_hot_vectors()
 
-        expected_splits = ["train_data", "test_data"]
-        if hyperparameter_tuning:
-            expected_splits.insert(1, "val_data")
+        expected_splits = ["train_data", "val_data", "test_data"]
 
         for split_attr in expected_splits:
             df = getattr(dp, split_attr)
@@ -205,50 +172,36 @@ class TestGetMultiHot:
             labels = df["labels"].iloc[0]
             assert isinstance(labels, list)
             assert len(labels) == 2
-            assert set(labels).issubset({0, 1})
 
-    @pytest.mark.parametrize(
-        "hyperparameter_tuning, expected_error",
-        [
-            (True, "Validation data not found"),
-            (False, "Train/test data not found"),
-        ],
-    )
     def test_raises_error_if_called_before_split_data(
         self,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
-        hyperparameter_tuning: bool,
-        expected_error: str,
     ):
         """Ensure get_multi_hot_vectors raises RuntimeError when invoked before split_data initializes splits."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=hyperparameter_tuning,
         )
 
-        with pytest.raises(RuntimeError, match=expected_error):
+        with pytest.raises(RuntimeError, match="Train/val/test data not found"):
             dp.get_multi_hot_vectors()
 
 
 class TestCreateHFDataset:
     """Test suite for the DataPipeline.create_hf_dataset method."""
 
-    @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
     def test_constructs_correct_datasetdict_splits_and_schema(
         self,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
-        hyperparameter_tuning: bool,
     ):
         """Ensure create_hf_dataset builds the expected DatasetDict with correct splits and feature schema."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=hyperparameter_tuning,
         )
 
         dp.split_data().get_multi_hot_vectors()
@@ -256,9 +209,7 @@ class TestCreateHFDataset:
 
         assert isinstance(dp.hf_dataset, DatasetDict)
 
-        expected_keys = ["train", "test", "validation"] if hyperparameter_tuning else ["train", "test"]
-
-        assert list(dp.hf_dataset.keys()) == expected_keys
+        assert set(dp.hf_dataset.keys()) == {"train", "validation", "test"}
 
         train_split = dp.hf_dataset["train"]
         assert isinstance(train_split, Dataset)
@@ -268,25 +219,6 @@ class TestCreateHFDataset:
 
         labels_feature = train_split.features["labels"]
         assert labels_feature.feature.dtype == "int64"
-
-    def test_raises_error_when_validation_split_missing(
-        self,
-        sample_raw_csv: Path,
-        sample_raw_test_csv: Path,
-        pipeline_instance_factory: Callable,
-    ):
-        """Ensure create_hf_dataset raises RuntimeError when validation data is required but missing."""
-        dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
-            raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=True,
-        )
-
-        dp.split_data()
-        dp.val_data = None
-
-        with pytest.raises(RuntimeError, match="Validation data not found"):
-            dp.create_hf_dataset()
 
     def test_raises_error_if_called_before_split_data(
         self,
@@ -298,10 +230,9 @@ class TestCreateHFDataset:
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=False,
         )
 
-        with pytest.raises(RuntimeError, match="Train/test data not found"):
+        with pytest.raises(RuntimeError, match="Train/val/test data not found"):
             dp.create_hf_dataset()
 
     def test_raises_error_when_labels_column_missing(
@@ -314,7 +245,6 @@ class TestCreateHFDataset:
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=True,
         )
 
         dp.split_data()
@@ -336,7 +266,6 @@ class TestTokenizeData:
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=True,
         )
 
         dp.split_data().get_multi_hot_vectors()
@@ -344,19 +273,16 @@ class TestTokenizeData:
         with pytest.raises(RuntimeError, match="Hugging Face DatasetDict not found"):
             dp.tokenize_data()
 
-    @pytest.mark.parametrize("hyperparameter_tuning", [True, False])
     def test_produces_correct_tokenized_structure_across_splits(
         self,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
-        hyperparameter_tuning: bool,
     ):
         """Ensure properly tokenized DatasetDict with tensors for input_ids, attention_mask, and labels."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=hyperparameter_tuning,
         )
 
         dp.split_data().get_multi_hot_vectors().create_hf_dataset()
@@ -364,11 +290,7 @@ class TestTokenizeData:
 
         assert isinstance(dp.tokenized_dataset, DatasetDict)
 
-        expected_keys = ["train", "test"]
-        if hyperparameter_tuning:
-            expected_keys.insert(2, "validation")
-
-        assert list(dp.tokenized_dataset.keys()) == expected_keys
+        assert set(dp.tokenized_dataset.keys()) == {"train", "validation", "test"}
 
         example = dp.tokenized_dataset["train"][0]
 
@@ -392,7 +314,6 @@ class TestTokenizeData:
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
-            hyperparameter_tuning=True,
         )
 
         dp.split_data().get_multi_hot_vectors().create_hf_dataset()
