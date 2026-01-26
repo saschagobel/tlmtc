@@ -189,15 +189,11 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        if self.hyperparameter_tuning and self.val_data is None:
-            raise RuntimeError("Validation data not found. Run split_data() with hyperparameter_tuning=True first.")
-        if self.train_data is None or self.test_data is None:
+        if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/test data not found. Run split_data() first.")
 
         label_cols = [col for col in self.train_data.columns if col.startswith("label_")]
-        splits = ["train_data", "test_data"]
-        if self.hyperparameter_tuning:
-            splits.insert(1, "val_data")
+        splits = ["train_data", "val_data", "test_data"]
         for attr in splits:
             df = getattr(self, attr).copy()
             df["labels"] = df[label_cols].values.tolist()
