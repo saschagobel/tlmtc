@@ -184,7 +184,7 @@ class DataPipeline:
         DataPipeline
         """
         if self.train_data is None or self.test_data is None or self.val_data is None:
-            raise RuntimeError("Train/test data not found. Run split_data() first.")
+            raise RuntimeError("Train/val/test data not found. Run split_data() first.")
 
         label_cols = [col for col in self.train_data.columns if col.startswith("label_")]
         splits = ["train_data", "val_data", "test_data"]
@@ -204,7 +204,7 @@ class DataPipeline:
         DataPipeline
         """
         if self.train_data is None or self.test_data is None or self.val_data is None:
-            raise RuntimeError("Train/test data not found. Run split_data() first.")
+            raise RuntimeError("Train/val/test data not found. Run split_data() first.")
         if "labels" not in self.train_data.columns:
             raise RuntimeError("Missing 'labels' column. Run get_multi_hot_vectors() first")
         features = Features(
