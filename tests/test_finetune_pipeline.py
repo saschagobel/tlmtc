@@ -106,6 +106,7 @@ def tokenized_dataset():
     )
     return DatasetDict({"train": train, "validation": val})
 
+
 @pytest.fixture
 def base_search_space():
     """Baseline Optuna search space for hyperparameter tuning."""
@@ -703,6 +704,7 @@ class TestFineTunePretrained:
 
         fake_trainer.train.assert_called_once()
         assert pipeline.updated_trainer is fake_trainer
+
 
 class TestSavePretrained:
     """Test suite for FinetunePipeline.save_pretrained."""

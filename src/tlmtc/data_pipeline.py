@@ -216,9 +216,7 @@ class DataPipeline:
         dataset_train = Dataset.from_pandas(self.train_data, features=features)
         dataset_val = Dataset.from_pandas(self.val_data, features=features)
         dataset_test = Dataset.from_pandas(self.test_data, features=features)
-        dataset_dict = DatasetDict({"train": dataset_train,
-                                    "validation": dataset_val,
-                                    "test": dataset_test})
+        dataset_dict = DatasetDict({"train": dataset_train, "validation": dataset_val, "test": dataset_test})
         self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
