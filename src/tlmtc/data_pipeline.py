@@ -160,36 +160,24 @@ class DataPipeline:
             df_test, label_cols_test, _, _ = _df_preprocess(self.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise ValueError("Mismatch between train/test label columns")
-
-        if self.hyperparameter_tuning:
-            if raw_test_data_exists:
-                self.train_data, self.val_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
-                )
-                self.test_data = df_test.reset_index(drop=True)
-            else:
-                full_train_data, self.test_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
-                )
-                self.train_data, self.val_data = _df_split(
-                    df=full_train_data,
-                    X=full_train_data["text"].values,
-                    y=full_train_data[label_cols].values,
-                    test_size=self.validation_size,
-                    random_seed=self.random_seed,
-                )
+            self.train_data, self.val_data = _df_split(
+                df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
+            )
+            self.test_data = df_test.reset_index(drop=True)
         else:
-            if raw_test_data_exists:
-                self.train_data = df.reset_index(drop=True)
-                self.test_data = df_test.reset_index(drop=True)
-            else:
-                self.train_data, self.test_data = _df_split(
-                    df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
-                )
+            full_train_data, self.test_data = _df_split(
+                df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
+            )
+            self.train_data, self.val_data = _df_split(
+                df=full_train_data,
+                X=full_train_data["text"].values,
+                y=full_train_data[label_cols].values,
+                test_size=self.validation_size,
+                random_seed=self.random_seed,
+            )
 
         _df_save(df=self.train_data, path=self.train_data_path)
-        if self.hyperparameter_tuning:
-            _df_save(df=self.val_data, path=self.val_data_path)
+        _df_save(df=self.val_data, path=self.val_data_path)
         _df_save(df=self.test_data, path=self.test_data_path)
         return self
 
