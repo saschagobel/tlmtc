@@ -543,12 +543,8 @@ class FinetunePipeline:
         trainer_instance = trainer(
             model=self.pretrained_model,
             args=training_args,
-            train_dataset=(
-                concatenate_datasets([self.tokenized_dataset["train"], self.tokenized_dataset["validation"]])
-                if self.hyperparameter_tuning
-                else self.tokenized_dataset["train"]
-            ),
-            eval_dataset=self.tokenized_dataset["test"],
+            train_dataset=self.tokenized_dataset["train"],
+            eval_dataset=self.tokenized_dataset["validation"],
             compute_metrics=_compute_metrics,
             callbacks=[EarlyStoppingCallback(early_stopping_patience=self.early_stopping_patience)],
             class_weights=_get_class_weights(train_data_path=self.train_data_path),
