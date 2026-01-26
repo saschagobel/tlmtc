@@ -146,13 +146,9 @@ class DataPipeline:
         test_data_exists = os.path.exists(self.test_data_path)
         val_data_exists = os.path.exists(self.val_data_path)
 
-        if self.hyperparameter_tuning and train_data_exists and val_data_exists and test_data_exists:
+        if train_data_exists and val_data_exists and test_data_exists:
             self.train_data = pd.read_parquet(self.train_data_path)
             self.val_data = pd.read_parquet(self.val_data_path)
-            self.test_data = pd.read_parquet(self.test_data_path)
-            return self
-        elif not self.hyperparameter_tuning and train_data_exists and test_data_exists:
-            self.train_data = pd.read_parquet(self.train_data_path)
             self.test_data = pd.read_parquet(self.test_data_path)
             return self
 
