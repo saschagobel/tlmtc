@@ -34,8 +34,6 @@ class DataPipeline:
         Path where the validation split will be saved
     test_data_path : str or Path
         Path where the test split will be saved
-    hyperparameter_tuning: bool
-        Flag whether hyperparameter tuning should be performed
     validation_size: float
         Proportion of data set to be used for validation
     test_size : float
@@ -76,7 +74,6 @@ class DataPipeline:
         train_data_path: Union[str, Path],
         val_data_path: Union[str, Path],
         test_data_path: Union[str, Path],
-        hyperparameter_tuning: bool,
         validation_size: float,
         test_size: float,
         random_seed: int,
@@ -98,8 +95,6 @@ class DataPipeline:
             Path where the validation split will be saved
         test_data_path : str or Path
             Path where the test split will be saved
-        hyperparameter_tuning: bool
-            Flag whether hyperparameter tuning should be performed
         validation_size: float
             Proportion of data set to be used for validation
         test_size : float
@@ -116,7 +111,6 @@ class DataPipeline:
         self.train_data_path = train_data_path
         self.val_data_path = val_data_path
         self.test_data_path = test_data_path
-        self.hyperparameter_tuning = hyperparameter_tuning
         self.validation_size = validation_size
         self.test_size = test_size
         self.random_seed = random_seed
