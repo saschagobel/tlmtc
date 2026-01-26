@@ -106,22 +106,6 @@ def tokenized_dataset():
     )
     return DatasetDict({"train": train, "validation": val})
 
-
-@pytest.fixture
-def tokenized_dataset_with_test(tokenized_dataset):
-    """Extend tokenized_dataset with a 'test' split for fine_tune_pretrained."""
-    test = Dataset.from_dict(
-        {
-            "input_ids": [[3, 2, 1]],
-            "attention_mask": [[1, 1, 1]],
-            "labels": [torch.tensor([1.0, 1.0])],
-        }
-    )
-    ds = tokenized_dataset.copy()
-    ds["test"] = test
-    return ds
-
-
 @pytest.fixture
 def base_search_space():
     """Baseline Optuna search space for hyperparameter tuning."""
@@ -601,7 +585,7 @@ class TestFineTunePretrained:
         self,
         pipeline_factory,
         dummy_train_parquet,
-        tokenized_dataset_with_test,
+        tokenized_dataset,
         fake_trainer,
         monkeypatch,
         transfer_learning,
@@ -609,7 +593,7 @@ class TestFineTunePretrained:
     ):
         """Ensure fine_tune_pretrained is a no-op unless transfer_learning is True."""
         pipeline = pipeline_factory(train_path=dummy_train_parquet, transfer_learning=transfer_learning)
-        pipeline.tokenized_dataset = tokenized_dataset_with_test
+        pipeline.tokenized_dataset = tokenized_dataset
         pipeline.pretrained_model = DummyModel(num_labels=2)
 
         mock_get_class_weights = MagicMock(return_value=torch.ones(2))
@@ -659,12 +643,12 @@ class TestFineTunePretrained:
         self,
         pipeline_factory,
         dummy_train_parquet,
-        tokenized_dataset_with_test,
+        tokenized_dataset,
     ):
         """Ensure a RuntimeError is raised when pretrained_model is missing."""
         pipeline = pipeline_factory(train_path=dummy_train_parquet)
         pipeline.transfer_learning = True
-        pipeline.tokenized_dataset = tokenized_dataset_with_test
+        pipeline.tokenized_dataset = tokenized_dataset
         pipeline.pretrained_model = None
 
         with pytest.raises(RuntimeError, match="Pretrained model not loaded"):
@@ -674,12 +658,12 @@ class TestFineTunePretrained:
         self,
         pipeline_factory,
         dummy_train_parquet,
-        tokenized_dataset_with_test,
+        tokenized_dataset,
         fake_trainer,
     ):
         """Test that Trainer receives the expected model, datasets, hyperparameters, and callbacks."""
         pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.tokenized_dataset = tokenized_dataset_with_test
+        pipeline.tokenized_dataset = tokenized_dataset
         pipeline.pretrained_model = DummyModel(num_labels=2)
         pipeline.hyperparameter_tuning = False  # train split only
 
