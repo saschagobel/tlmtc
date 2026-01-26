@@ -530,14 +530,6 @@ class FinetunePipeline:
         if self.pretrained_model is None:
             raise RuntimeError("Pretrained model not loaded. Run load_pretrained() first.")
 
-        if self.hyperparameter_tuning:
-            class_weights = _get_class_weights(
-                train_data_path=self.train_data_path,
-                val_data_path=self.val_data_path,
-            )
-        else:
-            class_weights = _get_class_weights(train_data_path=self.train_data_path)
-
         training_args = _get_training_args(
             logging_path=self.output_logging_path,
             batch_size=self.batch_size,
@@ -559,7 +551,7 @@ class FinetunePipeline:
             eval_dataset=self.tokenized_dataset["test"],
             compute_metrics=_compute_metrics,
             callbacks=[EarlyStoppingCallback(early_stopping_patience=self.early_stopping_patience)],
-            class_weights=class_weights,
+            class_weights=_get_class_weights(train_data_path=self.train_data_path),
         )
         trainer_instance.train()
         self.updated_trainer = trainer_instance
