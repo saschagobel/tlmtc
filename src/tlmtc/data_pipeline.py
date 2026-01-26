@@ -209,9 +209,7 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        if self.hyperparameter_tuning and self.val_data is None:
-            raise RuntimeError("Validation data not found. Run split_data() with hyperparameter_tuning=True first.")
-        if self.train_data is None or self.test_data is None:
+        if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/test data not found. Run split_data() first.")
         if "labels" not in self.train_data.columns:
             raise RuntimeError("Missing 'labels' column. Run get_multi_hot_vectors() first")
@@ -222,11 +220,11 @@ class DataPipeline:
             }
         )
         dataset_train = Dataset.from_pandas(self.train_data, features=features)
+        dataset_val = Dataset.from_pandas(self.val_data, features=features)
         dataset_test = Dataset.from_pandas(self.test_data, features=features)
-        dataset_dict = DatasetDict({"train": dataset_train, "test": dataset_test})
-        if self.hyperparameter_tuning:
-            dataset_val = Dataset.from_pandas(self.val_data, features=features)
-            dataset_dict["validation"] = dataset_val
+        dataset_dict = DatasetDict({"train": dataset_train,
+                                    "validation": dataset_val,
+                                    "test": dataset_test})
         self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
