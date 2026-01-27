@@ -337,7 +337,7 @@ class FinetunePipeline:
         self.pretrained_model: Optional[PreTrainedModel] = None
         self.updated_trainer: Optional[Trainer] = None
         self.num_labels: Optional[int] = None
-        self.tuned_threshold: Optional[np.ndarray] = None
+        self.tuned_threshold: Union[float, np.ndarray] = 0.5
 
     def load_pretrained(
         self,
@@ -462,49 +462,6 @@ class FinetunePipeline:
         self.batch_size = best_run.hyperparameters["per_device_train_batch_size"]
         self.weight_decay = best_run.hyperparameters["weight_decay"]
         self.epochs = best_run.hyperparameters["num_train_epochs"]
-
-        if self.threshold_optimization:
-            with TemporaryDirectory() as output_dir:
-                model_init = _make_model_init(
-                    checkpoint=self.checkpoint,
-                    num_labels=self.num_labels,
-                    wrap_peft=self.wrap_peft,
-                    lora_r=self.lora_r,
-                    lora_alpha=self.lora_alpha,
-                    lora_dropout=self.lora_dropout,
-                    lora_bias=self.lora_bias,
-                )
-                training_args = _get_training_args(
-                    logging_path=output_dir,
-                    batch_size=self.batch_size,
-                    epochs=self.epochs,
-                    weight_decay=self.weight_decay,
-                    learning_rate=self.learning_rate,
-                    lr_scheduler=self.lr_scheduler,
-                    best_model_metric=self.best_model_metric,
-                    use_cpu=self.use_cpu,
-                )
-                trainer_instance = trainer(
-                    model=None,
-                    args=training_args,
-                    train_dataset=self.tokenized_dataset["train"],
-                    eval_dataset=self.tokenized_dataset["validation"],
-                    compute_metrics=_compute_metrics,
-                    callbacks=[EarlyStoppingCallback(early_stopping_patience=self.early_stopping_patience)],
-                    class_weights=_get_class_weights(train_data_path=self.train_data_path),
-                    model_init=model_init,
-                )
-                trainer_instance.train()
-            preds = trainer_instance.predict(self.tokenized_dataset["validation"])
-            logits = preds.predictions
-            probabilities = torch.sigmoid(torch.tensor(logits)).numpy()
-            true_labels = np.array(self.tokenized_dataset["validation"]["labels"])
-            self.tuned_threshold = _find_optimal_threshold(
-                y_true=true_labels,
-                y_prob=probabilities,
-                best_threshold_metric=self.best_threshold_metric,
-                threshold_type=self.threshold_type,
-            )
         return self
 
     def fine_tune_pretrained(
