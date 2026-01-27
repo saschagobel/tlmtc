@@ -510,6 +510,42 @@ class FinetunePipeline:
         self.updated_trainer = trainer_instance
         return self
 
+    def tune_thresholds(self) -> FinetunePipeline:
+        """
+        Tune decision threshold(s) on the validation split using the trained model.
+
+        This step is post-training calibration: it does not update model weights.
+        The tuned threshold(s) are stored in `self.tuned_threshold`.
+
+        Returns
+        -------
+        FinetunePipeline
+        """
+        if not self.threshold_optimization or not self.transfer_learning:
+            return self
+
+        if self.tokenized_dataset is None:
+            raise RuntimeError(
+                "Tokenized dataset not found. Run DataPipeline class first."
+            )
+        if self.updated_trainer is None:
+            raise RuntimeError(
+                "Trained model not found. Run fine_tune_pretrained() first."
+            )
+
+        preds = self.updated_trainer.predict(self.tokenized_dataset["validation"])
+        logits = preds.predictions
+        probabilities = torch.sigmoid(torch.tensor(logits)).numpy()
+        true_labels = np.array(self.tokenized_dataset["validation"]["labels"])
+
+        self.tuned_threshold = _find_optimal_threshold(
+            y_true=true_labels,
+            y_prob=probabilities,
+            best_threshold_metric=self.best_threshold_metric,
+            threshold_type=self.threshold_type,
+        )
+        return self
+
     def save_pretrained(
         self,
     ) -> FinetunePipeline:
