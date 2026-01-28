@@ -528,10 +528,7 @@ def _multi_label_metrics(
     """
     probs = torch.sigmoid(torch.tensor(predictions)).numpy()
     y_true = np.array(labels)
-    threshold = _find_optimal_threshold(
-        y_true=y_true, y_prob=probs, best_threshold_metric="f1_macro", threshold_type="global"
-    )
-    y_pred = (probs >= threshold).astype(int)
+    y_pred = (probs >= 0.5).astype(int)
     f1_micro = f1_score(y_true=y_true, y_pred=y_pred, average="micro")
     f1_macro = f1_score(y_true=y_true, y_pred=y_pred, average="macro")
     roc_auc_micro = roc_auc_score(y_true, probs, average="micro")
