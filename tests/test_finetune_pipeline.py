@@ -94,14 +94,14 @@ def tokenized_dataset():
         {
             "input_ids": [[0, 1, 2]],
             "attention_mask": [[1, 1, 1]],
-            "labels": [torch.tensor([1.0, 0.0])],
+            "labels": [[1.0, 0.0]],
         }
     )
     val = Dataset.from_dict(
         {
             "input_ids": [[2, 1, 0]],
             "attention_mask": [[1, 1, 1]],
-            "labels": [torch.tensor([0.0, 1.0])],
+            "labels": [[0.0, 1.0]],
         }
     )
     return DatasetDict({"train": train, "validation": val})
@@ -529,54 +529,6 @@ class TestTuneHyperparameters:
         assert pipeline.weight_decay == 0.01
         assert pipeline.epochs == 2
 
-    @pytest.mark.parametrize("threshold_optimization", [True, False])
-    def test_runs_threshold_optimization_conditionally(
-        self,
-        pipeline_with_tokenized,
-        fake_trainer,
-        monkeypatch,
-        threshold_optimization,
-    ):
-        """Ensure threshold optimization runs only when enabled and sets tuned_threshold accordingly."""
-        pipeline = pipeline_with_tokenized
-        pipeline.threshold_optimization = threshold_optimization
-        pipeline.tuned_threshold = None
-
-        calls: dict[str, Any] = {}
-
-        def _fake_find_optimal_threshold(**kwargs):
-            calls["kwargs"] = kwargs
-            calls["count"] = calls.get("count", 0) + 1
-            return 0.42
-
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline._find_optimal_threshold",
-            _fake_find_optimal_threshold,
-            raising=True,
-        )
-
-        n_labels = len(pipeline.tokenized_dataset["validation"]["labels"][0])
-        fake_logits = [[0.0] * n_labels]
-        fake_trainer.predict.return_value = SimpleNamespace(predictions=fake_logits)
-
-        def trainer_factory(*_args, **_kwargs):
-            return fake_trainer
-
-        pipeline.tune_hyperparameters(trainer=trainer_factory)
-
-        if threshold_optimization:
-            fake_trainer.train.assert_called_once()
-            fake_trainer.predict.assert_called_once_with(pipeline.tokenized_dataset["validation"])
-            assert calls.get("count", 0) == 1
-            assert pipeline.tuned_threshold == 0.42
-            assert calls["kwargs"]["best_threshold_metric"] == pipeline.best_threshold_metric
-            assert calls["kwargs"]["threshold_type"] == pipeline.threshold_type
-        else:
-            fake_trainer.train.assert_not_called()
-            fake_trainer.predict.assert_not_called()
-            assert calls.get("count", 0) == 0
-            assert pipeline.tuned_threshold is None
-
 
 class TestFineTunePretrained:
     """Test suite for FinetunePipeline.fine_tune_pretrained."""
@@ -704,6 +656,91 @@ class TestFineTunePretrained:
 
         fake_trainer.train.assert_called_once()
         assert pipeline.updated_trainer is fake_trainer
+
+
+class TestTuneThresholds:
+    """Test suite for FinetunePipeline.tune_thresholds."""
+
+    @pytest.mark.parametrize(
+        "threshold_optimization, transfer_learning",
+        [(False, True), (True, False), (False, False)],
+    )
+    def test_returns_self_when_disabled(
+        self,
+        pipeline_with_tokenized,
+        monkeypatch,
+        threshold_optimization,
+        transfer_learning,
+    ):
+        """Ensure tune_thresholds is a no-op unless threshold optimization and transfer learning are both enabled."""
+        pipeline = pipeline_with_tokenized
+        pipeline.threshold_optimization = threshold_optimization
+        pipeline.transfer_learning = transfer_learning
+
+        pipeline.updated_trainer = MagicMock()
+        find_mock = MagicMock()
+        monkeypatch.setattr("tlmtc.finetune_pipeline._find_optimal_threshold", find_mock, raising=True)
+
+        result = pipeline.tune_thresholds()
+
+        assert result is pipeline
+        pipeline.updated_trainer.predict.assert_not_called()
+        find_mock.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "tokenized_dataset, updated_trainer, expected_msg",
+        [
+            (None, MagicMock(), "Tokenized dataset not found"),
+            ("__present__", None, "Trained model not found"),
+        ],
+    )
+    def test_requires_prerequisites(
+        self,
+        pipeline_with_tokenized,
+        tokenized_dataset,
+        updated_trainer,
+        expected_msg,
+    ):
+        """Ensure tune_thresholds raises when tokenized data or a trained model is missing."""
+        pipeline = pipeline_with_tokenized
+        pipeline.threshold_optimization = True
+        pipeline.transfer_learning = True
+
+        pipeline.tokenized_dataset = None if tokenized_dataset is None else pipeline.tokenized_dataset
+        pipeline.updated_trainer = updated_trainer
+
+        with pytest.raises(RuntimeError, match=expected_msg):
+            pipeline.tune_thresholds()
+
+    def test_predicts_on_validation_and_sets_tuned_threshold(
+        self,
+        pipeline_with_tokenized,
+        monkeypatch,
+    ):
+        """Ensure tune_thresholds predicts on validation, calls the threshold finder, and stores the tuned threshold."""
+        pipeline = pipeline_with_tokenized
+        pipeline.threshold_optimization = True
+        pipeline.transfer_learning = True
+
+        fake_trainer = MagicMock()
+        fake_trainer.predict.return_value = SimpleNamespace(predictions=[[0.0, 0.0]])
+        pipeline.updated_trainer = fake_trainer
+
+        tuned = object()
+        find_mock = MagicMock(return_value=tuned)
+        monkeypatch.setattr("tlmtc.finetune_pipeline._find_optimal_threshold", find_mock, raising=True)
+
+        result = pipeline.tune_thresholds()
+
+        assert result is pipeline
+        fake_trainer.predict.assert_called_once_with(pipeline.tokenized_dataset["validation"])
+        assert pipeline.tuned_threshold is tuned
+
+        _, kwargs = find_mock.call_args
+        assert kwargs["best_threshold_metric"] == pipeline.best_threshold_metric
+        assert kwargs["threshold_type"] == pipeline.threshold_type
+        assert "y_true" in kwargs
+        assert "y_prob" in kwargs
 
 
 class TestSavePretrained:
