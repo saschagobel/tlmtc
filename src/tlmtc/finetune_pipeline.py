@@ -525,13 +525,9 @@ class FinetunePipeline:
             return self
 
         if self.tokenized_dataset is None:
-            raise RuntimeError(
-                "Tokenized dataset not found. Run DataPipeline class first."
-            )
+            raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
         if self.updated_trainer is None:
-            raise RuntimeError(
-                "Trained model not found. Run fine_tune_pretrained() first."
-            )
+            raise RuntimeError("Trained model not found. Run fine_tune_pretrained() first.")
 
         preds = self.updated_trainer.predict(self.tokenized_dataset["validation"])
         logits = preds.predictions
