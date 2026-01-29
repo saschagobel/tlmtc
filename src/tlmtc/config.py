@@ -4,20 +4,6 @@ Transfer Learning for Multi-Label Text Classification.
 Default configuration
 """
 
-from pathlib import Path
-
-# PATHS
-BASE_PATH = Path(__file__).parent
-DATA_PATH = BASE_PATH.parent / "data"
-RAW_DATA_PATH = DATA_PATH / "raw.csv"
-RAW_TEST_DATA_PATH = DATA_PATH / "raw_test.csv"
-TRAIN_DATA_PATH = DATA_PATH / "train.parquet"
-VAL_DATA_PATH = DATA_PATH / "val.parquet"
-TEST_DATA_PATH = DATA_PATH / "test.parquet"
-OUTPUT_DATA_PATH = BASE_PATH.parent / "outputs"
-OUTPUT_LOGGING_PATH = OUTPUT_DATA_PATH / "logging"
-OUTPUT_MODEL_PATH = OUTPUT_DATA_PATH / "model"
-
 # TARGET
 TARGET_NAME = "Target"
 
