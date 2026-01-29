@@ -39,6 +39,12 @@ select = ["E", "F", "I", "D"]
 convention = "google"
 ignore-var-parameters = true
 
+[tool.ruff.lint.per-file-ignores]
+"src/tlmtc/config.py" = ["D"]
+"src/tlmtc/utils.py" = ["D"]
+"src/tlmtc/data_pipeline.py" = ["D"]
+"src/tlmtc/finetune_pipeline.py" = ["D"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
