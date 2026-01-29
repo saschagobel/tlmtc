@@ -36,7 +36,7 @@ target-version = "py312"
 select = ["E", "F", "I", "D"]
 
 [tool.ruff.lint.pydocstyle]
-convention = "numpy"
+convention = "google"
 ignore-var-parameters = true
 
 [tool.mypy]
