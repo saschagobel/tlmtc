@@ -1,17 +1,6 @@
 """Resolve and manage run directories.
 
 Builds a `RunPaths` bundle that defines the standard on-disk layout for a single run.
-
-Default layout:
-  <work_dir>/
-    tlmtc_outputs/
-      <run_id>/
-        data/     (train/val/test splits)
-        logging/  (training/HPO logs)
-        model/    (exported model artifacts)
-
-Intended use: call `resolve_paths(...)` once in the runner, then `paths.ensure_dirs()`,
-and pass the resulting `RunPaths` to pipeline stages.
 """
 
 from __future__ import annotations
@@ -30,14 +19,13 @@ DEFAULT_MODEL_DIRNAME: Final[str] = "model"
 def _coerce_path(
     input_path: str | Path,
 ) -> Path:
-    """... .
+    """Coerce a path-like input into a `Path`.
 
     Args:
-        input_path: ...
+        input_path: A filesystem path given as `str` or `Path`.
 
-    Returns
-    -------
-        ...
+    Returns:
+        Path: The corresponding `Path` object.
     """
     return input_path if isinstance(input_path, Path) else Path(input_path)
 
@@ -46,39 +34,54 @@ def _resolve_under(
     base_dir: Path,
     input_path: Path,
 ) -> Path:
-    """... .
+    """Resolve an input path with `base_dir` as the anchor for relative paths.
 
     Args:
-        base_dir: ...
-        input_path: ...
+        base_dir: Base directory used to anchor relative paths.
+        input_path: Path to resolve. If relative, it is joined with `base_dir`.
+            If absolute, it is resolved as-is.
 
-    Returns
-    -------
-        ...
+    Returns:
+        Path: An absolute, resolved path.
     """
     input_path = input_path.expanduser()
     return (base_dir / input_path).resolve() if not input_path.is_absolute() else input_path.resolve()
 
 
 def _default_run_id() -> str:
-    """... .
+    """Generate a default run identifier.
 
-    Returns
-    -------
-        ...
+    Returns:
+        str: A UUID4 hex string suitable for use as a directory name.
     """
     return uuid.uuid4().hex
 
 
 @dataclass(frozen=True, slots=True)
 class RunPaths:
-    """... .
+    """Resolved filesystem paths for a single tlmtc run.
 
-    ... .
+    Directory structure:
+      <work_dir>/
+        tlmtc_outputs/
+          <run_id>/
+            data/     (train/val/test splits)
+            logs/  (training/HPO logs)
+            model/    (exported model artifacts)
 
-    Attributes
-    ----------
-        ...
+    Attributes:
+        work_dir: Base directory used to resolve relative inputs and contain tlmtc outputs.
+        run_dir: Root directory for this run.
+        run_id: Identifier for the run.
+        raw_data_path: Resolved path to the raw training CSV.
+        raw_test_data_path: Resolved path to the raw test CSV. If no `raw_test_csv` is provided,
+            this defaults to `raw_data_path` with filename replaced by `raw_test.csv`.
+        data_dir: Directory containing prepared dataset splits for this run.
+        logs_dir: Directory containing logs and HPO artifacts for this run.
+        model_dir: Directory containing exported model artifacts for this run.
+        train_data_path: Path to the prepared training split artifact (`train.parquet`).
+        val_data_path: Path to the prepared validation split artifact (`val.parquet`).
+        test_data_path: Path to the prepared test split artifact (`test.parquet`).
     """
 
     work_dir: Path
@@ -99,7 +102,11 @@ class RunPaths:
     def ensure_dirs(
         self,
     ) -> RunPaths:
-        """... ."""
+        """Create the run directory structure.
+
+        Returns:
+            RunPaths
+        """
         for directory in (
             self.run_dir,
             self.data_dir,
@@ -121,15 +128,25 @@ def resolve_paths(
     logs_dirname: str = DEFAULT_LOGS_DIRNAME,
     model_dirname: str = DEFAULT_MODEL_DIRNAME,
 ) -> RunPaths:
-    """... .
+    """Resolve all filesystem paths for a single tlmtc run.
+
+    Intended use:
+        paths = resolve_paths(...).ensure_dirs()
+        # pass `paths` into pipeline stages
 
     Args:
-        : ...
-        : ...
+        raw_csv: Path to the raw training CSV.
+        raw_test_csv: Optional path to a raw test CSV.
+        work_dir: Optional base directory used to resolve relative inputs and contain outputs.
+            Defaults to the current working directory.
+        run_id: Optional identifier for the run.
+        outputs_dirname: Name of the outputs root directory under `work_dir`.
+        data_dirname: Name of the data subdirectory under `run_dir`.
+        logs_dirname: Name of the logs subdirectory under `run_dir`.
+        model_dirname: Name of the model subdirectory under `run_dir`.
 
-    Returns
-    -------
-        ...
+    Returns:
+        RunPaths: Bundle containing absolute paths for inputs and run artifacts.
     """
     base_dir = _coerce_path(work_dir).expanduser().resolve() if work_dir is not None else Path.cwd().resolve()
 
