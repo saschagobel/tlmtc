@@ -89,7 +89,7 @@ class RunPaths:
     raw_test_data_path: Path
 
     data_dir: Path
-    logging_dir: Path
+    logs_dir: Path
     model_dir: Path
 
     train_data_path: Path
@@ -103,7 +103,7 @@ class RunPaths:
         for directory in (
             self.run_dir,
             self.data_dir,
-            self.logging_dir,
+            self.logs_dir,
             self.model_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
