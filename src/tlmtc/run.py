@@ -7,12 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
 
 from tlmtc import config
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.paths import RunPaths, resolve_paths
+from tlmtc.types import BestModelMetric, BestThresholdMetric, LoraBias, OptunaSpaceOverride, Threshold
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,27 +39,25 @@ def run_tlmtc(
     transfer_learning: bool = config.TRANSFER_LEARNING,
     hyperparameter_tuning: bool = config.HYPERPARAMETER_TUNING,
     threshold_optimization: bool = config.THRESHOLD_OPTIMIZATION,
-    threshold_type: Literal["global", "label"] = config.THRESHOLD_TYPE,
+    threshold_type: Threshold = config.THRESHOLD_TYPE,
     scale_learning_rate: bool = config.SCALE_LEARNING_RATE,
     wrap_peft: bool = config.WRAP_PEFT,
     proxy_checkpoint: str = config.PROXY_CHECKPOINT,
     checkpoint: str = config.CHECKPOINT,
     sequence_length: int = config.SEQUENCE_LENGTH,
-    best_model_metric: str = config.BEST_MODEL_METRIC,
+    best_model_metric: BestModelMetric = config.BEST_MODEL_METRIC,
     batch_size: int = config.BATCH_SIZE,
     train_epochs: int = config.TRAIN_EPOCHS,
     learning_rate: float = config.LEARNING_RATE,
     weight_decay: float = config.WEIGHT_DECAY,
     lr_scheduler: str = config.LR_SCHEDULER,
-    best_threshold_metric: Literal[
-        "f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro"
-    ] = config.BEST_THRESHOLD_METRIC,
+    best_threshold_metric: BestThresholdMetric = config.BEST_THRESHOLD_METRIC,
     tuning_trials: int = config.TUNING_TRIALS,
-    optuna_space_user: dict[str, Any] | None = None,
+    optuna_space_user: OptunaSpaceOverride | None = None,
     lora_r: int = config.LORA_R,
     lora_alpha: int = config.LORA_ALPHA,
     lora_dropout: float = config.LORA_DROPOUT,
-    lora_bias: Literal["none", "all", "lora_only"] = config.LORA_BIAS,
+    lora_bias: LoraBias = config.LORA_BIAS,
     early_stopping_patience: int = 1,
     use_cpu: bool = config.USE_CPU,
 ) -> RunResult:

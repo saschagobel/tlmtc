@@ -4,6 +4,10 @@ Transfer Learning for Multi-Label Text Classification.
 Default configuration
 """
 
+from typing import Final
+
+from tlmtc.types import BestModelMetric, BestThresholdMetric, LoraBias, OptunaSpace, Threshold
+
 # TARGET
 TARGET_NAME = "Target"
 
@@ -19,25 +23,24 @@ RANDOM_SEED = 2469
 # WORKFLOW
 HYPERPARAMETER_TUNING = True
 THRESHOLD_OPTIMIZATION = True
-THRESHOLD_TYPE = "label"
+THRESHOLD_TYPE: Final[Threshold] = "label"
 TRANSFER_LEARNING = True
 SCALE_LEARNING_RATE = False
 WRAP_PEFT = True
 
 # HYPERPARAMETERS
 SEQUENCE_LENGTH = 128
-BEST_MODEL_METRIC = "roc_auc_macro"
+BEST_MODEL_METRIC: Final[BestModelMetric] = "roc_auc_macro"
 BATCH_SIZE = 16
 TRAIN_EPOCHS = 20
 LEARNING_RATE = 2e-5
 WEIGHT_DECAY = 0.01
 LR_SCHEDULER = "linear"
-THRESHOLD_TYPE = "label"
-BEST_THRESHOLD_METRIC = "f1_macro"
+BEST_THRESHOLD_METRIC: Final[BestThresholdMetric] = "f1_macro"
 TUNING_TRIALS = 10
 
 # HYPERPARAMETER SEARCH SPACE
-OPTUNA_SPACE_PEFT = {
+OPTUNA_SPACE_PEFT: Final[OptunaSpace] = {
     "lr_low": 3e-5,
     "lr_high": 5e-4,
     "batch_sizes": [8, 16, 32, 64],
@@ -47,7 +50,7 @@ OPTUNA_SPACE_PEFT = {
     "epoch_low": 5,
     "epoch_high": 20,
 }
-OPTUNA_SPACE_BASE = {
+OPTUNA_SPACE_BASE: Final[OptunaSpace] = {
     "lr_low": 1e-5,
     "lr_high": 3e-4,
     "batch_sizes": [8, 16, 32],
@@ -62,7 +65,7 @@ OPTUNA_SPACE_BASE = {
 LORA_R = 8
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.1
-LORA_BIAS = "none"
+LORA_BIAS: Final[LoraBias]  = "none"
 
 # HARDWARE
 USE_CPU = False
