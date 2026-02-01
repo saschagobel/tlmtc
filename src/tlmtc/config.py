@@ -65,7 +65,7 @@ OPTUNA_SPACE_BASE: Final[OptunaSpace] = {
 LORA_R = 8
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.1
-LORA_BIAS: Final[LoraBias]  = "none"
+LORA_BIAS: Final[LoraBias] = "none"
 
 # HARDWARE
 USE_CPU = False

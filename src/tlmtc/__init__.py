@@ -9,6 +9,7 @@ __all__ = ["run_tlmtc", "__version__"]
 if TYPE_CHECKING:
     from tlmtc.run import run_tlmtc
 
+
 def __getattr__(
     name: str,
 ) -> Any:
@@ -26,9 +27,7 @@ def __getattr__(
             ) from exc
 
         if missing == "peft":
-            raise ImportError(
-                "PEFT support was requested, but `peft` is not installed."
-            ) from exc
+            raise ImportError("PEFT support was requested, but `peft` is not installed.") from exc
 
         raise
 
