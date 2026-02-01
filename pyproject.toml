@@ -24,6 +24,9 @@ lint = [
     "mypy>=1.19"
 ]
 
+[project.scripts]
+tlmtc = "tlmtc.cli:main"
+
 [build-system]
 requires = ["setuptools>=80"]
 build-backend = "setuptools.build_meta"
