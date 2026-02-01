@@ -122,6 +122,7 @@ class TestMain:
 
     def test_main_propagates_parser_error_when_run_tlmtc_raises(self, monkeypatch: pytest.MonkeyPatch):
         """Ensure main() converts downstream exceptions into an argparse usage error (exit code 2)."""
+
         def _boom(**_kwargs: Any) -> None:
             raise RuntimeError("boom")
 
