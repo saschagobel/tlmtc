@@ -10,7 +10,7 @@ import os
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Literal, Optional, Tuple, Type, Union
+from typing import Any, Dict, Optional, Tuple, Type, Union
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,14 @@ from torch import Tensor
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
+from tlmtc.types import (
+    BestModelMetric,
+    BestThresholdMetric,
+    LoraBias,
+    OptunaSpace,
+    OptunaSpaceOverride,
+    Threshold,
+)
 from tlmtc.utils import (
     _compute_metrics,
     _find_optimal_threshold,
@@ -213,26 +221,26 @@ class FinetunePipeline:
         transfer_learning: bool,
         hyperparameter_tuning: bool,
         threshold_optimization: bool,
-        threshold_type: str,
+        threshold_type: Threshold,
         scale_learning_rate: bool,
         wrap_peft: bool,
-        optuna_space_default_base: Dict[str, Any],
-        optuna_space_default_peft: Dict[str, Any],
+        optuna_space_default_base: OptunaSpace,
+        optuna_space_default_peft: OptunaSpace,
         tuning_trials: int,
         batch_size: int,
         weight_decay: float,
         learning_rate: float,
         lr_scheduler: str,
         epochs: int,
-        best_model_metric: str,
-        best_threshold_metric: str,
+        best_model_metric: BestModelMetric,
+        best_threshold_metric: BestThresholdMetric,
         early_stopping_patience: int,
         lora_r: int,
         lora_alpha: int,
         lora_dropout: float,
-        lora_bias: Literal["none", "all", "lora_only"],
+        lora_bias: LoraBias,
         use_cpu: bool,
-        optuna_space_user: Optional[Dict[str, Any]] = None,
+        optuna_space_user: OptunaSpaceOverride | None = None,
     ) -> None:
         """
         Initialize configuration.
@@ -397,6 +405,7 @@ class FinetunePipeline:
 
         default_space = self.optuna_space_default_peft if self.wrap_peft else self.optuna_space_default_base
 
+        resolved_space: OptunaSpace
         if self.optuna_space_user:
             resolved_space = {**default_space, **self.optuna_space_user}
         else:

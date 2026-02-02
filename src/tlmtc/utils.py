@@ -32,6 +32,8 @@ from transformers import (
     TrainingArguments,
 )
 
+from tlmtc.types import OptunaSpace
+
 
 def _df_preprocess(
     df_path: Union[str, Path],
@@ -337,7 +339,7 @@ def _make_compute_objective(
 
 def _optuna_hp_space(
     trial: optuna.trial.Trial,
-    space: Dict[str, Any],
+    space: OptunaSpace,
 ) -> Dict[str, Any]:
     """
     Define the hyperparameter search space for Optuna tuning.

@@ -3,7 +3,7 @@ name = "tlmtc"
 version = "0.0.1"
 description = "Transfer Learning for Multi-Label Text Classification"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = { file = "LICENSE.md" }
 requires-python = ">=3.12"
 dependencies = [
     "datasets ~= 4.4",
@@ -12,6 +12,7 @@ dependencies = [
     "optuna ~= 4.6",
     "pandas ~= 2.2",
     "pyarrow ~= 22.0",
+    "scikit-learn ~= 1.7",
     "transformers ~= 4.57"
 ]
 
@@ -23,6 +24,9 @@ lint = [
     "ruff>=0.14",
     "mypy>=1.19"
 ]
+
+[project.scripts]
+tlmtc = "tlmtc.cli:main"
 
 [build-system]
 requires = ["setuptools>=80"]
