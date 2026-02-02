@@ -405,8 +405,9 @@ class FinetunePipeline:
 
         default_space = self.optuna_space_default_peft if self.wrap_peft else self.optuna_space_default_base
 
+        resolved_space: OptunaSpace
         if self.optuna_space_user:
-            resolved_space = {**default_space, **self.optuna_space_user}
+            resolved_space = {**default_space, **self.optuna_space_user} # type: ignore[assignment]
         else:
             resolved_space = default_space
 
