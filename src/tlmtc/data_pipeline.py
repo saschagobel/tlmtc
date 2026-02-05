@@ -15,7 +15,7 @@ import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
-from tlmtc.utils import _df_preprocess, _df_save, _df_split
+from tlmtc.data_prep import _df_preprocess, _df_save, _df_split
 
 
 class DataPipeline:
