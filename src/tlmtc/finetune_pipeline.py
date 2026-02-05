@@ -10,16 +10,17 @@ import os
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from datasets import DatasetDict
-from torch import Tensor
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
-from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
+from tlmtc.evaluation import _find_optimal_threshold
+from tlmtc.hpo import _make_compute_objective, _make_model_init, _optuna_hp_space, _wrap_peft
+from tlmtc.training import WeightedTrainer, _compute_metrics, _get_class_weights, _get_scaled_lr, _get_training_args
 from tlmtc.types import (
     BestModelMetric,
     BestThresholdMetric,
@@ -28,20 +29,6 @@ from tlmtc.types import (
     OptunaSpaceOverride,
     Threshold,
 )
-from tlmtc.utils import (
-    _compute_metrics,
-    _find_optimal_threshold,
-    _get_class_weights,
-    _get_scaled_lr,
-    _get_training_args,
-    _make_compute_objective,
-    _make_model_init,
-    _optuna_hp_space,
-    _wrap_peft,
-)
-
-
-
 
 
 class FinetunePipeline:
