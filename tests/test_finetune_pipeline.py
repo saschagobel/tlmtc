@@ -12,7 +12,7 @@ from torch import nn
 from transformers import TrainingArguments
 
 from tlmtc.finetune_pipeline import FinetunePipeline, WeightedTrainer
-from tlmtc.hpo import _optuna_hp_space
+from tlmtc.hpo import optuna_hp_space
 
 
 class DummyModel(nn.Module):
@@ -162,7 +162,7 @@ def patch_model_init(monkeypatch):
         return lambda *_: DummyModel(num_labels=kwargs.get("num_labels", 2))
 
     monkeypatch.setattr(
-        "tlmtc.finetune_pipeline._make_model_init",
+        "tlmtc.finetune_pipeline.make_model_init",
         _fake_model_init,
         raising=True,
     )
@@ -172,7 +172,7 @@ def patch_model_init(monkeypatch):
 def patch_class_weights(monkeypatch):
     """Patch to stub _get_class_weights with unit weights per label."""
     monkeypatch.setattr(
-        "tlmtc.finetune_pipeline._get_class_weights",
+        "tlmtc.finetune_pipeline.get_class_weights",
         lambda *args, **kwargs: torch.ones(2),
         raising=True,
     )
@@ -327,7 +327,7 @@ class TestLoadPretrained:
         )
 
         wrap_mock = MagicMock(return_value=fake_peft_model)
-        monkeypatch.setattr("tlmtc.finetune_pipeline._wrap_peft", wrap_mock)
+        monkeypatch.setattr("tlmtc.finetune_pipeline.wrap_model_with_peft", wrap_mock)
 
         pipeline = pipeline_factory(dummy_train_parquet, wrap_peft=wrap_peft)
 
@@ -427,7 +427,7 @@ class TestTuneHyperparameters:
         hp_search_kwargs = fake_trainer.hp_search_calls[0]
         hp_space_fn = hp_search_kwargs["hp_space"]
 
-        assert hp_space_fn.func is _optuna_hp_space
+        assert hp_space_fn.func is optuna_hp_space
 
         default_space = peft_space if wrap_peft else base_search_space
         actual_space = hp_space_fn.keywords["space"]
@@ -502,7 +502,7 @@ class TestTuneHyperparameters:
         scaled_lr = 5e-5
         mock_get_scaled_lr = MagicMock(return_value=scaled_lr)
         monkeypatch.setattr(
-            "tlmtc.finetune_pipeline._get_scaled_lr",
+            "tlmtc.finetune_pipeline.get_scaled_lr",
             mock_get_scaled_lr,
             raising=True,
         )
@@ -551,7 +551,7 @@ class TestFineTunePretrained:
 
         mock_get_class_weights = MagicMock(return_value=torch.ones(2))
         monkeypatch.setattr(
-            "tlmtc.finetune_pipeline._get_class_weights",
+            "tlmtc.finetune_pipeline.get_class_weights",
             mock_get_class_weights,
             raising=True,
         )
@@ -679,7 +679,7 @@ class TestTuneThresholds:
 
         pipeline.updated_trainer = MagicMock()
         find_mock = MagicMock()
-        monkeypatch.setattr("tlmtc.finetune_pipeline._find_optimal_threshold", find_mock, raising=True)
+        monkeypatch.setattr("tlmtc.finetune_pipeline.find_optimal_threshold", find_mock, raising=True)
 
         result = pipeline.tune_thresholds()
 
@@ -728,7 +728,7 @@ class TestTuneThresholds:
 
         tuned = object()
         find_mock = MagicMock(return_value=tuned)
-        monkeypatch.setattr("tlmtc.finetune_pipeline._find_optimal_threshold", find_mock, raising=True)
+        monkeypatch.setattr("tlmtc.finetune_pipeline.find_optimal_threshold", find_mock, raising=True)
 
         result = pipeline.tune_thresholds()
 

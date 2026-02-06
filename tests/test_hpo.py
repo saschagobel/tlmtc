@@ -4,7 +4,7 @@ import pytest
 from optuna.trial import FixedTrial
 from transformers import BertConfig, BertForSequenceClassification
 
-from tlmtc.hpo import _make_compute_objective, _make_model_init, _optuna_hp_space
+from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ def patched_model_loader(base_test_model, monkeypatch):
 @pytest.mark.parametrize("wrap_peft", [False, True])
 def test_make_model_init_creates_base_or_peft_wrapped_models(patched_model_loader, wrap_peft):
     """Ensure _make_model_init returns a factory that loads the base model and conditionally applies PEFT."""
-    model_init = _make_model_init(
+    model_init = make_model_init(
         checkpoint="dummy",
         num_labels=2,
         wrap_peft=wrap_peft,
@@ -61,7 +61,7 @@ def test_make_model_init_creates_base_or_peft_wrapped_models(patched_model_loade
 
 def test_make_compute_objective_returns_callable() -> None:
     """Ensure `_make_compute_objective` returns a callable suitable for Optuna."""
-    compute_obj = _make_compute_objective("f1_macro")
+    compute_obj = make_compute_objective("f1_macro")
 
     assert callable(compute_obj)
 
@@ -92,7 +92,7 @@ def test_optuna_hp_space_returns_expected_dict():
         }
     )
 
-    result = _optuna_hp_space(trial, space)
+    result = optuna_hp_space(trial, space)
 
     assert result == {
         "learning_rate": 5e-5,

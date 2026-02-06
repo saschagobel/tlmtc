@@ -7,11 +7,11 @@ import torch
 from transformers import BertConfig, BertForSequenceClassification, EvalPrediction
 
 from tlmtc.training import (
-    _compute_metrics,
-    _get_class_weights,
-    _get_scaled_lr,
-    _multi_label_metrics,
-    _wrap_peft,
+    compute_metrics,
+    get_class_weights,
+    get_scaled_lr,
+    multi_label_metrics,
+    wrap_model_with_peft,
 )
 
 
@@ -41,7 +41,7 @@ def test_get_class_weights_uses_train_split_only_when_validation_missing(tmp_pat
     train_path = tmp_path / "train.parquet"
     df.to_parquet(train_path, index=False)
 
-    weights = _get_class_weights(train_path)
+    weights = get_class_weights(train_path)
 
     expected = torch.tensor([2.0, 0.6666667], dtype=torch.float)
 
@@ -69,7 +69,7 @@ def test_get_class_weights_merges_train_and_validation_splits(tmp_path):
     train_df.to_parquet(train_path, index=False)
     val_df.to_parquet(val_path, index=False)
 
-    weights = _get_class_weights(train_path, val_path)
+    weights = get_class_weights(train_path, val_path)
 
     expected = torch.tensor([0.8333333], dtype=torch.float)
     assert torch.allclose(weights, expected, atol=1e-4)
@@ -93,7 +93,7 @@ def test_multi_label_metrics_returns_perfect_scores_for_separable_data():
         ]
     )
 
-    metrics = _multi_label_metrics(predictions, labels)
+    metrics = multi_label_metrics(predictions, labels)
 
     assert metrics["f1_micro"] == 1.0
     assert metrics["f1_macro"] == 1.0
@@ -116,17 +116,17 @@ def test_compute_metrics_forwards_eval_prediction_to_multi_label_metrics():
         ]
     )
 
-    expected = _multi_label_metrics(predictions=preds, labels=labels)
+    expected = multi_label_metrics(predictions=preds, labels=labels)
 
     p = EvalPrediction(predictions=preds, label_ids=labels)
-    result = _compute_metrics(p)
+    result = compute_metrics(p)
 
     assert result == expected
 
 
 def test_wrap_peft_attaches_peft_config_to_model(base_test_model):
     """Ensure `_wrap_peft` wraps the base model with LoRA adapters exposing `peft_config`."""
-    wrapped = _wrap_peft(
+    wrapped = wrap_model_with_peft(
         model=base_test_model,
         lora_r=4,
         lora_alpha=8,
@@ -152,14 +152,14 @@ def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path
     expected_non_peft = lr * (proxy_config.hidden_size / target_config.hidden_size)
     expected_peft = lr * (target_config.hidden_size / proxy_config.hidden_size) ** 0.5
 
-    scaled_non_peft = _get_scaled_lr(
+    scaled_non_peft = get_scaled_lr(
         learning_rate=lr,
         checkpoint=str(target_dir),
         proxy_checkpoint=str(proxy_dir),
         peft=False,
     )
 
-    scaled_peft = _get_scaled_lr(
+    scaled_peft = get_scaled_lr(
         learning_rate=lr,
         checkpoint=str(target_dir),
         proxy_checkpoint=str(proxy_dir),
