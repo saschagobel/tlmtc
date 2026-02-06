@@ -10,11 +10,14 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
+from peft import LoraConfig, TaskType, get_peft_model
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.utils.class_weight import compute_class_weight
 from torch import Tensor
-from transformers import AutoConfig, EvalPrediction, Trainer, TrainingArguments
+from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
+
+from tlmtc.types import LoraBias
 
 
 def _get_training_args(
@@ -166,6 +169,40 @@ def _compute_metrics(
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
     result = _multi_label_metrics(predictions=preds, labels=p.label_ids)
     return result
+
+
+def _wrap_peft(
+    model: PreTrainedModel,
+    lora_r: int,
+    lora_alpha: int,
+    lora_dropout: float,
+    lora_bias: LoraBias,
+) -> PreTrainedModel:
+    """Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
+
+    Args:
+        model: Pretrained model ready for fine-tuning.
+        lora_r: Rank of the LoRA matrices. Controls adapter capacity.
+        lora_alpha: Scaling factor for the LoRA updates.
+        lora_dropout: Dropout probability for LoRA layers.
+        lora_bias: Whether to train bias terms, 'none', 'all', or 'lora_only'.
+
+    Returns:
+        model: The model pretrained model wrapped with LoRA adapters, ready for fine-tuning.
+    """
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_CLS,
+        inference_mode=False,
+        target_modules="all-linear",
+        r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        use_rslora=True,
+        init_lora_weights=True,
+        bias=lora_bias,
+    )
+    model = get_peft_model(model, peft_config)
+    return model
 
 
 class WeightedTrainer(Trainer):

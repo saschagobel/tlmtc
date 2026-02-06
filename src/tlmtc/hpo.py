@@ -7,9 +7,9 @@ Defines helpers for building Optuna search spaces and trial-scoped model setup.
 from typing import Any, Callable
 
 import optuna
-from peft import LoraConfig, TaskType, get_peft_model
 from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
+from tlmtc.training import _wrap_peft
 from tlmtc.types import LoraBias, OptunaSpace
 
 
@@ -123,37 +123,3 @@ def _make_compute_objective(
         return metrics["eval_" + best_model_metric]
 
     return compute_objective
-
-
-def _wrap_peft(
-    model: PreTrainedModel,
-    lora_r: int,
-    lora_alpha: int,
-    lora_dropout: float,
-    lora_bias: LoraBias,
-) -> PreTrainedModel:
-    """Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
-
-    Args:
-        model: Pretrained model ready for fine-tuning.
-        lora_r: Rank of the LoRA matrices. Controls adapter capacity.
-        lora_alpha: Scaling factor for the LoRA updates.
-        lora_dropout: Dropout probability for LoRA layers.
-        lora_bias: Whether to train bias terms, 'none', 'all', or 'lora_only'.
-
-    Returns:
-        model: The model pretrained model wrapped with LoRA adapters, ready for fine-tuning.
-    """
-    peft_config = LoraConfig(
-        task_type=TaskType.SEQ_CLS,
-        inference_mode=False,
-        target_modules="all-linear",
-        r=lora_r,
-        lora_alpha=lora_alpha,
-        lora_dropout=lora_dropout,
-        use_rslora=True,
-        init_lora_weights=True,
-        bias=lora_bias,
-    )
-    model = get_peft_model(model, peft_config)
-    return model
