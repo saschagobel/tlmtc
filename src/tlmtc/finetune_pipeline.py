@@ -10,16 +10,24 @@ import os
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Dict, Optional, Tuple, Type, Union
+from typing import Optional, Type, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from datasets import DatasetDict
-from torch import Tensor
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
-from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
+from tlmtc.evaluation import _find_optimal_threshold
+from tlmtc.hpo import _make_compute_objective, _make_model_init, _optuna_hp_space
+from tlmtc.training import (
+    WeightedTrainer,
+    _compute_metrics,
+    _get_class_weights,
+    _get_scaled_lr,
+    _get_training_args,
+    _wrap_peft,
+)
 from tlmtc.types import (
     BestModelMetric,
     BestThresholdMetric,
@@ -28,94 +36,6 @@ from tlmtc.types import (
     OptunaSpaceOverride,
     Threshold,
 )
-from tlmtc.utils import (
-    _compute_metrics,
-    _find_optimal_threshold,
-    _get_class_weights,
-    _get_scaled_lr,
-    _get_training_args,
-    _make_compute_objective,
-    _make_model_init,
-    _optuna_hp_space,
-    _wrap_peft,
-)
-
-
-class WeightedTrainer(Trainer):
-    """
-    Custom Hugging Face Trainer class-balanced loss weighting for multi-label classification.
-
-    Parameters
-    ----------
-    *args : Any
-        Positional arguments passed to the parent 'Trainer'
-    class_weights : Optional[torch.FloatTensor], default=None
-        A 1D tensor of positive weights for each class. Used as 'pos_weight' in 'torch.nn.BCEWithLogitsLoss' to
-        up- or down-weight positive examples depending on class imbalance
-    **kwargs : Any
-        Keyword arguments passed to the parent 'Trainer'
-
-    Attributes
-    ----------
-    loss_fct : torch.nn.BCEWithLogitsLoss
-        Loss function configured with optional class weights
-    """
-
-    def __init__(
-        self,
-        *args: Any,
-        class_weights: Optional[Tensor] = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(*args, **kwargs)
-
-        if class_weights is not None:
-            class_weights = class_weights.to(self.args.device)
-
-        self.loss_fct = torch.nn.BCEWithLogitsLoss(
-            pos_weight=class_weights,
-            reduction="mean",
-        )
-
-    def compute_loss(
-        self,
-        model: torch.nn.Module,
-        inputs: Dict[str, Tensor],
-        return_outputs: bool = False,
-        num_items_in_batch: Optional[Tensor] = None,
-    ) -> Tensor | Tuple[Tensor, ModelOutput]:
-        """
-        Compute the weighted BCE loss for multi-label classification with multi-GPU support.
-
-        Parameters
-        ----------
-        model : torch.nn.Module
-            The model being trained
-        inputs : dict
-            Input batch, including 'labels' and other model-specific input tensors
-        return_outputs : bool, optional
-            If True, return a tuple (loss, outputs), default is False
-        num_items_in_batch : int, optional
-            Number of items in the current batch, default is None
-
-        Returns
-        -------
-        loss : torch.Tensor
-            The computed loss value
-        outputs : ModelOutput, optional
-            Returned only if 'return_outputs' is True, contains model outputs
-        """
-        labels = inputs.pop("labels")
-        outputs = model(**inputs)
-        logits = outputs.logits
-
-        num_labels = getattr(model, "num_labels", None)
-        if num_labels is None:
-            num_labels = getattr(model.module, "num_labels")
-
-        loss = self.loss_fct(logits.view(-1, num_labels), labels.view(-1, num_labels))
-
-        return (loss, outputs) if return_outputs else loss
 
 
 class FinetunePipeline:
@@ -369,7 +289,7 @@ class FinetunePipeline:
         )
 
         if self.wrap_peft:
-            self.pretrained_model = _wrap_peft(
+            self.pretrained_model = _wrap_peft(  # type: ignore[assignment]
                 model=self.pretrained_model,
                 lora_r=self.lora_r,
                 lora_alpha=self.lora_alpha,
@@ -567,5 +487,5 @@ class FinetunePipeline:
         if self.updated_trainer is None:
             raise RuntimeError("Instantiated Trainer after fine-tuning not found. Run fine_tune_pretrained() first.")
 
-        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[union-attr]
+        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[operator,union-attr]
         return self

@@ -58,3 +58,7 @@ warn_return_any = false
 untyped_calls_exclude = [
     "transformers",
 ]
+
+[[tool.mypy.overrides]]
+module = ["tlmtc.training", "tlmtc.finetune_pipeline"]
+disable_error_code = ["unused-ignore"]

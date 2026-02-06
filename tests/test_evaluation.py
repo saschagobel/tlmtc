@@ -4,7 +4,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tlmtc.utils import (
+from tlmtc.evaluation import (
+    _find_optimal_threshold,
     _get_best_epoch,
     _get_co_occurrence,
     _get_global_eval_metrics,
@@ -532,3 +533,90 @@ class TestEvaluationArtifactsUtils:
 
         assert isinstance(best, int)
         assert best == 2
+
+
+class TestThresholdOptimizationUtils:
+    """Test suite for optimal threshold selection utilities."""
+
+    @pytest.mark.parametrize("metric", ["f1_micro", "f1_macro"])
+    def test_find_optimal_threshold_selects_global_threshold_for_metric(self, metric):
+        """Ensure `_find_optimal_threshold` finds a global threshold that maximizes the chosen F1 metric."""
+        y_true = np.array(
+            [
+                [0, 1],
+                [1, 0],
+                [1, 1],
+            ]
+        )
+        y_prob = np.array(
+            [
+                [0.2, 0.8],
+                [0.7, 0.3],
+                [0.9, 0.9],
+            ]
+        )
+
+        threshold = _find_optimal_threshold(
+            y_true=y_true,
+            y_prob=y_prob,
+            best_threshold_metric=metric,
+            threshold_type="global",
+        )
+
+        assert isinstance(threshold, np.ndarray)
+        assert threshold.shape == (1,)
+        assert 0.3 <= threshold[0] <= 0.32
+
+    def test_find_optimal_threshold_returns_one_threshold_per_label(self):
+        """Ensure `_find_optimal_threshold` returns separate thresholds for each label in label-specific mode."""
+        y_true = np.array(
+            [
+                [1, 0],
+                [1, 1],
+                [0, 1],
+            ]
+        )
+        y_prob = np.array(
+            [
+                [0.4, 0.2],
+                [0.8, 0.9],
+                [0.1, 0.8],
+            ]
+        )
+
+        thresholds = _find_optimal_threshold(
+            y_true=y_true,
+            y_prob=y_prob,
+            best_threshold_metric="f1_macro",
+            threshold_type="label",
+        )
+
+        assert thresholds.shape == (2,)
+        assert 0.10 <= thresholds[0] <= 0.12
+        assert 0.19 <= thresholds[1] <= 0.21
+
+    def test_find_optimal_threshold_raises_for_unknown_metric(self):
+        """Ensure `_find_optimal_threshold` raises ValueError for unsupported best_threshold_metric values."""
+        y_true = np.array([[1], [0]])
+        y_prob = np.array([[0.8], [0.2]])
+
+        with pytest.raises(ValueError):
+            _find_optimal_threshold(
+                y_true=y_true,
+                y_prob=y_prob,
+                best_threshold_metric="not_a_metric",
+                threshold_type="global",
+            )
+
+    def test_find_optimal_threshold_raises_for_unknown_threshold_type(self):
+        """Ensure `_find_optimal_threshold` raises ValueError for unsupported threshold_type values."""
+        y_true = np.array([[1], [0]])
+        y_prob = np.array([[0.8], [0.2]])
+
+        with pytest.raises(ValueError):
+            _find_optimal_threshold(
+                y_true=y_true,
+                y_prob=y_prob,
+                best_threshold_metric="f1_micro",
+                threshold_type="wrong",
+            )

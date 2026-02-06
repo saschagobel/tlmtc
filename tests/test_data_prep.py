@@ -1,4 +1,4 @@
-"""Tests for data preparation utility functions."""
+"""Tests for data preparation helpers."""
 
 from pathlib import Path
 
@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tlmtc.utils import _df_preprocess, _df_save, _df_split
+from tlmtc.data_prep import _df_preprocess, _df_save, _df_split
 
 
 class TestDfPreprocess:
