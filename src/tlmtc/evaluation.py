@@ -3,7 +3,6 @@
 Defines metrics, curves, and reporting helpers for multi-label evaluation.
 """
 
-
 from typing import Any
 
 import numpy as np

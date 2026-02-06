@@ -3,7 +3,6 @@
 Defines helpers for building Optuna search spaces and trial-scoped model setup.
 """
 
-
 from typing import Any, Callable
 
 import optuna
