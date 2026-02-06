@@ -19,8 +19,15 @@ from datasets import DatasetDict
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
 
 from tlmtc.evaluation import _find_optimal_threshold
-from tlmtc.hpo import _make_compute_objective, _make_model_init, _optuna_hp_space, _wrap_peft
-from tlmtc.training import WeightedTrainer, _compute_metrics, _get_class_weights, _get_scaled_lr, _get_training_args
+from tlmtc.hpo import _make_compute_objective, _make_model_init, _optuna_hp_space
+from tlmtc.training import (
+    WeightedTrainer,
+    _compute_metrics,
+    _get_class_weights,
+    _get_scaled_lr,
+    _get_training_args,
+    _wrap_peft,
+)
 from tlmtc.types import (
     BestModelMetric,
     BestThresholdMetric,
@@ -282,7 +289,7 @@ class FinetunePipeline:
         )
 
         if self.wrap_peft:
-            self.pretrained_model = _wrap_peft(
+            self.pretrained_model = _wrap_peft(  # type: ignore[assignment]
                 model=self.pretrained_model,
                 lora_r=self.lora_r,
                 lora_alpha=self.lora_alpha,
@@ -480,5 +487,5 @@ class FinetunePipeline:
         if self.updated_trainer is None:
             raise RuntimeError("Instantiated Trainer after fine-tuning not found. Run fine_tune_pretrained() first.")
 
-        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[union-attr]
+        self.updated_trainer.model.save_pretrained(self.output_model_path)  # type: ignore[operator,union-attr]
         return self

@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import torch
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, PeftMixedModel, PeftModel, TaskType, get_peft_model
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.utils.class_weight import compute_class_weight
 from torch import Tensor
@@ -166,7 +166,8 @@ def _compute_metrics(
         Dictionary of evaluation metrics as returned by `_multi_label_metrics`.
     """
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
-    result = _multi_label_metrics(predictions=preds, labels=p.label_ids)
+    labels = p.label_ids[0] if isinstance(p.label_ids, tuple) else p.label_ids
+    result = _multi_label_metrics(predictions=preds, labels=labels)
     return result
 
 
@@ -176,7 +177,7 @@ def _wrap_peft(
     lora_alpha: int,
     lora_dropout: float,
     lora_bias: LoraBias,
-) -> PreTrainedModel:
+) -> PreTrainedModel | PeftModel | PeftMixedModel:
     """Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
 
     Args:
@@ -200,7 +201,7 @@ def _wrap_peft(
         init_lora_weights=True,
         bias=lora_bias,
     )
-    model = get_peft_model(model, peft_config)
+    model = get_peft_model(model, peft_config)  # type: ignore[assignment]
     return model
 
 
