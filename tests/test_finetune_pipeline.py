@@ -12,7 +12,7 @@ from torch import nn
 from transformers import TrainingArguments
 
 from tlmtc.finetune_pipeline import FinetunePipeline, WeightedTrainer
-from tlmtc.utils import _optuna_hp_space
+from tlmtc.hpo import _optuna_hp_space
 
 
 class DummyModel(nn.Module):
