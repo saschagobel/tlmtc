@@ -19,7 +19,7 @@ from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defin
 from tlmtc.types import LoraBias
 
 
-def _get_training_args(
+def get_training_args(
     logging_path: str | Path,
     batch_size: int,
     epochs: int,
@@ -65,7 +65,7 @@ def _get_training_args(
     )
 
 
-def _get_scaled_lr(
+def get_scaled_lr(
     learning_rate: float,
     checkpoint: str,
     proxy_checkpoint: str,
@@ -90,7 +90,7 @@ def _get_scaled_lr(
         return learning_rate * (proxy_checkpoint_hidden_size / checkpoint_hidden_size)
 
 
-def _get_class_weights(
+def get_class_weights(
     train_data_path: str | Path,
     val_data_path: str | Path | None = None,
 ) -> torch.Tensor:
@@ -119,7 +119,7 @@ def _get_class_weights(
     return torch.tensor(class_weights, dtype=torch.float)
 
 
-def _multi_label_metrics(
+def multi_label_metrics(
     predictions: np.ndarray | torch.Tensor,
     labels: np.ndarray | torch.Tensor,
 ) -> dict[str, float]:
@@ -152,7 +152,7 @@ def _multi_label_metrics(
     return metrics
 
 
-def _compute_metrics(
+def compute_metrics(
     p: EvalPrediction,
 ) -> dict[str, Any]:
     """Wrap a Hugging Face `EvalPrediction` object to compute multi-label metrics.
@@ -167,11 +167,11 @@ def _compute_metrics(
     """
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
     labels = p.label_ids[0] if isinstance(p.label_ids, tuple) else p.label_ids
-    result = _multi_label_metrics(predictions=preds, labels=labels)
+    result = multi_label_metrics(predictions=preds, labels=labels)
     return result
 
 
-def _wrap_peft(
+def wrap_model_with_peft(
     model: PreTrainedModel,
     lora_r: int,
     lora_alpha: int,

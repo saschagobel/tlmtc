@@ -19,7 +19,7 @@ from sklearn.metrics import (
 )
 
 
-def _get_global_eval_metrics(
+def get_global_eval_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     y_prob: np.ndarray,
@@ -47,7 +47,7 @@ def _get_global_eval_metrics(
     return metrics
 
 
-def _get_label_eval_metrics(
+def get_label_eval_metrics(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     y_prob: np.ndarray,
@@ -86,7 +86,7 @@ def _get_label_eval_metrics(
     return metrics
 
 
-def _round_metric_dict(
+def round_metric_dict(
     metrics: dict[str, float],
     ndigits: int = 2,
 ) -> dict[str, float]:
@@ -102,7 +102,7 @@ def _round_metric_dict(
     return {k: round(v, ndigits) for k, v in metrics.items()}
 
 
-def _get_roc_curves(
+def get_roc_curves(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     label_names: list[str],
@@ -137,7 +137,7 @@ def _get_roc_curves(
     return {"fpr": fpr, "tpr": tpr, "roc_auc": roc_auc}
 
 
-def _get_pr_curves(
+def get_pr_curves(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     label_names: list[str],
@@ -172,7 +172,7 @@ def _get_pr_curves(
     return {"precision": precision, "recall": recall, "avg_precision": avg_precision}
 
 
-def _get_co_occurrence(
+def get_co_occurrence(
     y_true: np.ndarray,
     y_pred: np.ndarray,
 ) -> dict[str, np.ndarray]:
@@ -201,7 +201,7 @@ def _get_co_occurrence(
     }
 
 
-def _get_losses(
+def get_losses(
     log_history: list[dict[str, Any]],
 ) -> pd.DataFrame:
     """Extract per-epoch training and evaluation losses from Trainer.state.log_history.
@@ -219,7 +219,7 @@ def _get_losses(
     return pd.merge(train_losses, eval_losses, on="epoch", how="inner")
 
 
-def _get_best_epoch(
+def get_best_epoch(
     log_history: list[dict[str, Any]],
     best_model_metric: str,
 ) -> int:
@@ -236,7 +236,7 @@ def _get_best_epoch(
     return int(max(eval_logs, key=lambda x: x["eval_" + best_model_metric])["epoch"])
 
 
-def _find_optimal_threshold(
+def find_optimal_threshold(
     y_true: np.ndarray,
     y_prob: np.ndarray,
     best_threshold_metric: str,

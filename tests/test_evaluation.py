@@ -5,15 +5,15 @@ import pandas as pd
 import pytest
 
 from tlmtc.evaluation import (
-    _find_optimal_threshold,
-    _get_best_epoch,
-    _get_co_occurrence,
-    _get_global_eval_metrics,
-    _get_label_eval_metrics,
-    _get_losses,
-    _get_pr_curves,
-    _get_roc_curves,
-    _round_metric_dict,
+    find_optimal_threshold,
+    get_best_epoch,
+    get_co_occurrence,
+    get_global_eval_metrics,
+    get_label_eval_metrics,
+    get_losses,
+    get_pr_curves,
+    get_roc_curves,
+    round_metric_dict,
 )
 
 
@@ -124,7 +124,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics returns the full documented metric set."""
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
 
-        metrics = _get_global_eval_metrics(y_true, y_pred, y_prob)
+        metrics = get_global_eval_metrics(y_true, y_pred, y_prob)
 
         assert set(metrics) == {
             "f1_micro",
@@ -142,7 +142,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics returns JSON-serializable float values."""
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
 
-        metrics = _get_global_eval_metrics(y_true, y_pred, y_prob)
+        metrics = get_global_eval_metrics(y_true, y_pred, y_prob)
 
         assert all(isinstance(v, float) for v in metrics.values())
 
@@ -150,7 +150,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics yields perfect scores for perfect predictions."""
         y_true, y_pred, y_prob = perfect_multilabel_case
 
-        metrics = _get_global_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob)
+        metrics = get_global_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob)
 
         for k in [
             "f1_micro",
@@ -168,7 +168,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics returns correct average label cardinalities for perfect predictions."""
         y_true, y_pred, y_prob = perfect_multilabel_case
 
-        metrics = _get_global_eval_metrics(y_true, y_pred, y_prob)
+        metrics = get_global_eval_metrics(y_true, y_pred, y_prob)
 
         assert metrics["true_cardinality"] == pytest.approx(4 / 3)
         assert metrics["pred_cardinality"] == pytest.approx(4 / 3)
@@ -179,7 +179,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics computes probability-driven AUC values for imperfect predictions."""
         y_true, y_pred, y_prob = imperfect_multilabel_case
 
-        metrics = _get_global_eval_metrics(y_true, y_pred, y_prob)
+        metrics = get_global_eval_metrics(y_true, y_pred, y_prob)
 
         assert 0.0 < metrics["roc_auc_micro"] < 1.0
         assert 0.0 < metrics["pr_auc_micro"] < 1.0
@@ -190,7 +190,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_global_eval_metrics returns non-trivial F1 values for imperfect predictions."""
         y_true, y_pred, y_prob = imperfect_multilabel_case
 
-        metrics = _get_global_eval_metrics(y_true, y_pred, y_prob)
+        metrics = get_global_eval_metrics(y_true, y_pred, y_prob)
 
         assert 0.0 < metrics["f1_micro"] < 1.0
         assert 0.0 < metrics["f1_macro"] < 1.0
@@ -201,7 +201,7 @@ class TestMetricsExtractionUtils:
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
         y_true0, y_pred0, y_prob0 = y_true.copy(), y_pred.copy(), y_prob.copy()
 
-        _get_global_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob)
+        get_global_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob)
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_pred, y_pred0)
@@ -212,7 +212,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics returns one metrics dict per label with the full documented key set."""
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
 
-        metrics = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         assert list(metrics.keys()) == label_names_two
         for name in label_names_two:
@@ -231,7 +231,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics returns JSON-serializable float values for all labels and metrics."""
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
 
-        metrics = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         assert all(isinstance(v, float) for per_label in metrics.values() for v in per_label.values())
 
@@ -241,7 +241,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics returns perfect per-label scores for perfect predictions."""
         y_true, y_pred, y_prob = perfect_multilabel_case
 
-        metrics = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         for name in label_names_two:
             for k in ["f1", "precision", "recall", "roc_auc", "pr_auc"]:
@@ -253,7 +253,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics returns correct per-label true and predicted supports."""
         y_true, y_pred, y_prob = perfect_multilabel_case
 
-        metrics = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         for i, name in enumerate(label_names_two):
             assert metrics[name]["true_support"] == pytest.approx(float(y_true[:, i].mean()))
@@ -265,7 +265,7 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics reflects per-label errors rather than collapsing to global behavior."""
         y_true, y_pred, y_prob = imperfect_multilabel_case
 
-        metrics = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         assert metrics["label_0"]["f1"] != metrics["label_1"]["f1"]
         assert metrics["label_0"]["f1"] < 1.0 or metrics["label_1"]["f1"] < 1.0
@@ -276,12 +276,12 @@ class TestMetricsExtractionUtils:
         """Ensure _get_label_eval_metrics AUC metrics change when probabilities change while labels stay fixed."""
         y_true, y_pred, y_prob = imperfect_multilabel_case
 
-        metrics_good = _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        metrics_good = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         y_prob_bad = y_prob.copy()
         y_prob_bad[:, 0] = 1.0 - y_prob_bad[:, 0]
 
-        metrics_bad = _get_label_eval_metrics(
+        metrics_bad = get_label_eval_metrics(
             y_true=y_true, y_pred=y_pred, y_prob=y_prob_bad, label_names=label_names_two
         )
 
@@ -294,7 +294,7 @@ class TestMetricsExtractionUtils:
         y_true, y_pred, y_prob = request.getfixturevalue(case_fixture)
         y_true0, y_pred0, y_prob0 = y_true.copy(), y_pred.copy(), y_prob.copy()
 
-        _get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
+        get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_pred, y_pred0)
@@ -307,7 +307,7 @@ class TestMetricRoundingUtil:
     def test_round_metric_dict_returns_new_dictionary_with_same_keys(self, raw_metric_dict):
         """Ensure _round_metric_dict returns a new dict preserving the original keys."""
         metrics_in = raw_metric_dict
-        metrics_out = _round_metric_dict(metrics_in)
+        metrics_out = round_metric_dict(metrics_in)
 
         assert metrics_out is not metrics_in
         assert set(metrics_out.keys()) == set(metrics_in.keys())
@@ -317,14 +317,14 @@ class TestMetricRoundingUtil:
         metrics_in = raw_metric_dict
         snapshot = dict(metrics_in)
 
-        _round_metric_dict(metrics_in)
+        round_metric_dict(metrics_in)
 
         assert metrics_in == snapshot
 
     @pytest.mark.parametrize("ndigits", [3, 1, 0])
     def test_round_metric_dict_respects_ndigits_parameter(self, raw_metric_dict, ndigits):
         """Ensure _round_metric_dict rounds all values using the provided ndigits value."""
-        out = _round_metric_dict(raw_metric_dict, ndigits=ndigits)
+        out = round_metric_dict(raw_metric_dict, ndigits=ndigits)
         assert out == {k: round(v, ndigits) for k, v in raw_metric_dict.items()}
 
 
@@ -336,7 +336,7 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_roc_curves returns the expected schema and basic ROC invariants."""
         y_true, _, y_prob = request.getfixturevalue(case_fixture)
 
-        out = _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        out = get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         assert set(out) == {"fpr", "tpr", "roc_auc"}
 
@@ -367,7 +367,7 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_roc_curves yields AUC=1.0 for all aggregates in a perfectly separable case."""
         y_true, _, y_prob = perfect_multilabel_case
 
-        out = _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        out = get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         for k in [0, 1, "micro", "macro"]:
             assert float(out["roc_auc"][k]) == pytest.approx(1.0)
@@ -378,7 +378,7 @@ class TestEvaluationArtifactsUtils:
         y_true, _, y_prob = request.getfixturevalue(case_fixture)
         y_true0, y_prob0 = y_true.copy(), y_prob.copy()
 
-        _get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        get_roc_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_prob, y_prob0)
@@ -388,7 +388,7 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_pr_curves returns the expected schema and basic PR invariants."""
         y_true, _, y_prob = request.getfixturevalue(case_fixture)
 
-        out = _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        out = get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         assert set(out) == {"precision", "recall", "avg_precision"}
 
@@ -422,7 +422,7 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_pr_curves yields AP=1.0 for all aggregates in a perfectly separable case."""
         y_true, _, y_prob = perfect_multilabel_case
 
-        out = _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        out = get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         for k in [0, 1, "micro", "macro"]:
             assert float(out["avg_precision"][k]) == pytest.approx(1.0)
@@ -433,7 +433,7 @@ class TestEvaluationArtifactsUtils:
         y_true, _, y_prob = request.getfixturevalue(case_fixture)
         y_true0, y_prob0 = y_true.copy(), y_prob.copy()
 
-        _get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
+        get_pr_curves(y_true=y_true, y_prob=y_prob, label_names=label_names_two)
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_prob, y_prob0)
@@ -443,7 +443,7 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_co_occurrence returns expected schema and invariants."""
         y_true, y_pred, _ = request.getfixturevalue(case_fixture)
 
-        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+        out = get_co_occurrence(y_true=y_true, y_pred=y_pred)
 
         assert set(out) == {"co_true_abs", "co_pred_abs", "co_true_rel", "co_pred_rel"}
 
@@ -477,7 +477,7 @@ class TestEvaluationArtifactsUtils:
         y_true, y_pred, _ = perfect_multilabel_case
         assert np.array_equal(y_true, y_pred)
 
-        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+        out = get_co_occurrence(y_true=y_true, y_pred=y_pred)
 
         assert np.array_equal(out["co_true_abs"], out["co_pred_abs"])
         assert np.allclose(out["co_true_rel"], out["co_pred_rel"], rtol=0.0, atol=0.0)
@@ -487,7 +487,7 @@ class TestEvaluationArtifactsUtils:
         y_true, y_pred, _ = imperfect_multilabel_case
         assert not np.array_equal(y_true, y_pred)
 
-        out = _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+        out = get_co_occurrence(y_true=y_true, y_pred=y_pred)
 
         assert not np.array_equal(out["co_true_abs"], out["co_pred_abs"])
         assert not np.allclose(out["co_true_rel"], out["co_pred_rel"])
@@ -498,14 +498,14 @@ class TestEvaluationArtifactsUtils:
         y_true, y_pred, _ = request.getfixturevalue(case_fixture)
         y_true0, y_pred0 = y_true.copy(), y_pred.copy()
 
-        _get_co_occurrence(y_true=y_true, y_pred=y_pred)
+        get_co_occurrence(y_true=y_true, y_pred=y_pred)
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_pred, y_pred0)
 
     def test_get_losses_returns_expected_dataframe_and_inner_join_behavior(self, log_history_with_losses):
         """Ensure _get_losses returns a well-formed per-epoch loss table and keeps only shared epochs."""
-        df = _get_losses(log_history=log_history_with_losses)
+        df = get_losses(log_history=log_history_with_losses)
 
         assert isinstance(df, pd.DataFrame)
         assert list(df.columns) == ["epoch", "train_loss", "eval_loss"]
@@ -523,13 +523,13 @@ class TestEvaluationArtifactsUtils:
         """Ensure _get_losses does not mutate the input log history."""
         snapshot = [dict(d) for d in log_history_with_losses]
 
-        _get_losses(log_history=log_history_with_losses)
+        get_losses(log_history=log_history_with_losses)
 
         assert log_history_with_losses == snapshot
 
     def test_get_best_epoch_returns_epoch_of_max_metric(self, log_history_with_losses):
         """Ensure _get_best_epoch selects the epoch with the maximum monitored eval metric."""
-        best = _get_best_epoch(log_history=log_history_with_losses, best_model_metric="f1")
+        best = get_best_epoch(log_history=log_history_with_losses, best_model_metric="f1")
 
         assert isinstance(best, int)
         assert best == 2
@@ -556,7 +556,7 @@ class TestThresholdOptimizationUtils:
             ]
         )
 
-        threshold = _find_optimal_threshold(
+        threshold = find_optimal_threshold(
             y_true=y_true,
             y_prob=y_prob,
             best_threshold_metric=metric,
@@ -584,7 +584,7 @@ class TestThresholdOptimizationUtils:
             ]
         )
 
-        thresholds = _find_optimal_threshold(
+        thresholds = find_optimal_threshold(
             y_true=y_true,
             y_prob=y_prob,
             best_threshold_metric="f1_macro",
@@ -601,7 +601,7 @@ class TestThresholdOptimizationUtils:
         y_prob = np.array([[0.8], [0.2]])
 
         with pytest.raises(ValueError):
-            _find_optimal_threshold(
+            find_optimal_threshold(
                 y_true=y_true,
                 y_prob=y_prob,
                 best_threshold_metric="not_a_metric",
@@ -614,7 +614,7 @@ class TestThresholdOptimizationUtils:
         y_prob = np.array([[0.8], [0.2]])
 
         with pytest.raises(ValueError):
-            _find_optimal_threshold(
+            find_optimal_threshold(
                 y_true=y_true,
                 y_prob=y_prob,
                 best_threshold_metric="f1_micro",

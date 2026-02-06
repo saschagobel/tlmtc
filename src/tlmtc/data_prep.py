@@ -10,7 +10,7 @@ import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
 
-def _df_preprocess(
+def df_preprocess(
     df_path: str | Path,
 ) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray]:
     """Import, preprocess and extract column labels from raw train/test data.
@@ -46,7 +46,7 @@ def _df_preprocess(
     return df, label_cols, X, y
 
 
-def _df_split(
+def df_split(
     df: pd.DataFrame,
     X: np.ndarray,
     y: np.ndarray,
@@ -73,7 +73,7 @@ def _df_split(
     return train_data, test_data
 
 
-def _df_save(
+def df_save(
     df: pd.DataFrame,
     path: str | Path,
 ) -> None:

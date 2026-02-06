@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tlmtc.data_prep import _df_preprocess, _df_save, _df_split
+from tlmtc.data_prep import df_preprocess, df_save, df_split
 
 
 class TestDfPreprocess:
@@ -24,7 +24,7 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y = _df_preprocess(csv_path)
+        df, label_cols, X, y = df_preprocess(csv_path)
 
         assert len(df) == 1  # Should drop rows with NA
         assert set(label_cols) == {"label_1", "label_2"}
@@ -45,7 +45,7 @@ class TestDfPreprocess:
         df_in.to_csv(csv_path, index=False)
 
         with pytest.raises(ValueError, match="no valid samples"):
-            _df_preprocess(csv_path)
+            df_preprocess(csv_path)
 
     def test_raises_error_when_text_column_missing(self, tmp_path: Path):
         """Ensure a ValueError is raised when the 'text' column is absent."""
@@ -59,7 +59,7 @@ class TestDfPreprocess:
         df_in.to_csv(csv_path, index=False)
 
         with pytest.raises(ValueError, match="text"):
-            _df_preprocess(csv_path)
+            df_preprocess(csv_path)
 
     def test_raises_error_when_less_than_two_label_columns(self, tmp_path: Path):
         """Ensure at least two label_* columns are required for multi-label classification."""
@@ -68,7 +68,7 @@ class TestDfPreprocess:
         df_in.to_csv(csv_path, index=False)
 
         with pytest.raises(ValueError, match="at least two"):
-            _df_preprocess(csv_path)
+            df_preprocess(csv_path)
 
     def test_raises_error_when_label_column_has_non_numeric_values(self, tmp_path: Path):
         """Ensure label columns must contain only integer-like values."""
@@ -83,7 +83,7 @@ class TestDfPreprocess:
         df_in.to_csv(csv_path, index=False)
 
         with pytest.raises(TypeError):
-            _df_preprocess(csv_path)
+            df_preprocess(csv_path)
 
     def test_raises_error_when_label_values_are_outside_binary_range(self, tmp_path: Path):
         """Ensure label columns contain only binary values {0,1}."""
@@ -98,7 +98,7 @@ class TestDfPreprocess:
         df_in.to_csv(csv_path, index=False)
 
         with pytest.raises(ValueError, match="binary values"):
-            _df_preprocess(csv_path)
+            df_preprocess(csv_path)
 
 
 class TestDfSplit:
@@ -117,7 +117,7 @@ class TestDfSplit:
         y = df[["label_a", "label_b"]].values
 
         test_size = 0.3
-        train, test = _df_split(df=df, X=X, y=y, test_size=test_size, random_seed=42)
+        train, test = df_split(df=df, X=X, y=y, test_size=test_size, random_seed=42)
 
         assert len(train) + len(test) == len(df)
 
@@ -140,8 +140,8 @@ class TestDfSplit:
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
-        train1, test1 = _df_split(df, X, y, test_size=0.25, random_seed=123)
-        train2, test2 = _df_split(df, X, y, test_size=0.25, random_seed=123)
+        train1, test1 = df_split(df, X, y, test_size=0.25, random_seed=123)
+        train2, test2 = df_split(df, X, y, test_size=0.25, random_seed=123)
 
         # Identical splits
         pd.testing.assert_frame_equal(train1, train2)
@@ -159,7 +159,7 @@ class TestDfSplit:
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
-        train, test = _df_split(df, X, y, test_size=0.2, random_seed=99)
+        train, test = df_split(df, X, y, test_size=0.2, random_seed=99)
 
         # Unique ids
         train_ids = set(train["text"])
@@ -179,7 +179,7 @@ class TestDfSplit:
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
-        train, test = _df_split(df, X, y, test_size=0.2, random_seed=7)
+        train, test = df_split(df, X, y, test_size=0.2, random_seed=7)
 
         for label in ["label_a", "label_b"]:
             assert train[label].nunique() == 2
@@ -194,7 +194,7 @@ class TestDfSave:
         out_path = tmp_path / "data" / "train.parquet"
         df = pd.DataFrame({"text": ["a", "b"], "label_x": [1, 0]})
 
-        _df_save(df, out_path)
+        df_save(df, out_path)
 
         assert out_path.exists()
 
@@ -209,7 +209,7 @@ class TestDfSave:
             }
         )
 
-        _df_save(df, out_path)
+        df_save(df, out_path)
         loaded = pd.read_parquet(out_path)
 
         # exact equality check
@@ -222,7 +222,7 @@ class TestDfSave:
 
         assert not out_path.parent.exists()
 
-        _df_save(df, out_path)
+        df_save(df, out_path)
 
         assert out_path.exists()
         assert out_path.parent.exists()
