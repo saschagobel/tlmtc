@@ -8,11 +8,11 @@ from typing import Any, Callable
 import optuna
 from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
-from tlmtc.training import _wrap_peft
+from tlmtc.training import wrap_model_with_peft
 from tlmtc.types import LoraBias, OptunaSpace
 
 
-def _optuna_hp_space(
+def optuna_hp_space(
     trial: optuna.trial.Trial,
     space: OptunaSpace,
 ) -> dict[str, Any]:
@@ -49,7 +49,7 @@ def _optuna_hp_space(
     }
 
 
-def _make_model_init(
+def make_model_init(
     checkpoint: str,
     num_labels: int,
     wrap_peft: bool,
@@ -86,7 +86,7 @@ def _make_model_init(
             checkpoint, num_labels=num_labels, problem_type="multi_label_classification"
         )
         if wrap_peft:
-            model = _wrap_peft(
+            model = wrap_model_with_peft(
                 model=model,
                 lora_r=lora_r,
                 lora_alpha=lora_alpha,
@@ -98,7 +98,7 @@ def _make_model_init(
     return model_init
 
 
-def _make_compute_objective(
+def make_compute_objective(
     best_model_metric: str,
 ) -> Callable[[dict[str, Any]], float]:
     """Create an objective function for Optuna hyperparameter search.

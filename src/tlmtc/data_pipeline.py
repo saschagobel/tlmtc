@@ -15,7 +15,7 @@ import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
-from tlmtc.data_prep import _df_preprocess, _df_save, _df_split
+from tlmtc.data_prep import df_preprocess, df_save, df_split
 
 
 class DataPipeline:
@@ -148,21 +148,21 @@ class DataPipeline:
 
         if not raw_data_exists:
             raise FileNotFoundError(f"Raw data not found at {self.raw_data_path}.")
-        df, label_cols, X, y = _df_preprocess(self.raw_data_path)
+        df, label_cols, X, y = df_preprocess(self.raw_data_path)
 
         if raw_test_data_exists:
-            df_test, label_cols_test, _, _ = _df_preprocess(self.raw_test_data_path)
+            df_test, label_cols_test, _, _ = df_preprocess(self.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise ValueError("Mismatch between train/test label columns")
-            self.train_data, self.val_data = _df_split(
+            self.train_data, self.val_data = df_split(
                 df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
             )
             self.test_data = df_test.reset_index(drop=True)
         else:
-            full_train_data, self.test_data = _df_split(
+            full_train_data, self.test_data = df_split(
                 df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
             )
-            self.train_data, self.val_data = _df_split(
+            self.train_data, self.val_data = df_split(
                 df=full_train_data,
                 X=full_train_data["text"].values,
                 y=full_train_data[label_cols].values,
@@ -170,9 +170,9 @@ class DataPipeline:
                 random_seed=self.random_seed,
             )
 
-        _df_save(df=self.train_data, path=self.train_data_path)
-        _df_save(df=self.val_data, path=self.val_data_path)
-        _df_save(df=self.test_data, path=self.test_data_path)
+        df_save(df=self.train_data, path=self.train_data_path)
+        df_save(df=self.val_data, path=self.val_data_path)
+        df_save(df=self.test_data, path=self.test_data_path)
         return self
 
     def get_multi_hot_vectors(self) -> DataPipeline:
