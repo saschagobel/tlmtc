@@ -12,8 +12,18 @@ from tlmtc import config
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.paths import RunPaths, resolve_paths
+from tlmtc.settings import (
+    HardwareSettings,
+    HpoSettings,
+    ModelSettings,
+    PeftSettings,
+    SplitSettings,
+    ThresholdSettings,
+    TrainingSettings,
+    WorkflowSettings,
+)
 from tlmtc.types import BestModelMetric, BestThresholdMetric, LoraBias, OptunaSpaceOverride, Threshold
-
+from tlmtc.hpo import resolve_optuna_space
 
 @dataclass(frozen=True, slots=True)
 class RunResult:
@@ -109,6 +119,55 @@ def run_tlmtc(
         work_dir=work_dir,
         run_id=run_id,
     ).ensure_dirs()
+
+    optuna_space = resolve_optuna_space(
+        wrap_peft=wrap_peft,
+        space_base=config.OPTUNA_SPACE_BASE,
+        space_peft=config.OPTUNA_SPACE_PEFT,
+        override=optuna_space_user,
+    )
+
+    model_settings = ModelSettings(
+        target_name=target_name,
+        proxy_checkpoint=proxy_checkpoint,
+        checkpoint=checkpoint,
+        sequence_length=sequence_length,
+        best_model_metric=best_model_metric,
+    )
+    split_settings = SplitSettings(
+        validation_size=validation_size,
+        test_size=test_size,
+        random_seed=random_seed,
+    )
+    workflow_settings = WorkflowSettings(
+        hyperparameter_tuning=hyperparameter_tuning,
+        threshold_optimization=threshold_optimization,
+        transfer_learning=transfer_learning,
+        scale_learning_rate=scale_learning_rate,
+        wrap_peft=wrap_peft,
+    )
+    training_settings = TrainingSettings(
+        batch_size=batch_size,
+        train_epochs=train_epochs,
+        learning_rate=learning_rate,
+        weight_decay=weight_decay,
+        lr_scheduler=lr_scheduler,
+    )
+    threshold_settings = ThresholdSettings(
+        threshold_type=threshold_type,
+        best_threshold_metric=best_threshold_metric,
+    )
+    hpo_settings = HpoSettings(
+        tuning_trials=tuning_trials,
+        optuna_space=optuna_space,
+    )
+    peft_settings = PeftSettings(
+        lora_r=lora_r,
+        lora_alpha=lora_alpha,
+        lora_dropout=lora_dropout,
+        lora_bias=lora_bias,
+    )
+    hardware_settings = HardwareSettings(use_cpu=use_cpu)
 
     processed = (
         DataPipeline(
