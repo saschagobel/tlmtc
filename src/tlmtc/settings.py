@@ -52,6 +52,7 @@ class TrainingSettings:
     learning_rate: float
     weight_decay: float
     lr_scheduler: str
+    early_stopping_patience: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,8 +66,7 @@ class ThresholdSettings:
 class HpoSettings:
     """..."""
     tuning_trials: int
-    optuna_space_base: OptunaSpace
-    optuna_space_peft: OptunaSpace
+    optuna_space: OptunaSpace
 
 
 @dataclass(frozen=True, slots=True)
