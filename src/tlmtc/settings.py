@@ -22,7 +22,6 @@ class ModelSettings:
     proxy_checkpoint: str
     checkpoint: str
     sequence_length: int
-    best_model_metric: BestModelMetric
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,9 +48,10 @@ class TrainingSettings:
     """..."""
     batch_size: int
     train_epochs: int
-    learning_rate: float
     weight_decay: float
+    learning_rate: float
     lr_scheduler: str
+    best_model_metric: BestModelMetric
     early_stopping_patience: int
 
 
