@@ -9,6 +9,8 @@ import torch
 from datasets import Dataset, DatasetDict
 
 from tlmtc.data_pipeline import DataPipeline
+from tlmtc.paths import RunPaths
+from tlmtc.settings import ModelSettings, SplitSettings
 
 
 @pytest.fixture
@@ -42,30 +44,54 @@ def sample_raw_test_csv(tmp_path: Path):
 
 
 @pytest.fixture
-def pipeline_instance_factory(tmp_path: Path):
-    """Create a factory fixture for creating DataPipeline instances with configurable inputs."""
+def split_settings() -> SplitSettings:
+    """Return deterministic split configuration for test runs."""
+    return SplitSettings(validation_size=0.15, test_size=0.15, random_seed=42)
 
-    def _factory(
-        raw_csv: Path,
-        raw_test_csv: Path,
-    ):
-        """Instantiate a DataPipeline with temporary directories for outputs."""
-        train_path = tmp_path / "train.parquet"
-        val_path = tmp_path / "val.parquet"
-        test_path = tmp_path / "test.parquet"
 
-        return DataPipeline(
+@pytest.fixture
+def model_settings() -> ModelSettings:
+    """Return minimal model configuration for tokenizer-based test pipeline."""
+    return ModelSettings(
+        target_name="test-target",
+        proxy_checkpoint="unused-here",
+        checkpoint="tests/data/tiny_tokenizer",
+        sequence_length=16,
+    )
+
+
+@pytest.fixture
+def pipeline_instance_factory(
+    tmp_path: Path,
+    split_settings: SplitSettings,
+    model_settings: ModelSettings,
+) -> Callable[..., DataPipeline]:
+    """Factory for DataPipeline instances using in-test RunPaths (no resolve_paths coupling)."""
+
+    def _factory(*, raw_csv: Path, raw_test_csv: Path | None) -> DataPipeline:
+        run_id = "test-run"
+        run_dir = tmp_path / "tlmtc_outputs" / run_id
+        data_dir = run_dir / "data"
+        logs_dir = run_dir / "logs"
+        model_dir = run_dir / "model"
+
+        raw_test_path = raw_test_csv if raw_test_csv is not None else (tmp_path / "__missing_raw_test__.csv")
+
+        paths = RunPaths(
+            work_dir=tmp_path,
+            run_dir=run_dir,
+            run_id=run_id,
             raw_data_path=raw_csv,
-            raw_test_data_path=raw_test_csv,
-            train_data_path=train_path,
-            val_data_path=val_path,
-            test_data_path=test_path,
-            validation_size=0.15,
-            test_size=0.15,
-            random_seed=42,
-            checkpoint="tests/data/tiny_tokenizer",
-            sequence_length=16,
-        )
+            raw_test_data_path=raw_test_path,
+            data_dir=data_dir,
+            logs_dir=logs_dir,
+            model_dir=model_dir,
+            train_data_path=data_dir / "train.parquet",
+            val_data_path=data_dir / "val.parquet",
+            test_data_path=data_dir / "test.parquet",
+        ).ensure_dirs()
+
+        return DataPipeline(paths=paths, split=split_settings, model=model_settings)
 
     return _factory
 
@@ -76,7 +102,6 @@ class TestSplitData:
     @pytest.mark.parametrize("use_raw_test", [False, True])
     def test_splits_data_correctly_across_all_configurations(
         self,
-        tmp_path: Path,
         sample_raw_csv: Path,
         sample_raw_test_csv: Path,
         pipeline_instance_factory: Callable,
@@ -85,18 +110,18 @@ class TestSplitData:
         """Ensure split_data produces correct train/val/test partitions under all tuning and raw-test scenarios."""
         dp = pipeline_instance_factory(
             raw_csv=sample_raw_csv,
-            raw_test_csv=sample_raw_test_csv if use_raw_test else (tmp_path / "__missing_raw_test__.csv"),
+            raw_test_csv=sample_raw_test_csv if use_raw_test else None,
         )
 
         dp.split_data()
 
-        assert dp.train_data_path.exists()
-        assert dp.test_data_path.exists()
-        assert dp.val_data_path.exists()
+        assert dp.paths.train_data_path.exists()
+        assert dp.paths.val_data_path.exists()
+        assert dp.paths.test_data_path.exists()
 
-        train_df = pd.read_parquet(dp.train_data_path)
-        test_df = pd.read_parquet(dp.test_data_path)
-        val_df = pd.read_parquet(dp.val_data_path)
+        train_df = pd.read_parquet(dp.paths.train_data_path)
+        val_df = pd.read_parquet(dp.paths.val_data_path)
+        test_df = pd.read_parquet(dp.paths.test_data_path)
 
         assert len(train_df) > 0
         assert len(test_df) > 0
@@ -113,7 +138,7 @@ class TestSplitData:
 
         dp = pipeline_instance_factory(
             raw_csv=missing_raw,
-            raw_test_csv="",
+            raw_test_csv=None,
         )
 
         with pytest.raises(FileNotFoundError):
@@ -301,8 +326,8 @@ class TestTokenizeData:
         assert isinstance(example["labels"], torch.Tensor)
         assert example["labels"].dtype == torch.float32
 
-        assert len(example["input_ids"]) == dp.sequence_length
-        assert len(example["attention_mask"]) == dp.sequence_length
+        assert len(example["input_ids"]) == dp.model.sequence_length
+        assert len(example["attention_mask"]) == dp.model.sequence_length
 
     def test_preserves_original_split_sizes(
         self,

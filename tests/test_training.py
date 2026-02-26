@@ -4,9 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
-from transformers import BertConfig, BertForSequenceClassification, EvalPrediction
+from transformers import BertConfig, BertForSequenceClassification, EvalPrediction, TrainingArguments
 
 from tlmtc.training import (
+    WeightedTrainer,
     compute_metrics,
     get_class_weights,
     get_scaled_lr,
@@ -27,6 +28,21 @@ def base_test_model():
         num_labels=2,
     )
     return BertForSequenceClassification(config)
+
+
+class DummyModel(torch.nn.Module):
+    """Minimal feed-forward classifier used for testing the `WeightedTrainer`."""
+
+    def __init__(self, num_labels=3):
+        """Initialize the dummy model."""
+        super().__init__()
+        self.num_labels = num_labels
+        self.linear = torch.nn.Linear(4, num_labels)
+
+    def forward(self, input_ids=None):
+        """Compute logits for a batch of inputs."""
+        logits = self.linear(input_ids.float())
+        return type("Output", (), {"logits": logits})
 
 
 def test_get_class_weights_uses_train_split_only_when_validation_missing(tmp_path):
@@ -168,3 +184,57 @@ def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path
 
     assert pytest.approx(scaled_non_peft) == expected_non_peft
     assert pytest.approx(scaled_peft) == expected_peft
+
+
+class TestWeightedTrainer:
+    """Test suite for the WeightedTrainer class."""
+
+    def test_loss_respects_class_weights(self, tmp_path):
+        """Ensure that applying class weights increases the computed BCE loss."""
+        model = DummyModel(num_labels=3)
+
+        inputs = {
+            "labels": torch.tensor([[1, 0, 1], [0, 1, 0]]).float(),
+            "input_ids": torch.zeros((2, 4)),
+        }
+
+        args = TrainingArguments(
+            output_dir=str(tmp_path / "trainer_output"),
+            per_device_train_batch_size=2,
+            per_device_eval_batch_size=2,
+            num_train_epochs=1,
+            report_to="none",
+        )
+
+        unweighted = WeightedTrainer(model=model, args=args, class_weights=None)
+        loss_unweighted = unweighted.compute_loss(model, dict(inputs))
+
+        cw = torch.tensor([5.0, 5.0, 5.0])
+        weighted = WeightedTrainer(model=model, args=args, class_weights=cw)
+        loss_weighted = weighted.compute_loss(model, dict(inputs))
+
+        assert loss_weighted > loss_unweighted
+
+    def test_returns_loss_and_outputs_tuple(self, tmp_path):
+        """Test that compute_loss returns (loss, outputs) when return_outputs is True."""
+        model = DummyModel(num_labels=3)
+        args = TrainingArguments(output_dir=str(tmp_path / "trainer_output"), report_to="none")
+
+        trainer = WeightedTrainer(model=model, args=args)
+        inputs = {"labels": torch.zeros((1, 3)), "input_ids": torch.zeros((1, 4))}
+
+        loss, outputs = trainer.compute_loss(model, inputs, return_outputs=True)
+
+        assert isinstance(loss, torch.Tensor)
+        assert hasattr(outputs, "logits")
+
+    def test_reads_num_labels_from_model_module(self, tmp_path):
+        """Ensure that compute_loss reads num_labels correctly from model.module when present."""
+        model = torch.nn.DataParallel(DummyModel(num_labels=4))
+        args = TrainingArguments(output_dir=str(tmp_path / "trainer_output"), report_to="none")
+
+        trainer = WeightedTrainer(model=model, args=args)
+        inputs = {"labels": torch.zeros((1, 4)), "input_ids": torch.zeros((1, 4))}
+
+        loss = trainer.compute_loss(model, inputs)
+        assert isinstance(loss, torch.Tensor)
