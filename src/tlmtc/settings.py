@@ -36,6 +36,7 @@ class SplitSettings:
 @dataclass(frozen=True, slots=True)
 class WorkflowSettings:
     """..."""
+
     hyperparameter_tuning: bool
     threshold_optimization: bool
     transfer_learning: bool
@@ -46,6 +47,7 @@ class WorkflowSettings:
 @dataclass(slots=True)
 class TrainingSettings:
     """..."""
+
     batch_size: int
     train_epochs: int
     weight_decay: float
@@ -58,6 +60,7 @@ class TrainingSettings:
 @dataclass(frozen=True, slots=True)
 class ThresholdSettings:
     """..."""
+
     threshold_type: Threshold
     best_threshold_metric: BestThresholdMetric
 
@@ -65,6 +68,7 @@ class ThresholdSettings:
 @dataclass(frozen=True, slots=True)
 class HpoSettings:
     """..."""
+
     tuning_trials: int
     optuna_space: OptunaSpace
 
@@ -72,12 +76,15 @@ class HpoSettings:
 @dataclass(frozen=True, slots=True)
 class PeftSettings:
     """..."""
+
     lora_r: int
     lora_alpha: int
     lora_dropout: float
     lora_bias: LoraBias
 
+
 @dataclass(frozen=True, slots=True)
 class HardwareSettings:
     """..."""
+
     use_cpu: bool

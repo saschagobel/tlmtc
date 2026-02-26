@@ -112,7 +112,9 @@ class FinetunePipeline:
         if not self.paths.train_data_path.exists():
             raise RuntimeError("Train data not found. Run DataPipeline class first.")
 
-        self.num_labels = sum(1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith("label_"))
+        self.num_labels = sum(
+            1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith("label_")
+        )
         self.pretrained_model = AutoModelForSequenceClassification.from_pretrained(
             self.model.checkpoint, num_labels=self.num_labels, problem_type="multi_label_classification"
         )

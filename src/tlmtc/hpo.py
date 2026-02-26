@@ -124,6 +124,7 @@ def make_compute_objective(
 
     return compute_objective
 
+
 def resolve_optuna_space(
     wrap_peft: bool,
     space_base: OptunaSpace,
