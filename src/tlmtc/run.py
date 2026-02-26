@@ -11,6 +11,7 @@ from pathlib import Path
 from tlmtc import config
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
+from tlmtc.hpo import resolve_optuna_space
 from tlmtc.paths import RunPaths, resolve_paths
 from tlmtc.settings import (
     HardwareSettings,
@@ -23,7 +24,7 @@ from tlmtc.settings import (
     WorkflowSettings,
 )
 from tlmtc.types import BestModelMetric, BestThresholdMetric, LoraBias, OptunaSpaceOverride, Threshold
-from tlmtc.hpo import resolve_optuna_space
+
 
 @dataclass(frozen=True, slots=True)
 class RunResult:
@@ -132,7 +133,6 @@ def run_tlmtc(
         proxy_checkpoint=proxy_checkpoint,
         checkpoint=checkpoint,
         sequence_length=sequence_length,
-        best_model_metric=best_model_metric,
     )
     split_settings = SplitSettings(
         validation_size=validation_size,
@@ -149,9 +149,11 @@ def run_tlmtc(
     training_settings = TrainingSettings(
         batch_size=batch_size,
         train_epochs=train_epochs,
-        learning_rate=learning_rate,
         weight_decay=weight_decay,
+        learning_rate=learning_rate,
         lr_scheduler=lr_scheduler,
+        best_model_metric=best_model_metric,
+        early_stopping_patience=early_stopping_patience,
     )
     threshold_settings = ThresholdSettings(
         threshold_type=threshold_type,
@@ -171,16 +173,9 @@ def run_tlmtc(
 
     processed = (
         DataPipeline(
-            raw_data_path=paths.raw_data_path,
-            raw_test_data_path=paths.raw_test_data_path,
-            train_data_path=paths.train_data_path,
-            val_data_path=paths.val_data_path,
-            test_data_path=paths.test_data_path,
-            validation_size=validation_size,
-            test_size=test_size,
-            random_seed=random_seed,
-            checkpoint=checkpoint,
-            sequence_length=sequence_length,
+            paths=paths,
+            split=split_settings,
+            model=model_settings,
         )
         .split_data()
         .get_multi_hot_vectors()
@@ -191,36 +186,14 @@ def run_tlmtc(
     (
         FinetunePipeline(
             tokenized_dataset=processed.tokenized_dataset,
-            train_data_path=paths.train_data_path,
-            val_data_path=paths.val_data_path,
-            output_logging_path=paths.logs_dir,
-            output_model_path=paths.model_dir,
-            target_name=target_name,
-            proxy_checkpoint=proxy_checkpoint,
-            checkpoint=checkpoint,
-            transfer_learning=transfer_learning,
-            hyperparameter_tuning=hyperparameter_tuning,
-            threshold_optimization=threshold_optimization,
-            threshold_type=threshold_type,
-            scale_learning_rate=scale_learning_rate,
-            wrap_peft=wrap_peft,
-            optuna_space_default_base=config.OPTUNA_SPACE_BASE,
-            optuna_space_default_peft=config.OPTUNA_SPACE_PEFT,
-            tuning_trials=tuning_trials,
-            batch_size=batch_size,
-            weight_decay=weight_decay,
-            learning_rate=learning_rate,
-            lr_scheduler=lr_scheduler,
-            epochs=train_epochs,
-            best_model_metric=best_model_metric,
-            best_threshold_metric=best_threshold_metric,
-            early_stopping_patience=early_stopping_patience,
-            lora_r=lora_r,
-            lora_alpha=lora_alpha,
-            lora_dropout=lora_dropout,
-            lora_bias=lora_bias,
-            use_cpu=use_cpu,
-            optuna_space_user=optuna_space_user,
+            paths=paths,
+            model=model_settings,
+            workflow=workflow_settings,
+            peft=peft_settings,
+            training=training_settings,
+            hpo=hpo_settings,
+            threshold=threshold_settings,
+            hardware=hardware_settings,
         )
         .load_pretrained()
         .tune_hyperparameters()
