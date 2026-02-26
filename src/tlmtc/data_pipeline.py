@@ -6,8 +6,6 @@ Dataset preparation
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
@@ -67,11 +65,11 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        raw_data_exists = Path.exists(self.paths.raw_data_path)
-        raw_test_data_exists = Path.exists(self.paths.raw_test_data_path)
-        train_data_exists = Path.exists(self.paths.train_data_path)
-        test_data_exists = Path.exists(self.paths.test_data_path)
-        val_data_exists = Path.exists(self.paths.val_data_path)
+        raw_data_exists = self.paths.raw_data_path.exists()
+        raw_test_data_exists = self.paths.raw_test_data_path.exists()
+        train_data_exists = self.paths.train_data_path.exists()
+        test_data_exists = self.paths.test_data_path.exists()
+        val_data_exists = self.paths.val_data_path.exists()
 
         if train_data_exists and val_data_exists and test_data_exists:
             self.train_data = pd.read_parquet(self.paths.train_data_path)
