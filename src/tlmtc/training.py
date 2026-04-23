@@ -4,19 +4,48 @@ Defines utilities for training, class weighting, and evaluation metrics used dur
 """
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import numpy as np
 import pandas as pd
 import torch
 from peft import LoraConfig, PeftMixedModel, PeftModel, TaskType, get_peft_model
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 from sklearn.metrics import f1_score, roc_auc_score
 from sklearn.utils.class_weight import compute_class_weight
 from torch import Tensor
 from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
+from tlmtc.settings import TrainingSettings
 from tlmtc.types import LoraBias
+
+
+# training.py
+class TrainingRuntimeState(BaseModel):
+    """Mutable effective training state for a concrete run."""
+
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    batch_size: PositiveInt
+    train_epochs: PositiveInt
+    weight_decay: float = Field(..., ge=0.0)
+    learning_rate: float = Field(..., gt=0.0)
+    lr_scheduler: str
+
+    @classmethod
+    def from_settings(
+        cls,
+        training: TrainingSettings,
+    ) -> Self:
+        """Create a mutable runtime training state from resolved training settings."""
+        return cls(
+            batch_size=training.batch_size,
+            train_epochs=training.train_epochs,
+            weight_decay=training.weight_decay,
+            learning_rate=training.learning_rate,
+            lr_scheduler=training.lr_scheduler,
+        )
 
 
 def get_training_args(

@@ -183,7 +183,7 @@ class WorkflowSettings(BaseModel):
 class TrainingSettings(BaseModel):
     """Training settings."""
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
     batch_size: PositiveInt = 16
     train_epochs: PositiveInt = 20

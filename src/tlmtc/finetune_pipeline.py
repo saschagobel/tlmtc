@@ -29,6 +29,7 @@ from tlmtc.settings import (
     WorkflowSettings,
 )
 from tlmtc.training import (
+    TrainingRuntimeState,
     WeightedTrainer,
     compute_metrics,
     get_class_weights,
@@ -47,7 +48,8 @@ class FinetunePipeline:
         model: Model configuration (proxy-checkpoint and checkpoint).
         workflow: High-level workflow toggles (HPO, learning rate scaling, transfer learning, threshold optimization).
         peft: PEFT/LoRA configuration.
-        training: Training hyperparameters (updated after HPO).
+        training: Resolved training input settings.
+        runtime_training: Mutable effective training state used during HPO and fine-tuning.
         hpo: Hyperparameter optimization settings, including the resolved Optuna space.
         threshold: Threshold optimization settings.
         hardware: Hardware settings (forcing CPU execution).
@@ -72,12 +74,12 @@ class FinetunePipeline:
         """Initialize the fine-tuning pipeline.
 
         Args:
-            tokenized_dataset : Tokenized dataset ready for PyTorch with "train"/"validation"/"test" splits.
+            tokenized_dataset: Tokenized dataset ready for PyTorch with "train"/"validation"/"test" splits.
             paths: Run-specific filesystem layout for reading data splits and writing artifacts.
             model: Model settings (checkpoints).
             workflow: Workflow flags controlling which stages to run.
             hpo: Hyperparameter tuning configuration, including the resolved Optuna search space.
-            training: Training hyperparameters (updated by HPO).
+            training: Resolved training input settings.
             peft: LoRA/PEFT settings.
             threshold: Threshold optimization settings.
             hardware: Hardware settings (forcing CPU execution).
@@ -88,6 +90,7 @@ class FinetunePipeline:
         self.workflow = workflow
         self.hpo = hpo
         self.training = training
+        self.runtime_training: TrainingRuntimeState = TrainingRuntimeState.from_settings(training)
         self.peft = peft
         self.threshold = threshold
         self.hardware = hardware
@@ -174,11 +177,11 @@ class FinetunePipeline:
             compute_objective = make_compute_objective(best_model_metric=self.training.best_model_metric)
             training_args = get_training_args(
                 logging_path=output_dir,
-                batch_size=self.training.batch_size,
-                epochs=self.training.train_epochs,
-                weight_decay=self.training.weight_decay,
-                learning_rate=self.training.learning_rate,
-                lr_scheduler=self.training.lr_scheduler,
+                batch_size=self.runtime_training.batch_size,
+                epochs=self.runtime_training.train_epochs,
+                weight_decay=self.runtime_training.weight_decay,
+                learning_rate=self.runtime_training.learning_rate,
+                lr_scheduler=self.runtime_training.lr_scheduler,
                 best_model_metric=self.training.best_model_metric,
                 use_cpu=self.hardware.use_cpu,
             )
@@ -202,18 +205,18 @@ class FinetunePipeline:
                 load_if_exists=True,
             )
         if self.workflow.scale_learning_rate:
-            self.training.learning_rate = get_scaled_lr(
+            self.runtime_training.learning_rate = get_scaled_lr(
                 learning_rate=best_run.hyperparameters["learning_rate"],
                 checkpoint=self.model.checkpoint,
                 proxy_checkpoint=self.model.proxy_checkpoint,
                 peft=self.workflow.wrap_peft,
             )
         else:
-            self.training.learning_rate = best_run.hyperparameters["learning_rate"]
-        self.training.lr_scheduler = best_run.hyperparameters["lr_scheduler_type"]
-        self.training.batch_size = best_run.hyperparameters["per_device_train_batch_size"]
-        self.training.weight_decay = best_run.hyperparameters["weight_decay"]
-        self.training.train_epochs = best_run.hyperparameters["num_train_epochs"]
+            self.runtime_training.learning_rate = best_run.hyperparameters["learning_rate"]
+        self.runtime_training.lr_scheduler = best_run.hyperparameters["lr_scheduler_type"]
+        self.runtime_training.batch_size = best_run.hyperparameters["per_device_train_batch_size"]
+        self.runtime_training.weight_decay = best_run.hyperparameters["weight_decay"]
+        self.runtime_training.train_epochs = best_run.hyperparameters["num_train_epochs"]
         return self
 
     def fine_tune_pretrained(
@@ -241,11 +244,11 @@ class FinetunePipeline:
 
         training_args = get_training_args(
             logging_path=self.paths.logs_dir,
-            batch_size=self.training.batch_size,
-            epochs=self.training.train_epochs,
-            weight_decay=self.training.weight_decay,
-            learning_rate=self.training.learning_rate,
-            lr_scheduler=self.training.lr_scheduler,
+            batch_size=self.runtime_training.batch_size,
+            epochs=self.runtime_training.train_epochs,
+            weight_decay=self.runtime_training.weight_decay,
+            learning_rate=self.runtime_training.learning_rate,
+            lr_scheduler=self.runtime_training.lr_scheduler,
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
         )
