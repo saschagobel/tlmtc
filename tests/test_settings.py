@@ -369,7 +369,6 @@ class TestBundleSettings:
         with pytest.raises(ValidationError):
             setattr(settings, field_name, current_value)
 
-
     @pytest.mark.parametrize(
         ("model_cls", "kwargs", "pattern"),
         [
