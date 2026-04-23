@@ -83,8 +83,7 @@ def test_run_tlmtc_returns_run_result_and_creates_dirs(
     # Minimal contract: tokenized dataset flows into finetuning + outputs are wired.
     _, ft_kwargs = ft_cls.call_args
     assert ft_kwargs["tokenized_dataset"] is tokenized
-    assert ft_kwargs["output_logging_path"] == result.paths.logs_dir
-    assert ft_kwargs["output_model_path"] == result.paths.model_dir
+    assert ft_kwargs["paths"] == result.paths
 
 
 @pytest.mark.parametrize("provide_raw_test", [False, True])

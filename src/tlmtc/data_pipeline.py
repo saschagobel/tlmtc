@@ -6,121 +6,52 @@ Dataset preparation
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-from typing import Optional, Union
-
 import pandas as pd
 import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
 from tlmtc.data_prep import df_preprocess, df_save, df_split
+from tlmtc.paths import RunPaths
+from tlmtc.settings import ModelSettings, SplitSettings
 
 
 class DataPipeline:
-    """
-    Load, split, process and tokenize raw multi-label data.
+    """Load, split, process and tokenize raw multi-label data.
 
-    Attributes
-    ----------
-    raw_data_path : str or Path
-        Path to the raw train CSV data file, with required columns 'text', 'label_*'
-    raw_test_data_path : str or Path
-        Path to the raw test CSV data file, with required columns 'text', 'label_*'
-    train_data_path : str or Path
-        Path where the training split will be saved
-    val_data_path : str or Path
-        Path where the validation split will be saved
-    test_data_path : str or Path
-        Path where the test split will be saved
-    validation_size: float
-        Proportion of data set to be used for validation
-    test_size : float
-        Proportion of data set to be used for testing
-    random_seed : int
-        Random seed
-    checkpoint : str
-        Name of the pretrained model checkpoint on the Hugging Face Hub, used for tokenization
-    sequence_length : int
-        Maximum number of tokens per input text
-    train_data : pandas.DataFrame
-        Data Frame with columns 'text', 'label_*'
-    val_data : pandas.DataFrame
-        Data Frame with columns 'text', 'label_*'
-    test_data : pandas.DataFrame
-        Data Frame with columns 'text', 'label_*'
-    hf_dataset : DatasetDict
-        Hugging Face DatasetDict with 'train', 'validation' and 'test' splits
-    tokenized_dataset : DatasetDict
-        Tokenized dataset ready for PyTorch
-
-    Methods
-    -------
-    split_data():
-        Split data into train, validation and test partitions, reset indices, and save to disk as parquet files
-    get_multi_hot_vectors():
-        Combine multiple label columns into a single array per row (multi-hot vector)
-    create_hf_dataset():
-        Assemble train and test data in a Hugging Face DatasetDict
-    tokenize_data():
-        Tokenize text and convert multi-hot labels to float tensors
+    Attributes:
+        paths: Resolved filesystem locations for raw inputs and persisted splits.
+        split: Split configuration (validation/test fractions and random seed).
+        model: Tokenization-related configuration (checkpoint and max sequence length).
+        train_data: Training split dataframe
+        val_data: Validation split dataframe
+        test_data: Test split dataframe
+        hf_dataset: Hugging Face DatasetDict with 'train', 'validation' and 'test' splits
+        tokenized_dataset: Tokenized dataset ready for PyTorch
     """
 
     def __init__(
         self,
-        raw_data_path: Union[str, Path],
-        raw_test_data_path: Union[str, Path],
-        train_data_path: Union[str, Path],
-        val_data_path: Union[str, Path],
-        test_data_path: Union[str, Path],
-        validation_size: float,
-        test_size: float,
-        random_seed: int,
-        checkpoint: str,
-        sequence_length: int,
+        paths: RunPaths,
+        split: SplitSettings,
+        model: ModelSettings,
     ) -> None:
         """
-        Initialize configuration.
+        Initialize the data pipeline.
 
-        Parameters
-        ----------
-        raw_data_path : str or Path
-            Path to the raw train CSV data file, with required columns 'text', 'label_*'
-        raw_test_data_path : str or Path
-            Path to the raw test CSV data file, with required columns 'text', 'label_*'
-        train_data_path : str or Path
-            Path where the training split will be saved
-        val_data_path : str or Path
-            Path where the validation split will be saved
-        test_data_path : str or Path
-            Path where the test split will be saved
-        validation_size: float
-            Proportion of data set to be used for validation
-        test_size : float
-            Proportion of data set to be used for testing
-        random_seed : int
-            Random seed
-        checkpoint : str
-            Name of the pretrained model checkpoint on the Hugging Face Hub, used for tokenization
-        sequence_length : int
-            Maximum number of tokens per input text
+        Args:
+            paths: Run-specific filesystem layout (raw/train/val/test locations).
+            split: Split parameters (validation/test fractions and random seed).
+            model: Tokenization parameters (checkpoint and max sequence length).
         """
-        self.raw_data_path = raw_data_path
-        self.raw_test_data_path = raw_test_data_path
-        self.train_data_path = train_data_path
-        self.val_data_path = val_data_path
-        self.test_data_path = test_data_path
-        self.validation_size = validation_size
-        self.test_size = test_size
-        self.random_seed = random_seed
-        self.checkpoint = checkpoint
-        self.sequence_length = sequence_length
-        self.train_data: Optional[pd.DataFrame] = None
-        self.val_data: Optional[pd.DataFrame] = None
-        self.test_data: Optional[pd.DataFrame] = None
-        self.hf_dataset: Optional[DatasetDict] = None
-        self.tokenized_dataset: Optional[DatasetDict] = None
+        self.paths = paths
+        self.split = split
+        self.model = model
+        self.train_data: pd.DataFrame | None = None
+        self.val_data: pd.DataFrame | None = None
+        self.test_data: pd.DataFrame | None = None
+        self.hf_dataset: DatasetDict | None = None
+        self.tokenized_dataset: DatasetDict | None = None
 
     def split_data(self) -> DataPipeline:
         """
@@ -134,45 +65,45 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        raw_data_exists = os.path.exists(self.raw_data_path)
-        raw_test_data_exists = os.path.exists(self.raw_test_data_path)
-        train_data_exists = os.path.exists(self.train_data_path)
-        test_data_exists = os.path.exists(self.test_data_path)
-        val_data_exists = os.path.exists(self.val_data_path)
+        raw_data_exists = self.paths.raw_data_path.exists()
+        raw_test_data_exists = self.paths.raw_test_data_path.exists()
+        train_data_exists = self.paths.train_data_path.exists()
+        test_data_exists = self.paths.test_data_path.exists()
+        val_data_exists = self.paths.val_data_path.exists()
 
         if train_data_exists and val_data_exists and test_data_exists:
-            self.train_data = pd.read_parquet(self.train_data_path)
-            self.val_data = pd.read_parquet(self.val_data_path)
-            self.test_data = pd.read_parquet(self.test_data_path)
+            self.train_data = pd.read_parquet(self.paths.train_data_path)
+            self.val_data = pd.read_parquet(self.paths.val_data_path)
+            self.test_data = pd.read_parquet(self.paths.test_data_path)
             return self
 
         if not raw_data_exists:
-            raise FileNotFoundError(f"Raw data not found at {self.raw_data_path}.")
-        df, label_cols, X, y = df_preprocess(self.raw_data_path)
+            raise FileNotFoundError(f"Raw data not found at {self.paths.raw_data_path}.")
+        df, label_cols, X, y = df_preprocess(self.paths.raw_data_path)
 
         if raw_test_data_exists:
-            df_test, label_cols_test, _, _ = df_preprocess(self.raw_test_data_path)
+            df_test, label_cols_test, _, _ = df_preprocess(self.paths.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise ValueError("Mismatch between train/test label columns")
             self.train_data, self.val_data = df_split(
-                df=df, X=X, y=y, test_size=self.validation_size, random_seed=self.random_seed
+                df=df, X=X, y=y, test_size=self.split.validation_size, random_seed=self.split.random_seed
             )
             self.test_data = df_test.reset_index(drop=True)
         else:
             full_train_data, self.test_data = df_split(
-                df=df, X=X, y=y, test_size=self.test_size, random_seed=self.random_seed
+                df=df, X=X, y=y, test_size=self.split.test_size, random_seed=self.split.random_seed
             )
             self.train_data, self.val_data = df_split(
                 df=full_train_data,
                 X=full_train_data["text"].values,
                 y=full_train_data[label_cols].values,
-                test_size=self.validation_size,
-                random_seed=self.random_seed,
+                test_size=self.split.validation_size,
+                random_seed=self.split.random_seed,
             )
 
-        df_save(df=self.train_data, path=self.train_data_path)
-        df_save(df=self.val_data, path=self.val_data_path)
-        df_save(df=self.test_data, path=self.test_data_path)
+        df_save(df=self.train_data, path=self.paths.train_data_path)
+        df_save(df=self.val_data, path=self.paths.val_data_path)
+        df_save(df=self.test_data, path=self.paths.test_data_path)
         return self
 
     def get_multi_hot_vectors(self) -> DataPipeline:
@@ -230,10 +161,10 @@ class DataPipeline:
         """
         if self.hf_dataset is None:
             raise RuntimeError("Hugging Face DatasetDict not found. Run create_hf_dataset() first.")
-        tokenizer = AutoTokenizer.from_pretrained(self.checkpoint)
+        tokenizer = AutoTokenizer.from_pretrained(self.model.checkpoint)
         td = self.hf_dataset.map(
             lambda batch: tokenizer(
-                batch["text"], truncation=True, padding="max_length", max_length=self.sequence_length
+                batch["text"], truncation=True, padding="max_length", max_length=self.model.sequence_length
             ),
             batched=True,
         )

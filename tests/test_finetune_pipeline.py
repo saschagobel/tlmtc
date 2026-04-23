@@ -1,4 +1,4 @@
-"""Tests for the WeightedTrainer and FinetunePipeline class."""
+"""Tests for FinetunePipeline."""
 
 from types import SimpleNamespace
 from typing import Any
@@ -8,26 +8,20 @@ import pandas as pd
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
-from torch import nn
 from transformers import TrainingArguments
 
-from tlmtc.finetune_pipeline import FinetunePipeline, WeightedTrainer
+from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.hpo import optuna_hp_space
-
-
-class DummyModel(nn.Module):
-    """Minimal feed-forward classifier used for testing the `WeightedTrainer`."""
-
-    def __init__(self, num_labels=3):
-        """Initialize the dummy model."""
-        super().__init__()
-        self.num_labels = num_labels
-        self.linear = nn.Linear(4, num_labels)
-
-    def forward(self, input_ids=None):
-        """Compute logits for a batch of inputs."""
-        logits = self.linear(input_ids.float())
-        return type("Output", (), {"logits": logits})
+from tlmtc.paths import RunPaths
+from tlmtc.settings import (
+    HardwareSettings,
+    HpoSettings,
+    ModelSettings,
+    PeftSettings,
+    ThresholdSettings,
+    TrainingSettings,
+    WorkflowSettings,
+)
 
 
 @pytest.fixture
@@ -46,42 +40,82 @@ def dummy_train_parquet(tmp_path):
 
 
 @pytest.fixture
-def pipeline_factory(tmp_path):
-    """Return a factory for constructing FinetunePipeline instances for tests."""
+def pipeline_factory(tmp_path, base_search_space):
+    """Factory for constructing a FinetunePipeline with minimal test settings."""
 
-    def _factory(train_path, wrap_peft=False, transfer_learning=True):
-        """Construct a FinetunePipeline with controlled configuration for testing."""
-        return FinetunePipeline(
-            tokenized_dataset=None,
+    def _factory(
+        train_path,
+        *,
+        tokenized_dataset=None,
+        wrap_peft: bool = False,
+        transfer_learning: bool = True,
+        hyperparameter_tuning: bool = False,
+        threshold_optimization: bool = False,
+        scale_learning_rate: bool = False,
+        optuna_space=None,
+        tuning_trials: int = 1,
+        model_checkpoint: str = "dummy",
+        target_name: str = "dummy",
+    ):
+        run_dir = tmp_path / "outputs" / "test-run"
+        paths = RunPaths(
+            work_dir=tmp_path,
+            run_dir=run_dir,
+            run_id="test-run",
+            raw_data_path=tmp_path / "raw.csv",
+            raw_test_data_path=tmp_path / "raw_test.csv",
+            data_dir=run_dir / "data",
+            logs_dir=run_dir / "logs",
+            model_dir=run_dir / "model",
             train_data_path=train_path,
-            val_data_path=tmp_path / "val.parquet",
-            output_logging_path=tmp_path / "logs",
-            output_model_path=tmp_path / "model",
-            target_name="dummy",
+            val_data_path=run_dir / "data" / "val.parquet",
+            test_data_path=run_dir / "data" / "test.parquet",
+        ).ensure_dirs()
+
+        model = ModelSettings(
+            target_name=target_name,
             proxy_checkpoint="dummy_proxy",
-            checkpoint="dummy",
+            checkpoint=model_checkpoint,
+            sequence_length=16,
+        )
+
+        workflow = WorkflowSettings(
+            hyperparameter_tuning=hyperparameter_tuning,
+            threshold_optimization=threshold_optimization,
             transfer_learning=transfer_learning,
-            hyperparameter_tuning=False,
-            threshold_optimization=False,
-            threshold_type="global",
-            scale_learning_rate=False,
+            scale_learning_rate=scale_learning_rate,
             wrap_peft=wrap_peft,
-            optuna_space_default_base={},
-            optuna_space_default_peft={},
-            tuning_trials=1,
+        )
+
+        peft = PeftSettings(lora_r=1, lora_alpha=1, lora_dropout=0.1, lora_bias="none")
+
+        training = TrainingSettings(
             batch_size=2,
+            train_epochs=1,
             weight_decay=0.0,
             learning_rate=1e-3,
             lr_scheduler="linear",
-            epochs=1,
             best_model_metric="f1_macro",
-            best_threshold_metric="f1_macro",
             early_stopping_patience=1,
-            lora_r=1,
-            lora_alpha=1,
-            lora_dropout=0.1,
-            lora_bias="none",
-            use_cpu=True,
+        )
+
+        hpo = HpoSettings(
+            tuning_trials=tuning_trials,
+            optuna_space=base_search_space if optuna_space is None else optuna_space,
+        )
+        threshold = ThresholdSettings(threshold_type="global", best_threshold_metric="f1_macro")
+        hardware = HardwareSettings(use_cpu=True)
+
+        return FinetunePipeline(
+            tokenized_dataset=tokenized_dataset,
+            paths=paths,
+            model=model,
+            workflow=workflow,
+            peft=peft,
+            training=training,
+            hpo=hpo,
+            threshold=threshold,
+            hardware=hardware,
         )
 
     return _factory
@@ -123,16 +157,17 @@ def base_search_space():
 
 
 @pytest.fixture
-def pipeline_with_tokenized(pipeline_factory, dummy_train_parquet, tokenized_dataset, base_search_space):
-    """Construct a pipeline ready for tuning."""
-    pipeline = pipeline_factory(dummy_train_parquet)
-    pipeline.tokenized_dataset = tokenized_dataset
-    pipeline.hyperparameter_tuning = True
-    pipeline.optuna_space_default_base = base_search_space
-    return pipeline
+def pipeline_with_tokenized_hpo(pipeline_factory, dummy_train_parquet, tokenized_dataset, base_search_space):
+    """FinetunePipeline configured for hyperparameter tuning with a tokenized dataset."""
+    return pipeline_factory(
+        train_path=dummy_train_parquet,
+        tokenized_dataset=tokenized_dataset,
+        hyperparameter_tuning=True,
+        optuna_space=base_search_space,
+    )
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def patch_hf_hyperparameter_search(monkeypatch):
     """Patch to disable real HF hyperparameter search and Optuna runs."""
 
@@ -154,26 +189,28 @@ def patch_hf_hyperparameter_search(monkeypatch):
     )
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def patch_model_init(monkeypatch):
-    """Patch to replace _make_model_init with a DummyModel factory."""
+    """Patch to replace make_model_init with a tiny torch model factory."""
 
     def _fake_model_init(*_args, **kwargs):
-        return lambda *_: DummyModel(num_labels=kwargs.get("num_labels", 2))
+        num_labels = kwargs.get("num_labels", 2)
+
+        class _Model(torch.nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.num_labels = num_labels
+
+            def forward(self, input_ids=None, **_):
+                batch = 1 if input_ids is None else input_ids.shape[0]
+                logits = torch.zeros((batch, self.num_labels), dtype=torch.float32)
+                return SimpleNamespace(logits=logits)
+
+        return lambda *_: _Model()
 
     monkeypatch.setattr(
         "tlmtc.finetune_pipeline.make_model_init",
         _fake_model_init,
-        raising=True,
-    )
-
-
-@pytest.fixture(autouse=True)
-def patch_class_weights(monkeypatch):
-    """Patch to stub _get_class_weights with unit weights per label."""
-    monkeypatch.setattr(
-        "tlmtc.finetune_pipeline.get_class_weights",
-        lambda *args, **kwargs: torch.ones(2),
         raising=True,
     )
 
@@ -206,71 +243,16 @@ def fake_trainer():
     return trainer
 
 
-class TestWeightedTrainer:
-    """Test suite for the WeightedTrainer class."""
-
-    def test_loss_respects_class_weights(self, tmp_path):
-        """Ensure that applying class weights increases the computed BCE loss."""
-        model = DummyModel(num_labels=3)
-
-        inputs = {
-            "labels": torch.tensor([[1, 0, 1], [0, 1, 0]]).float(),
-            "input_ids": torch.zeros((2, 4)),
-        }
-
-        args = TrainingArguments(
-            output_dir=str(tmp_path / "trainer_output"),
-            per_device_train_batch_size=2,
-            per_device_eval_batch_size=2,
-            num_train_epochs=1,
-            report_to="none",
-        )
-
-        unweighted = WeightedTrainer(model=model, args=args, class_weights=None)
-        loss_unweighted = unweighted.compute_loss(model, dict(inputs))
-
-        cw = torch.tensor([5.0, 5.0, 5.0])
-        weighted = WeightedTrainer(model=model, args=args, class_weights=cw)
-        loss_weighted = weighted.compute_loss(model, dict(inputs))
-
-        assert loss_weighted > loss_unweighted
-
-    def test_returns_loss_and_outputs_tuple(self, tmp_path):
-        """Test that compute_loss returns (loss, outputs) when return_outputs is True."""
-        model = DummyModel(num_labels=3)
-        args = TrainingArguments(output_dir=str(tmp_path / "trainer_output"), report_to="none")
-
-        trainer = WeightedTrainer(model=model, args=args)
-        inputs = {"labels": torch.zeros((1, 3)), "input_ids": torch.zeros((1, 4))}
-
-        loss, outputs = trainer.compute_loss(model, inputs, return_outputs=True)
-
-        assert isinstance(loss, torch.Tensor)
-        assert hasattr(outputs, "logits")
-
-    def test_reads_num_labels_from_model_module(self, tmp_path):
-        """Ensure that compute_loss reads num_labels correctly from model.module when present."""
-        model = torch.nn.DataParallel(DummyModel(num_labels=4))
-        args = TrainingArguments(output_dir=str(tmp_path / "trainer_output"), report_to="none")
-
-        trainer = WeightedTrainer(model=model, args=args)
-        inputs = {"labels": torch.zeros((1, 4)), "input_ids": torch.zeros((1, 4))}
-
-        loss = trainer.compute_loss(model, inputs)
-        assert isinstance(loss, torch.Tensor)
-
-
 class TestLoadPretrained:
     """Test suite for FinetunePipeline.load_pretrained."""
 
-    @pytest.mark.parametrize("transfer_learning, expected_call", [(True, True), (False, False)])
+    @pytest.mark.parametrize("transfer_learning", [True, False])
     def test_respects_transfer_learning_flag(
         self,
         pipeline_factory,
         dummy_train_parquet,
         monkeypatch,
         transfer_learning,
-        expected_call,
     ):
         """Ensure load_pretrained skips or performs model loading based on transfer_learning."""
         fake_model = SimpleNamespace()
@@ -287,16 +269,9 @@ class TestLoadPretrained:
             transfer_learning=transfer_learning,
         )
 
-        assert pipeline.pretrained_model is None
-        assert pipeline.num_labels is None
-
         pipeline.load_pretrained()
 
-        if not expected_call:
-            mock_from_pretrained.assert_not_called()
-            assert pipeline.pretrained_model is None
-            assert pipeline.num_labels is None
-        else:
+        if transfer_learning:
             mock_from_pretrained.assert_called_once_with(
                 "dummy",
                 num_labels=2,
@@ -304,6 +279,10 @@ class TestLoadPretrained:
             )
             assert pipeline.pretrained_model is fake_model
             assert pipeline.num_labels == 2
+        else:
+            mock_from_pretrained.assert_not_called()
+            assert pipeline.pretrained_model is None
+            assert pipeline.num_labels is None
 
     def test_raises_when_train_file_missing(self, pipeline_factory, tmp_path):
         """Ensure that load_pretrained raises a RuntimeError when the train file is missing."""
@@ -321,25 +300,33 @@ class TestLoadPretrained:
         fake_model = SimpleNamespace(name="original")
         fake_peft_model = SimpleNamespace(name="wrapped")
 
+        mock_from_pretrained = MagicMock(return_value=fake_model)
         monkeypatch.setattr(
             "tlmtc.finetune_pipeline.AutoModelForSequenceClassification.from_pretrained",
-            lambda *_, **__: fake_model,
+            mock_from_pretrained,
+            raising=True,
         )
 
         wrap_mock = MagicMock(return_value=fake_peft_model)
-        monkeypatch.setattr("tlmtc.finetune_pipeline.wrap_model_with_peft", wrap_mock)
+        monkeypatch.setattr("tlmtc.finetune_pipeline.wrap_model_with_peft", wrap_mock, raising=True)
 
-        pipeline = pipeline_factory(dummy_train_parquet, wrap_peft=wrap_peft)
+        pipeline = pipeline_factory(train_path=dummy_train_parquet, wrap_peft=wrap_peft)
 
         pipeline.load_pretrained()
+
+        mock_from_pretrained.assert_called_once_with(
+            "dummy",
+            num_labels=2,
+            problem_type="multi_label_classification",
+        )
 
         if wrap_peft:
             wrap_mock.assert_called_once_with(
                 model=fake_model,
-                lora_r=pipeline.lora_r,
-                lora_alpha=pipeline.lora_alpha,
-                lora_dropout=pipeline.lora_dropout,
-                lora_bias=pipeline.lora_bias,
+                lora_r=pipeline.peft.lora_r,
+                lora_alpha=pipeline.peft.lora_alpha,
+                lora_dropout=pipeline.peft.lora_dropout,
+                lora_bias=pipeline.peft.lora_bias,
             )
             assert pipeline.pretrained_model is fake_peft_model
         else:
@@ -347,16 +334,16 @@ class TestLoadPretrained:
             assert pipeline.pretrained_model is fake_model
 
 
+@pytest.mark.usefixtures("patch_hf_hyperparameter_search", "patch_model_init")
 class TestTuneHyperparameters:
     """Test suite for FinetunePipeline.tune_hyperparameters."""
 
     def test_returns_self_when_disabled(self, pipeline_factory, dummy_train_parquet):
         """Ensure tune_hyperparameters is a no-op and returns self when hyperparameter_tuning is False."""
-        pipeline = pipeline_factory(dummy_train_parquet)
+        pipeline = pipeline_factory(dummy_train_parquet, tokenized_dataset=None, hyperparameter_tuning=False)
+
         assert pipeline.tokenized_dataset is None
         assert pipeline.num_labels is None
-
-        pipeline.hyperparameter_tuning = False
 
         result = pipeline.tune_hyperparameters()
 
@@ -366,59 +353,44 @@ class TestTuneHyperparameters:
 
     def test_requires_tokenized_dataset(self, pipeline_factory, dummy_train_parquet):
         """Ensure tune_hyperparameters raises a RuntimeError when no tokenized dataset is set."""
-        pipeline = pipeline_factory(dummy_train_parquet)
-
-        pipeline.hyperparameter_tuning = True
-        assert pipeline.tokenized_dataset is None
+        pipeline = pipeline_factory(dummy_train_parquet, tokenized_dataset=None, hyperparameter_tuning=True)
 
         with pytest.raises(RuntimeError, match="Tokenized dataset not found"):
             pipeline.tune_hyperparameters()
 
-    def test_sets_num_labels_from_train_data(self, pipeline_with_tokenized):
+    def test_sets_num_labels_from_train_data(self, pipeline_with_tokenized_hpo):
         """Ensure num_labels is inferred from the multilabel train data when unset."""
-        pipeline = pipeline_with_tokenized
+        pipeline = pipeline_with_tokenized_hpo
         pipeline.num_labels = None
 
         pipeline.tune_hyperparameters()
 
-        assert pipeline_with_tokenized.num_labels == 2
+        assert pipeline.num_labels == 2
 
     @pytest.mark.parametrize("wrap_peft", [False, True])
-    def test_merges_optuna_spaces_and_configures_hp_search(
+    def test_configures_hp_search_from_hpo_settings(
         self,
-        pipeline_with_tokenized,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
         base_search_space,
         fake_trainer,
         wrap_peft,
     ):
-        """Ensure user Optuna space overrides defaults and hyperparameter_search is configured correctly."""
-        pipeline = pipeline_with_tokenized
-        pipeline.wrap_peft = wrap_peft
-
-        peft_space = {
-            "lr_low": 1e-6,
-            "lr_high": 1e-4,
-            "batch_sizes": [4, 8],
-            "wd_low": 0.0,
-            "wd_high": 0.05,
-            "schedulers": ["cosine"],
-            "epoch_low": 2,
-            "epoch_high": 4,
-        }
-        pipeline.optuna_space_default_peft = peft_space
-
-        user_space = {
-            "lr_high": 5e-4,
-            "epoch_high": 10,
-            "extra_param": "foobar",
-        }
-        pipeline.optuna_space_user = user_space
+        """Ensure hp_search kwargs reflect HpoSettings and storage paths."""
+        pipeline = pipeline_factory(
+            dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            hyperparameter_tuning=True,
+            wrap_peft=wrap_peft,
+            optuna_space=base_search_space,
+            tuning_trials=7,
+        )
 
         def trainer_factory(*_args, **_kwargs):
             return fake_trainer
 
         result = pipeline.tune_hyperparameters(trainer=trainer_factory)
-
         assert result is pipeline
 
         assert fake_trainer.hp_search_calls, "hyperparameter_search was never called"
@@ -428,31 +400,26 @@ class TestTuneHyperparameters:
         hp_space_fn = hp_search_kwargs["hp_space"]
 
         assert hp_space_fn.func is optuna_hp_space
-
-        default_space = peft_space if wrap_peft else base_search_space
-        actual_space = hp_space_fn.keywords["space"]
-        expected_space = {**default_space, **user_space}
-        assert actual_space == expected_space
+        assert hp_space_fn.keywords["space"] == base_search_space
 
         assert hp_search_kwargs["direction"] == "maximize"
         assert hp_search_kwargs["backend"] == "optuna"
-        assert hp_search_kwargs["n_trials"] == pipeline.tuning_trials
-        assert hp_search_kwargs["study_name"] == f"{pipeline.target_name.replace(' ', '_')}_optuna_study"
+        assert hp_search_kwargs["n_trials"] == pipeline.hpo.tuning_trials
+        assert hp_search_kwargs["study_name"] == f"{pipeline.model.target_name.replace(' ', '_')}_optuna_study"
 
-        expected_storage = f"sqlite:///{pipeline.output_logging_path.as_posix()}/optuna_trials.db"
+        expected_storage = f"sqlite:///{pipeline.paths.logs_dir.as_posix()}/optuna_trials.db"
         assert hp_search_kwargs["storage"] == expected_storage
 
-        compute_objective = hp_search_kwargs["compute_objective"]
-        assert callable(compute_objective)
+        assert callable(hp_search_kwargs["compute_objective"])
         assert hp_search_kwargs["load_if_exists"] is True
 
     def test_instantiates_trainer_with_expected_arguments(
         self,
-        pipeline_with_tokenized,
+        pipeline_with_tokenized_hpo,
         fake_trainer,
     ):
-        """Ensure Trainer is instantiated with the expected core arguments in tune_hyperparameters."""
-        pipeline = pipeline_with_tokenized
+        """Ensure tune_hyperparameters instantiates the Trainer with expected inputs."""
+        pipeline = pipeline_with_tokenized_hpo
         recorded: dict = {}
 
         def trainer_factory(*args, **kwargs):
@@ -478,26 +445,35 @@ class TestTuneHyperparameters:
         assert callable(kwargs["model_init"])
 
         model_instance = kwargs["model_init"]()
-        assert isinstance(model_instance, DummyModel)
-        assert model_instance.num_labels == 2
+        assert isinstance(model_instance, torch.nn.Module)
+        assert getattr(model_instance, "num_labels") == 2
 
     @pytest.mark.parametrize("scale_learning_rate", [False, True])
     def test_updates_pipeline_hyperparameters_from_best_run(
         self,
-        pipeline_with_tokenized,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        base_search_space,
         fake_trainer,
         monkeypatch,
         scale_learning_rate,
     ):
-        """Ensure pipeline hyperparameters reflect the best Optuna run and optionally use a scaled learning rate."""
-        pipeline = pipeline_with_tokenized
-        pipeline.scale_learning_rate = scale_learning_rate
+        """Ensure best hyperparameters are applied to TrainingSettings."""
+        pipeline = pipeline_factory(
+            dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            hyperparameter_tuning=True,
+            optuna_space=base_search_space,
+            scale_learning_rate=scale_learning_rate,
+            wrap_peft=False,
+        )
 
-        pipeline.learning_rate = 9.9
-        pipeline.lr_scheduler = "cosine"
-        pipeline.batch_size = 999
-        pipeline.weight_decay = 0.5
-        pipeline.epochs = 10
+        pipeline.training.learning_rate = 9.9
+        pipeline.training.lr_scheduler = "cosine"
+        pipeline.training.batch_size = 999
+        pipeline.training.weight_decay = 0.5
+        pipeline.training.train_epochs = 10
 
         scaled_lr = 5e-5
         mock_get_scaled_lr = MagicMock(return_value=scaled_lr)
@@ -513,21 +489,21 @@ class TestTuneHyperparameters:
         pipeline.tune_hyperparameters(trainer=trainer_factory)
 
         if scale_learning_rate:
-            assert pipeline.learning_rate == scaled_lr
+            assert pipeline.training.learning_rate == scaled_lr
             mock_get_scaled_lr.assert_called_once_with(
                 learning_rate=1e-4,
-                checkpoint=pipeline.checkpoint,
-                proxy_checkpoint=pipeline.proxy_checkpoint,
-                peft=pipeline.wrap_peft,
+                checkpoint=pipeline.model.checkpoint,
+                proxy_checkpoint=pipeline.model.proxy_checkpoint,
+                peft=pipeline.workflow.wrap_peft,
             )
         else:
-            assert pipeline.learning_rate == 1e-4
+            assert pipeline.training.learning_rate == 1e-4
             mock_get_scaled_lr.assert_not_called()
 
-        assert pipeline.lr_scheduler == "linear"
-        assert pipeline.batch_size == 8
-        assert pipeline.weight_decay == 0.01
-        assert pipeline.epochs == 2
+        assert pipeline.training.lr_scheduler == "linear"
+        assert pipeline.training.batch_size == 8
+        assert pipeline.training.weight_decay == 0.01
+        assert pipeline.training.train_epochs == 2
 
 
 class TestFineTunePretrained:
@@ -544,17 +520,18 @@ class TestFineTunePretrained:
         transfer_learning,
         expected_call,
     ):
-        """Ensure fine_tune_pretrained is a no-op unless transfer_learning is True."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet, transfer_learning=transfer_learning)
-        pipeline.tokenized_dataset = tokenized_dataset
-        pipeline.pretrained_model = DummyModel(num_labels=2)
+        """Ensure fine_tune_pretrained is a no-op when transfer_learning is disabled."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=transfer_learning,
+            hyperparameter_tuning=False,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
 
         mock_get_class_weights = MagicMock(return_value=torch.ones(2))
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.get_class_weights",
-            mock_get_class_weights,
-            raising=True,
-        )
+        monkeypatch.setattr("tlmtc.finetune_pipeline.get_class_weights", mock_get_class_weights, raising=True)
 
         recorded: dict[str, Any] = {}
 
@@ -564,7 +541,6 @@ class TestFineTunePretrained:
             return fake_trainer
 
         result = pipeline.fine_tune_pretrained(trainer=trainer_factory)
-
         assert result is pipeline
 
         if expected_call:
@@ -578,31 +554,28 @@ class TestFineTunePretrained:
             assert recorded == {}
             assert pipeline.updated_trainer is None
 
-    def test_requires_tokenized_dataset(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-    ):
-        """Ensure a RuntimeError is raised when tokenized_dataset is missing."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.transfer_learning = True
-        pipeline.tokenized_dataset = None
-        pipeline.pretrained_model = DummyModel(num_labels=2)
+    def test_requires_tokenized_dataset(self, pipeline_factory, dummy_train_parquet):
+        """..."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=None,
+            transfer_learning=True,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
 
         with pytest.raises(RuntimeError, match="Tokenized dataset not found"):
             pipeline.fine_tune_pretrained()
 
-    def test_requires_pretrained_model(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-        tokenized_dataset,
-    ):
-        """Ensure a RuntimeError is raised when pretrained_model is missing."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.transfer_learning = True
-        pipeline.tokenized_dataset = tokenized_dataset
+    def test_requires_pretrained_model(self, pipeline_factory, dummy_train_parquet, tokenized_dataset):
+        """Ensure fine_tune_pretrained raises when no tokenized dataset is available."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+        )
         pipeline.pretrained_model = None
+        pipeline.num_labels = 2
 
         with pytest.raises(RuntimeError, match="Pretrained model not loaded"):
             pipeline.fine_tune_pretrained()
@@ -614,11 +587,15 @@ class TestFineTunePretrained:
         tokenized_dataset,
         fake_trainer,
     ):
-        """Test that Trainer receives the expected model, datasets, hyperparameters, and callbacks."""
-        pipeline = pipeline_factory(train_path=dummy_train_parquet)
-        pipeline.tokenized_dataset = tokenized_dataset
-        pipeline.pretrained_model = DummyModel(num_labels=2)
-        pipeline.hyperparameter_tuning = False  # train split only
+        """Ensure fine_tune_pretrained instantiates Trainer with expected arguments."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
 
         recorded: dict[str, Any] = {}
 
@@ -639,13 +616,14 @@ class TestFineTunePretrained:
 
         training_args = kwargs["args"]
         assert isinstance(training_args, TrainingArguments)
-        assert training_args.learning_rate == pytest.approx(pipeline.learning_rate)
-        assert training_args.num_train_epochs == pipeline.epochs
-        assert training_args.per_device_train_batch_size == pipeline.batch_size
-        assert training_args.weight_decay == pipeline.weight_decay
-        assert training_args.lr_scheduler_type == pipeline.lr_scheduler
-        assert training_args.metric_for_best_model == pipeline.best_model_metric
-        assert training_args.use_cpu == pipeline.use_cpu
+
+        assert training_args.learning_rate == pytest.approx(pipeline.training.learning_rate)
+        assert training_args.num_train_epochs == pipeline.training.train_epochs
+        assert training_args.per_device_train_batch_size == pipeline.training.batch_size
+        assert training_args.weight_decay == pipeline.training.weight_decay
+        assert training_args.lr_scheduler_type == pipeline.training.lr_scheduler
+        assert training_args.metric_for_best_model == pipeline.training.best_model_metric
+        assert training_args.use_cpu == pipeline.hardware.use_cpu
 
         assert callable(kwargs["compute_metrics"])
         assert isinstance(kwargs["class_weights"], torch.Tensor)
@@ -667,15 +645,20 @@ class TestTuneThresholds:
     )
     def test_returns_self_when_disabled(
         self,
-        pipeline_with_tokenized,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
         monkeypatch,
         threshold_optimization,
         transfer_learning,
     ):
-        """Ensure tune_thresholds is a no-op unless threshold optimization and transfer learning are both enabled."""
-        pipeline = pipeline_with_tokenized
-        pipeline.threshold_optimization = threshold_optimization
-        pipeline.transfer_learning = transfer_learning
+        """Ensure tune_thresholds is a no-op unless threshold_optimization and transfer_learning are enabled."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            threshold_optimization=threshold_optimization,
+            transfer_learning=transfer_learning,
+        )
 
         pipeline.updated_trainer = MagicMock()
         find_mock = MagicMock()
@@ -688,25 +671,28 @@ class TestTuneThresholds:
         find_mock.assert_not_called()
 
     @pytest.mark.parametrize(
-        "tokenized_dataset, updated_trainer, expected_msg",
+        "tokenized_dataset_present, updated_trainer, expected_msg",
         [
-            (None, MagicMock(), "Tokenized dataset not found"),
-            ("__present__", None, "Trained model not found"),
+            (False, MagicMock(), "Tokenized dataset not found"),
+            (True, None, "Trained model not found"),
         ],
     )
     def test_requires_prerequisites(
         self,
-        pipeline_with_tokenized,
+        pipeline_factory,
+        dummy_train_parquet,
         tokenized_dataset,
+        tokenized_dataset_present,
         updated_trainer,
         expected_msg,
     ):
-        """Ensure tune_thresholds raises when tokenized data or a trained model is missing."""
-        pipeline = pipeline_with_tokenized
-        pipeline.threshold_optimization = True
-        pipeline.transfer_learning = True
-
-        pipeline.tokenized_dataset = None if tokenized_dataset is None else pipeline.tokenized_dataset
+        """Ensure tune_thresholds raises when prerequisites are missing."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset if tokenized_dataset_present else None,
+            threshold_optimization=True,
+            transfer_learning=True,
+        )
         pipeline.updated_trainer = updated_trainer
 
         with pytest.raises(RuntimeError, match=expected_msg):
@@ -714,13 +700,18 @@ class TestTuneThresholds:
 
     def test_predicts_on_validation_and_sets_tuned_threshold(
         self,
-        pipeline_with_tokenized,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
         monkeypatch,
     ):
-        """Ensure tune_thresholds predicts on validation, calls the threshold finder, and stores the tuned threshold."""
-        pipeline = pipeline_with_tokenized
-        pipeline.threshold_optimization = True
-        pipeline.transfer_learning = True
+        """Ensure tune_thresholds predicts on validation and stores the tuned threshold."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            threshold_optimization=True,
+            transfer_learning=True,
+        )
 
         fake_trainer = MagicMock()
         fake_trainer.predict.return_value = SimpleNamespace(predictions=[[0.0, 0.0]])
@@ -737,8 +728,8 @@ class TestTuneThresholds:
         assert pipeline.tuned_threshold is tuned
 
         _, kwargs = find_mock.call_args
-        assert kwargs["best_threshold_metric"] == pipeline.best_threshold_metric
-        assert kwargs["threshold_type"] == pipeline.threshold_type
+        assert kwargs["best_threshold_metric"] == pipeline.threshold.best_threshold_metric
+        assert kwargs["threshold_type"] == pipeline.threshold.threshold_type
         assert "y_true" in kwargs
         assert "y_prob" in kwargs
 
@@ -746,49 +737,39 @@ class TestTuneThresholds:
 class TestSavePretrained:
     """Test suite for FinetunePipeline.save_pretrained."""
 
-    def test_noop_when_transfer_learning_disabled(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-    ):
-        """Ensure save_pretrained is a no-op when transfer_learning is False."""
+    def test_noop_when_transfer_learning_disabled(self, pipeline_factory, dummy_train_parquet):
+        """Ensure save_pretrained is a no-op when transfer_learning is disabled."""
         pipeline = pipeline_factory(dummy_train_parquet, transfer_learning=False)
 
-        assert not pipeline.output_model_path.exists()
+        assert pipeline.paths.model_dir.exists()
+        assert list(pipeline.paths.model_dir.iterdir()) == []
 
         result = pipeline.save_pretrained()
 
         assert result is pipeline
-        assert not pipeline.output_model_path.exists()
         assert pipeline.updated_trainer is None
+        assert list(pipeline.paths.model_dir.iterdir()) == []
 
-    def test_raises_if_trainer_missing(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-    ):
-        """Ensure save_pretrained raises an error when called before fine_tune_pretrained."""
+    def test_raises_if_trainer_missing(self, pipeline_factory, dummy_train_parquet):
+        """Ensure save_pretrained raises when the fine-tuned Trainer is missing."""
         pipeline = pipeline_factory(dummy_train_parquet)
-        assert pipeline.transfer_learning is True
+        assert pipeline.workflow.transfer_learning is True
         assert pipeline.updated_trainer is None
 
         with pytest.raises(RuntimeError, match="Instantiated Trainer after fine-tuning not found"):
             pipeline.save_pretrained()
 
-    def test_delegates_to_model_with_output_path(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-    ):
-        """Test that save_pretrained calls model.save_pretrained with output_model_path."""
+    def test_delegates_to_model_with_output_path(self, pipeline_factory, dummy_train_parquet):
+        """Ensure save_pretrained delegates to the underlying model with model_dir."""
         pipeline = pipeline_factory(dummy_train_parquet)
 
         fake_model = MagicMock()
         pipeline.updated_trainer = SimpleNamespace(model=fake_model)
 
-        assert not pipeline.output_model_path.exists()
+        assert pipeline.paths.model_dir.exists()
+        assert list(pipeline.paths.model_dir.iterdir()) == []
 
         result = pipeline.save_pretrained()
 
         assert result is pipeline
-        fake_model.save_pretrained.assert_called_once_with(pipeline.output_model_path)
+        fake_model.save_pretrained.assert_called_once_with(pipeline.paths.model_dir)
