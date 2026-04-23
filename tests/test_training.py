@@ -4,9 +4,12 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from pydantic import ValidationError
 from transformers import BertConfig, BertForSequenceClassification, EvalPrediction, TrainingArguments
 
+from tlmtc.settings import TrainingSettings
 from tlmtc.training import (
+    TrainingRuntimeState,
     WeightedTrainer,
     compute_metrics,
     get_class_weights,
@@ -184,6 +187,88 @@ def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path
 
     assert pytest.approx(scaled_non_peft) == expected_non_peft
     assert pytest.approx(scaled_peft) == expected_peft
+
+
+class TestTrainingRuntimeState:
+    """Test suite for the TrainingRuntimeState model."""
+
+    def test_from_settings_copies_runtime_relevant_fields(self):
+        """Ensure runtime state is derived from the runtime-relevant training settings fields."""
+        training = TrainingSettings(
+            batch_size=16,
+            train_epochs=10,
+            weight_decay=0.01,
+            learning_rate=2e-5,
+            lr_scheduler="linear",
+            best_model_metric="roc_auc_macro",
+            early_stopping_patience=5,
+        )
+
+        runtime = TrainingRuntimeState.from_settings(training)
+
+        assert runtime.batch_size == 16
+        assert runtime.train_epochs == 10
+        assert runtime.weight_decay == 0.01
+        assert runtime.learning_rate == 2e-5
+        assert runtime.lr_scheduler == "linear"
+        assert runtime.model_dump() == {
+            "batch_size": 16,
+            "train_epochs": 10,
+            "weight_decay": 0.01,
+            "learning_rate": 2e-5,
+            "lr_scheduler": "linear",
+        }
+
+    def test_from_settings_returns_mutable_copy_independent_of_training_settings(self):
+        """Ensure runtime state can change without mutating the resolved training settings."""
+        training = TrainingSettings(
+            batch_size=16,
+            train_epochs=10,
+            weight_decay=0.01,
+            learning_rate=2e-5,
+            lr_scheduler="linear",
+        )
+
+        runtime = TrainingRuntimeState.from_settings(training)
+        runtime.batch_size = 32
+        runtime.learning_rate = 5e-5
+
+        assert training.batch_size == 16
+        assert training.learning_rate == 2e-5
+        assert runtime.batch_size == 32
+        assert runtime.learning_rate == 5e-5
+
+    def test_validate_assignment_rejects_invalid_runtime_updates(self):
+        """Ensure runtime state validates invalid assignment updates."""
+        training = TrainingSettings(
+            batch_size=16,
+            train_epochs=10,
+            weight_decay=0.01,
+            learning_rate=2e-5,
+            lr_scheduler="linear",
+        )
+
+        runtime = TrainingRuntimeState.from_settings(training)
+
+        with pytest.raises(ValidationError):
+            runtime.learning_rate = 0.0
+
+        with pytest.raises(ValidationError):
+            runtime.weight_decay = -0.1
+
+        with pytest.raises(ValidationError):
+            runtime.batch_size = 0
+
+    def test_direct_init_validates_required_fields(self):
+        """Ensure direct initialization enforces required constrained runtime fields."""
+        with pytest.raises(ValidationError):
+            TrainingRuntimeState(
+                batch_size=16,
+                train_epochs=10,
+                weight_decay=0.01,
+                learning_rate=2e-5,
+                # missing lr_scheduler
+            )
 
 
 class TestWeightedTrainer:
