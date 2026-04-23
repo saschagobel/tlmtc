@@ -4,7 +4,6 @@ Shared infrastructure for resolving run settings from layered inputs + settings 
 """
 
 from dataclasses import dataclass
-
 from pathlib import Path
 from typing import Any, Final, Self
 
@@ -29,10 +28,8 @@ class _UnsetType:
         return "UNSET"
 
     def __bool__(self) -> bool:
-        raise TypeError(
-            "UNSET has no truth value. Use explicit checks: "
-            "`x is UNSET` (omitted) or `x is not UNSET`."
-        )
+        raise TypeError("UNSET has no truth value. Use explicit checks: `x is UNSET` (omitted) or `x is not UNSET`.")
+
 
 UNSET: Final[_UnsetType] = _UnsetType()
 type Unset = _UnsetType
@@ -76,11 +73,7 @@ def prune_unset(
         The same structure with all `UNSET` values removed.
     """
     if isinstance(value, dict):
-        return {
-            key: prune_unset(item)
-            for key, item in value.items()
-            if not isinstance(item, _UnsetType)
-        }
+        return {key: prune_unset(item) for key, item in value.items() if not isinstance(item, _UnsetType)}
 
     if isinstance(value, list):
         return [prune_unset(item) for item in value if not isinstance(item, _UnsetType)]
@@ -115,10 +108,7 @@ def load_config_file(
         return {}
 
     if not isinstance(data, dict):
-        raise TypeError(
-            "Config file root must be a mapping, "
-            f"got {type(data).__name__}: {config_path}"
-        )
+        raise TypeError(f"Config file root must be a mapping, got {type(data).__name__}: {config_path}")
 
     return data
 

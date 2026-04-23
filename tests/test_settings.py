@@ -170,7 +170,7 @@ def test_load_config_file_raises_for_non_mapping_yaml_root(tmp_path: Path) -> No
 
 
 def test_resolve_uses_config_only() -> None:
-    """resolve should validate config-only input."""
+    """Resolve should validate config-only input."""
     settings = ExampleSettings.resolve(
         config={
             "foo": 1,
@@ -185,7 +185,7 @@ def test_resolve_uses_config_only() -> None:
 
 
 def test_resolve_applies_precedence_config_then_env_then_overrides() -> None:
-    """resolve should apply layers in increasing precedence order."""
+    """Resolve should apply layers in increasing precedence order."""
     settings = ExampleSettings.resolve(
         config={
             "foo": 1,
@@ -209,7 +209,7 @@ def test_resolve_applies_precedence_config_then_env_then_overrides() -> None:
 
 
 def test_resolve_prunes_unset_override_values() -> None:
-    """resolve should ignore override values explicitly marked as UNSET."""
+    """Resolve should ignore override values explicitly marked as UNSET."""
     settings = ExampleSettings.resolve(
         config={
             "foo": 1,
@@ -230,7 +230,7 @@ def test_resolve_prunes_unset_override_values() -> None:
 
 
 def test_resolve_rejects_extra_keys() -> None:
-    """resolve should respect extra='forbid' on the resolved model."""
+    """Resolve should respect extra='forbid' on the resolved model."""
     with pytest.raises(ValidationError):
         ExampleSettings.resolve(
             config={
@@ -242,7 +242,7 @@ def test_resolve_rejects_extra_keys() -> None:
 
 
 def test_resolve_requires_required_fields() -> None:
-    """resolve should fail validation when required fields are missing."""
+    """Resolve should fail validation when required fields are missing."""
     with pytest.raises(ValidationError):
         ExampleSettings.resolve(
             config={
@@ -253,7 +253,7 @@ def test_resolve_requires_required_fields() -> None:
 
 
 def test_resolve_rejects_extra_keys_in_nested_models() -> None:
-    """resolve should also enforce extra='forbid' for nested models."""
+    """Resolve should also enforce extra='forbid' for nested models."""
     with pytest.raises(ValidationError):
         ExampleSettings.resolve(
             config={
