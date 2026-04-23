@@ -55,7 +55,7 @@ class ExampleSettings(ResolvableSettings):
 
 
 class TestSettingsInfrastructure:
-    """ "Tests for shared layered-settings helpers and generic resolution behavior."""
+    """Tests for shared layered-settings helpers and generic resolution behavior."""
 
     def test_unset_has_stable_repr(self) -> None:
         """UNSET should render predictably for debugging."""
