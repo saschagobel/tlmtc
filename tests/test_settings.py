@@ -23,7 +23,6 @@ from tlmtc.settings import (
     prune_unset,
 )
 
-
 SAMPLE_OPTUNA_SPACE = {
     "lr_low": 1e-5,
     "lr_high": 3e-4,
@@ -54,7 +53,10 @@ class ExampleSettings(ResolvableSettings):
     bar: str = "default"
     nested: NestedSettings
 
+
 class TestSettingsInfrastructure:
+    """ "Tests for shared layered-settings helpers and generic resolution behavior."""
+
     def test_unset_has_stable_repr(self) -> None:
         """UNSET should render predictably for debugging."""
         assert repr(UNSET) == "UNSET"
@@ -282,6 +284,8 @@ class TestSettingsInfrastructure:
 
 
 class TestBundleSettings:
+    """Tests for bundle defaults, immutability, assignment validation, and field constraints."""
+
     def test_model_settings_defaults(self) -> None:
         """ModelSettings should expose the package defaults."""
         settings = ModelSettings()
@@ -433,8 +437,9 @@ class TestBundleSettings:
             model_cls(**kwargs)
 
 
-
 class TestRunSettings:
+    """Tests for top-level run settings construction, nested defaults, and layered overrides."""
+
     def test_run_settings_minimal_construction_uses_nested_defaults(self) -> None:
         """RunSettings should construct from the minimal required inputs and apply nested defaults."""
         settings = RunSettings(
