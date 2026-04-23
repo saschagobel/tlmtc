@@ -229,3 +229,23 @@ class HardwareSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     use_cpu: bool = False
+
+
+class RunSettings(ResolvableSettings):
+    """Top-level resolved settings for a tlmtc run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    raw_csv: Path
+    raw_test_csv: Path | None = None
+    work_dir: Path | None = None
+    run_id: str | None = None
+
+    model: ModelSettings = Field(default_factory=ModelSettings)
+    split: SplitSettings = Field(default_factory=SplitSettings)
+    workflow: WorkflowSettings = Field(default_factory=WorkflowSettings)
+    training: TrainingSettings = Field(default_factory=TrainingSettings)
+    threshold: ThresholdSettings = Field(default_factory=ThresholdSettings)
+    hpo: HpoSettings
+    peft: PeftSettings = Field(default_factory=PeftSettings)
+    hardware: HardwareSettings = Field(default_factory=HardwareSettings)
