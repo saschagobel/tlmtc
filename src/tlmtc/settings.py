@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Final, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, PositiveInt
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 from tlmtc.types import (
     BestModelMetric,
@@ -203,13 +203,75 @@ class ThresholdSettings(BaseModel):
     best_threshold_metric: BestThresholdMetric = "f1_macro"
 
 
+class OptunaSpaceSettings(BaseModel):
+    """Validated Optuna hyperparameter search space specification."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    lr_low: float = Field(..., gt=0.0)
+    lr_high: float = Field(..., gt=0.0)
+    batch_sizes: list[PositiveInt] = Field(..., min_length=1)
+    wd_low: float = Field(..., ge=0.0)
+    wd_high: float = Field(..., ge=0.0)
+    schedulers: list[str] = Field(..., min_length=1)
+    epoch_low: PositiveInt
+    epoch_high: PositiveInt
+
+    @model_validator(mode="after")
+    def validate_space(self) -> Self:
+        """Validate Optuna search-space bounds and categorical choices."""
+        if self.lr_low >= self.lr_high:
+            raise ValueError("optuna_space.lr_low must be strictly smaller than optuna_space.lr_high.")
+
+        if self.wd_low > self.wd_high:
+            raise ValueError("optuna_space.wd_low must be less than or equal to optuna_space.wd_high.")
+
+        if self.epoch_low > self.epoch_high:
+            raise ValueError("optuna_space.epoch_low must be less than or equal to optuna_space.epoch_high.")
+
+        if any(not scheduler.strip() for scheduler in self.schedulers):
+            raise ValueError("optuna_space.schedulers must not contain empty strings.")
+
+        return self
+
+    def __getitem__(
+        self,
+        key: str,
+    ) -> Any:
+        """Temporary compatibility shim for legacy dict-style consumers."""
+        return getattr(self, key)
+
+
+_DEFAULT_OPTUNA_SPACE_BASE: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
+    lr_low=1e-5,
+    lr_high=3e-4,
+    batch_sizes=[8, 16, 32],
+    wd_low=0.0,
+    wd_high=0.3,
+    schedulers=["linear", "cosine", "polynomial"],
+    epoch_low=5,
+    epoch_high=30,
+)
+
+_DEFAULT_OPTUNA_SPACE_PEFT: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
+    lr_low=3e-5,
+    lr_high=5e-4,
+    batch_sizes=[8, 16, 32, 64],
+    wd_low=0.0,
+    wd_high=0.05,
+    schedulers=["linear", "cosine"],
+    epoch_low=5,
+    epoch_high=20,
+)
+
+
 class HpoSettings(BaseModel):
     """Hyperparameter optimization settings."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     tuning_trials: PositiveInt = 10
-    optuna_space: OptunaSpace
+    optuna_space: OptunaSpaceSettings
 
 
 class PeftSettings(BaseModel):
@@ -249,3 +311,25 @@ class RunSettings(ResolvableSettings):
     hpo: HpoSettings
     peft: PeftSettings = Field(default_factory=PeftSettings)
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_optuna_space(
+        cls,
+        value: Any
+    ) -> Any:
+        """Resolve the effective Optuna search space from workflow settings and layered user input."""
+        workflow = value.get("workflow") or {}
+        hpo = value.get("hpo") or {}
+
+        wrap_peft = workflow.get("wrap_peft", WorkflowSettings.model_fields["wrap_peft"].default)
+        default_space = _DEFAULT_OPTUNA_SPACE_PEFT if wrap_peft else _DEFAULT_OPTUNA_SPACE_BASE
+
+        user_space = hpo.get("optuna_space") or {}
+        hpo["optuna_space"] = deep_merge(
+            default_space.model_dump(mode="python"),
+            user_space
+        )
+
+        value["hpo"] = hpo
+        return value
