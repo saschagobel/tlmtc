@@ -449,7 +449,7 @@ class TestTuneHyperparameters:
         assert getattr(model_instance, "num_labels") == 2
 
     @pytest.mark.parametrize("scale_learning_rate", [False, True])
-    def test_updates_pipeline_hyperparameters_from_best_run(
+    def test_updates_runtime_training_hyperparameters_from_best_run(
         self,
         pipeline_factory,
         dummy_train_parquet,
@@ -459,7 +459,7 @@ class TestTuneHyperparameters:
         monkeypatch,
         scale_learning_rate,
     ):
-        """Ensure best hyperparameters are applied to TrainingSettings."""
+        """Ensure best hyperparameters are applied to runtime training state, not resolved settings."""
         pipeline = pipeline_factory(
             dummy_train_parquet,
             tokenized_dataset=tokenized_dataset,
@@ -469,11 +469,13 @@ class TestTuneHyperparameters:
             wrap_peft=False,
         )
 
-        pipeline.training.learning_rate = 9.9
-        pipeline.training.lr_scheduler = "cosine"
-        pipeline.training.batch_size = 999
-        pipeline.training.weight_decay = 0.5
-        pipeline.training.train_epochs = 10
+        pipeline.runtime_training.learning_rate = 9.9
+        pipeline.runtime_training.lr_scheduler = "cosine"
+        pipeline.runtime_training.batch_size = 999
+        pipeline.runtime_training.weight_decay = 0.5
+        pipeline.runtime_training.train_epochs = 10
+
+        original_training = pipeline.training.model_copy(deep=True)
 
         scaled_lr = 5e-5
         mock_get_scaled_lr = MagicMock(return_value=scaled_lr)
@@ -489,7 +491,7 @@ class TestTuneHyperparameters:
         pipeline.tune_hyperparameters(trainer=trainer_factory)
 
         if scale_learning_rate:
-            assert pipeline.training.learning_rate == scaled_lr
+            assert pipeline.runtime_training.learning_rate == scaled_lr
             mock_get_scaled_lr.assert_called_once_with(
                 learning_rate=1e-4,
                 checkpoint=pipeline.model.checkpoint,
@@ -497,13 +499,15 @@ class TestTuneHyperparameters:
                 peft=pipeline.workflow.wrap_peft,
             )
         else:
-            assert pipeline.training.learning_rate == 1e-4
+            assert pipeline.runtime_training.learning_rate == 1e-4
             mock_get_scaled_lr.assert_not_called()
 
-        assert pipeline.training.lr_scheduler == "linear"
-        assert pipeline.training.batch_size == 8
-        assert pipeline.training.weight_decay == 0.01
-        assert pipeline.training.train_epochs == 2
+        assert pipeline.runtime_training.lr_scheduler == "linear"
+        assert pipeline.runtime_training.batch_size == 8
+        assert pipeline.runtime_training.weight_decay == 0.01
+        assert pipeline.runtime_training.train_epochs == 2
+
+        assert pipeline.training == original_training
 
 
 class TestFineTunePretrained:
@@ -617,11 +621,11 @@ class TestFineTunePretrained:
         training_args = kwargs["args"]
         assert isinstance(training_args, TrainingArguments)
 
-        assert training_args.learning_rate == pytest.approx(pipeline.training.learning_rate)
-        assert training_args.num_train_epochs == pipeline.training.train_epochs
-        assert training_args.per_device_train_batch_size == pipeline.training.batch_size
-        assert training_args.weight_decay == pipeline.training.weight_decay
-        assert training_args.lr_scheduler_type == pipeline.training.lr_scheduler
+        assert training_args.learning_rate == pytest.approx(pipeline.runtime_training.learning_rate)
+        assert training_args.num_train_epochs == pipeline.runtime_training.train_epochs
+        assert training_args.per_device_train_batch_size == pipeline.runtime_training.batch_size
+        assert training_args.weight_decay == pipeline.runtime_training.weight_decay
+        assert training_args.lr_scheduler_type == pipeline.runtime_training.lr_scheduler
         assert training_args.metric_for_best_model == pipeline.training.best_model_metric
         assert training_args.use_cpu == pipeline.hardware.use_cpu
 
@@ -631,9 +635,52 @@ class TestFineTunePretrained:
         callbacks = kwargs["callbacks"]
         assert isinstance(callbacks, list)
         assert callbacks, "Expected at least one callback for early stopping"
+        assert callbacks[0].early_stopping_patience == pipeline.training.early_stopping_patience
 
         fake_trainer.train.assert_called_once()
         assert pipeline.updated_trainer is fake_trainer
+
+    def test_uses_runtime_training_state_for_training_arguments(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        fake_trainer,
+    ):
+        """Ensure fine_tune_pretrained consumes runtime training state rather than resolved training settings."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
+
+        pipeline.runtime_training.learning_rate = 5e-5
+        pipeline.runtime_training.train_epochs = 3
+        pipeline.runtime_training.batch_size = 8
+        pipeline.runtime_training.weight_decay = 0.02
+        pipeline.runtime_training.lr_scheduler = "cosine"
+
+        recorded: dict[str, Any] = {}
+
+        def trainer_factory(*args, **kwargs):
+            recorded["args"] = args
+            recorded["kwargs"] = kwargs
+            return fake_trainer
+
+        pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        training_args = recorded["kwargs"]["args"]
+
+        assert training_args.learning_rate == pytest.approx(5e-5)
+        assert training_args.num_train_epochs == 3
+        assert training_args.per_device_train_batch_size == 8
+        assert training_args.weight_decay == 0.02
+        assert training_args.lr_scheduler_type == "cosine"
+
+        assert training_args.metric_for_best_model == pipeline.training.best_model_metric
 
 
 class TestTuneThresholds:
