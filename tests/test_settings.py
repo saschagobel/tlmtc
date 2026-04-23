@@ -353,6 +353,7 @@ class TestBundleSettings:
             ModelSettings,
             SplitSettings,
             WorkflowSettings,
+            TrainingSettings,
             ThresholdSettings,
             PeftSettings,
             HardwareSettings,
@@ -368,34 +369,6 @@ class TestBundleSettings:
         with pytest.raises(ValidationError):
             setattr(settings, field_name, current_value)
 
-    def test_training_settings_allows_valid_assignment(self) -> None:
-        """TrainingSettings should validate successful assignment updates."""
-        settings = TrainingSettings()
-
-        settings.learning_rate = 1e-4
-        settings.batch_size = 32
-        settings.train_epochs = 5
-
-        assert settings.learning_rate == 1e-4
-        assert settings.batch_size == 32
-        assert settings.train_epochs == 5
-
-    @pytest.mark.parametrize(
-        ("field_name", "value"),
-        [
-            ("learning_rate", 0.0),
-            ("weight_decay", -0.1),
-            ("batch_size", 0),
-            ("train_epochs", 0),
-            ("early_stopping_patience", 0),
-        ],
-    )
-    def test_training_settings_rejects_invalid_assignment(self, field_name: str, value: object) -> None:
-        """TrainingSettings should validate assignment-time updates."""
-        settings = TrainingSettings()
-
-        with pytest.raises(ValidationError):
-            setattr(settings, field_name, value)
 
     @pytest.mark.parametrize(
         ("model_cls", "kwargs", "pattern"),
