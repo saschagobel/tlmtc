@@ -1,14 +1,13 @@
 """Settings bundles and layered resolution.
 
-Shared infrastructure for resolving run settings from layered inputs + settings bundles
+Shared infrastructure for resolving run settings from layered inputs + settings bundles.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
 from tlmtc.types import (
     BestModelMetric,
@@ -148,77 +147,85 @@ class ResolvableSettings(BaseModel):
         return cls.model_validate(resolved)
 
 
-@dataclass(frozen=True, slots=True)
-class ModelSettings:
-    """..."""
+class ModelSettings(BaseModel):
+    """Model-related settings."""
 
-    target_name: str
-    proxy_checkpoint: str
-    checkpoint: str
-    sequence_length: int
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-
-@dataclass(frozen=True, slots=True)
-class SplitSettings:
-    """..."""
-
-    validation_size: float
-    test_size: float
-    random_seed: int
+    target_name: str = "Target"
+    proxy_checkpoint: str = "microsoft/deberta-v3-xsmall"
+    checkpoint: str = "microsoft/deberta-v3-base"
+    sequence_length: PositiveInt = 128
 
 
-@dataclass(frozen=True, slots=True)
-class WorkflowSettings:
-    """..."""
+class SplitSettings(BaseModel):
+    """Data splitting settings."""
 
-    hyperparameter_tuning: bool
-    threshold_optimization: bool
-    transfer_learning: bool
-    scale_learning_rate: bool
-    wrap_peft: bool
+    model_config = ConfigDict(extra="forbid", frozen=True)
 
-
-@dataclass(slots=True)
-class TrainingSettings:
-    """..."""
-
-    batch_size: int
-    train_epochs: int
-    weight_decay: float
-    learning_rate: float
-    lr_scheduler: str
-    best_model_metric: BestModelMetric
-    early_stopping_patience: int
+    validation_size: float = Field(default=0.15, gt=0.0, lt=1.0)
+    test_size: float = Field(default=0.15, gt=0.0, lt=1.0)
+    random_seed: int = 2469
 
 
-@dataclass(frozen=True, slots=True)
-class ThresholdSettings:
-    """..."""
+class WorkflowSettings(BaseModel):
+    """Workflow toggle settings."""
 
-    threshold_type: Threshold
-    best_threshold_metric: BestThresholdMetric
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    hyperparameter_tuning: bool = True
+    threshold_optimization: bool = True
+    transfer_learning: bool = True
+    scale_learning_rate: bool = False
+    wrap_peft: bool = True
 
 
-@dataclass(frozen=True, slots=True)
-class HpoSettings:
-    """..."""
+class TrainingSettings(BaseModel):
+    """Training settings."""
 
-    tuning_trials: int
+    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+
+    batch_size: PositiveInt = 16
+    train_epochs: PositiveInt = 20
+    weight_decay: float = Field(default=0.01, ge=0.0)
+    learning_rate: float = Field(default=2e-5, gt=0.0)
+    lr_scheduler: str = "linear"
+    best_model_metric: BestModelMetric = "roc_auc_macro"
+    early_stopping_patience: PositiveInt = 10
+
+
+class ThresholdSettings(BaseModel):
+    """Threshold optimization settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    threshold_type: Threshold = "label"
+    best_threshold_metric: BestThresholdMetric = "f1_macro"
+
+
+class HpoSettings(BaseModel):
+    """Hyperparameter optimization settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tuning_trials: PositiveInt = 10
     optuna_space: OptunaSpace
 
 
-@dataclass(frozen=True, slots=True)
-class PeftSettings:
-    """..."""
+class PeftSettings(BaseModel):
+    """PEFT / LoRA settings."""
 
-    lora_r: int
-    lora_alpha: int
-    lora_dropout: float
-    lora_bias: LoraBias
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    lora_r: PositiveInt = 8
+    lora_alpha: PositiveInt = 32
+    lora_dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
+    lora_bias: LoraBias = "none"
 
 
-@dataclass(frozen=True, slots=True)
-class HardwareSettings:
-    """..."""
+class HardwareSettings(BaseModel):
+    """Hardware settings."""
 
-    use_cpu: bool
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    use_cpu: bool = False
