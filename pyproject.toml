@@ -12,6 +12,8 @@ dependencies = [
     "optuna ~= 4.6",
     "pandas ~= 2.2",
     "pyarrow ~= 22.0",
+    "PyYAML >=6,<7",
+    "pydantic >=2,<3",
     "scikit-learn ~= 1.7",
     "transformers ~= 4.57"
 ]
