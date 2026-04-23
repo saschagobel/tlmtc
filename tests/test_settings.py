@@ -9,7 +9,14 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from tlmtc.settings import (
     UNSET,
+    HardwareSettings,
+    ModelSettings,
+    PeftSettings,
     ResolvableSettings,
+    SplitSettings,
+    ThresholdSettings,
+    TrainingSettings,
+    WorkflowSettings,
     deep_merge,
     load_config_file,
     prune_unset,
@@ -264,3 +271,172 @@ def test_resolve_rejects_extra_keys_in_nested_models() -> None:
                 },
             }
         )
+
+
+def test_model_settings_defaults() -> None:
+    """ModelSettings should expose the package defaults."""
+    settings = ModelSettings()
+
+    assert settings.target_name == "Target"
+    assert settings.proxy_checkpoint == "microsoft/deberta-v3-xsmall"
+    assert settings.checkpoint == "microsoft/deberta-v3-base"
+    assert settings.sequence_length == 128
+
+
+def test_split_settings_defaults() -> None:
+    """SplitSettings should expose the package defaults."""
+    settings = SplitSettings()
+
+    assert settings.validation_size == 0.15
+    assert settings.test_size == 0.15
+    assert settings.random_seed == 2469
+
+
+def test_workflow_settings_defaults() -> None:
+    """WorkflowSettings should expose the package defaults."""
+    settings = WorkflowSettings()
+
+    assert settings.hyperparameter_tuning is True
+    assert settings.threshold_optimization is True
+    assert settings.transfer_learning is True
+    assert settings.scale_learning_rate is False
+    assert settings.wrap_peft is True
+
+
+def test_training_settings_defaults() -> None:
+    """TrainingSettings should expose the package defaults."""
+    settings = TrainingSettings()
+
+    assert settings.batch_size == 16
+    assert settings.train_epochs == 20
+    assert settings.weight_decay == 0.01
+    assert settings.learning_rate == 2e-5
+    assert settings.lr_scheduler == "linear"
+    assert settings.best_model_metric == "roc_auc_macro"
+    assert settings.early_stopping_patience == 10
+
+
+def test_threshold_settings_defaults() -> None:
+    """ThresholdSettings should expose the package defaults."""
+    settings = ThresholdSettings()
+
+    assert settings.threshold_type == "label"
+    assert settings.best_threshold_metric == "f1_macro"
+
+
+def test_peft_settings_defaults() -> None:
+    """PeftSettings should expose the package defaults."""
+    settings = PeftSettings()
+
+    assert settings.lora_r == 8
+    assert settings.lora_alpha == 32
+    assert settings.lora_dropout == 0.1
+    assert settings.lora_bias == "none"
+
+
+def test_hardware_settings_defaults() -> None:
+    """HardwareSettings should expose the package defaults."""
+    settings = HardwareSettings()
+
+    assert settings.use_cpu is False
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        ModelSettings,
+        SplitSettings,
+        WorkflowSettings,
+        ThresholdSettings,
+        PeftSettings,
+        HardwareSettings,
+    ],
+)
+def test_frozen_settings_reject_assignment(factory: type[BaseModel]) -> None:
+    """Frozen settings bundles should reject mutation."""
+    settings = factory()
+
+    field_name = next(iter(settings.model_fields))
+    current_value = getattr(settings, field_name)
+
+    with pytest.raises(ValidationError):
+        setattr(settings, field_name, current_value)
+
+
+def test_training_settings_allows_valid_assignment() -> None:
+    """TrainingSettings should validate successful assignment updates."""
+    settings = TrainingSettings()
+
+    settings.learning_rate = 1e-4
+    settings.batch_size = 32
+    settings.train_epochs = 5
+
+    assert settings.learning_rate == 1e-4
+    assert settings.batch_size == 32
+    assert settings.train_epochs == 5
+
+
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("learning_rate", 0.0),
+        ("weight_decay", -0.1),
+        ("batch_size", 0),
+        ("train_epochs", 0),
+        ("early_stopping_patience", 0),
+    ],
+)
+def test_training_settings_rejects_invalid_assignment(field_name: str, value: object) -> None:
+    """TrainingSettings should validate assignment-time updates."""
+    settings = TrainingSettings()
+
+    with pytest.raises(ValidationError):
+        setattr(settings, field_name, value)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "pattern"),
+    [
+        ({"sequence_length": 0}, "sequence_length"),
+        ({"validation_size": 1.0}, "validation_size"),
+        ({"test_size": 0.0}, "test_size"),
+        ({"learning_rate": 0.0}, "learning_rate"),
+        ({"weight_decay": -0.1}, "weight_decay"),
+        ({"lora_dropout": 1.0}, "lora_dropout"),
+        ({"lora_r": 0}, "lora_r"),
+    ],
+)
+def test_settings_bundles_reject_invalid_values(kwargs: dict[str, object], pattern: str) -> None:
+    """Representative bundle validations should fail clearly for invalid values."""
+    model_map: dict[str, type[BaseModel]] = {
+        "sequence_length": ModelSettings,
+        "validation_size": SplitSettings,
+        "test_size": SplitSettings,
+        "learning_rate": TrainingSettings,
+        "weight_decay": TrainingSettings,
+        "lora_dropout": PeftSettings,
+        "lora_r": PeftSettings,
+    }
+
+    field_name = next(iter(kwargs))
+    model_cls = model_map[field_name]
+
+    with pytest.raises(ValidationError, match=pattern):
+        model_cls(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("model_cls", "kwargs"),
+    [
+        (ModelSettings, {"unknown": 1}),
+        (TrainingSettings, {"unknown": "boom"}),
+        (PeftSettings, {"unknown": True}),
+    ],
+)
+def test_settings_bundles_reject_extra_keys(
+    model_cls: type[BaseModel],
+    kwargs: dict[str, object],
+) -> None:
+    """Settings bundles should enforce extra='forbid'."""
+    with pytest.raises(ValidationError):
+        model_cls(**kwargs)
