@@ -5,6 +5,7 @@ from optuna.trial import FixedTrial
 from transformers import BertConfig, BertForSequenceClassification
 
 from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
+from tlmtc.settings import OptunaSpaceSettings
 
 
 @pytest.fixture
@@ -70,17 +71,17 @@ def test_make_compute_objective_returns_callable() -> None:
 
 
 def test_optuna_hp_space_returns_expected_dict():
-    """Ensure `_optuna_hp_space` returns the expected sampled hyperparameters."""
-    space = {
-        "lr_low": 1e-5,
-        "lr_high": 1e-4,
-        "batch_sizes": [8, 16],
-        "wd_low": 0.0,
-        "wd_high": 0.1,
-        "schedulers": ["linear", "cosine"],
-        "epoch_low": 2,
-        "epoch_high": 5,
-    }
+    """Ensure `optuna_hp_space` returns the expected sampled hyperparameters."""
+    space = OptunaSpaceSettings(
+        lr_low=1e-5,
+        lr_high=1e-4,
+        batch_sizes=[8, 16],
+        wd_low=0.0,
+        wd_high=0.1,
+        schedulers=["linear", "cosine"],
+        epoch_low=2,
+        epoch_high=5,
+    )
 
     trial = FixedTrial(
         {
