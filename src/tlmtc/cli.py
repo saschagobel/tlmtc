@@ -9,8 +9,6 @@ import argparse
 import json
 from typing import Any
 
-from tlmtc import config
-
 _THRESHOLD_CHOICES = ("global", "label")
 _METRIC_CHOICES = ("f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro")
 _LORA_BIAS_CHOICES = ("none", "all", "lora_only")
@@ -56,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="tlmtc",
         description="Run the full tlmtc pipeline end-to-end.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        allow_abbrev=False,
     )
 
     parser.add_argument(
@@ -68,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--raw-test-csv",
         type=str,
-        default=None,
+        default=argparse.SUPPRESS,
         help=(
             "Optional path to a test CSV. If omitted, a test split is created from --raw-csv according to --test-size."
         ),
@@ -76,148 +74,154 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--work-dir",
         type=str,
-        default=None,
+        default=argparse.SUPPRESS,
         help="Base directory for resolving relative inputs and creating the run directory.",
+    )
+    parser.add_argument(
+        "--config-path",
+        type=str,
+        default=argparse.SUPPRESS,
+        help="Optional path to a YAML configuration file.",
     )
     parser.add_argument(
         "--run-id",
         type=str,
-        default=None,
+        default=argparse.SUPPRESS,
         help="Optional run identifier used to name the run directory. If exists will resume.",
     )
     parser.add_argument(
         "--target-name",
         type=str,
-        default=config.TARGET_NAME,
+        default=argparse.SUPPRESS,
         help="Display name for the classification target/task (used in logs/outputs).",
     )
     parser.add_argument(
         "--validation-size",
         type=float,
-        default=config.VALIDATION_SIZE,
+        default=argparse.SUPPRESS,
         help="Fraction of data used for validation split.",
     )
     parser.add_argument(
         "--test-size",
         type=float,
-        default=config.TEST_SIZE,
+        default=argparse.SUPPRESS,
         help="Fraction of data used for test split (only used when `raw_test_csv` is None).",
     )
     parser.add_argument(
         "--random-seed",
         type=int,
-        default=config.RANDOM_SEED,
+        default=argparse.SUPPRESS,
         help="Random seed used for splitting/shuffling.",
     )
     parser.add_argument(
         "--transfer-learning",
         action=argparse.BooleanOptionalAction,
-        default=config.TRANSFER_LEARNING,
+        default=argparse.SUPPRESS,
         help="Whether to fine-tune a pretrained checkpoint.",
     )
     parser.add_argument(
         "--hyperparameter-tuning",
         action=argparse.BooleanOptionalAction,
-        default=config.HYPERPARAMETER_TUNING,
+        default=argparse.SUPPRESS,
         help="Whether to run Optuna hyperparameter tuning.",
     )
     parser.add_argument(
         "--threshold-optimization",
         action=argparse.BooleanOptionalAction,
-        default=config.THRESHOLD_OPTIMIZATION,
+        default=argparse.SUPPRESS,
         help="Whether to tune decision threshold(s) post-training.",
     )
     parser.add_argument(
         "--threshold-type",
         type=str,
         choices=_THRESHOLD_CHOICES,
-        default=config.THRESHOLD_TYPE,
+        default=argparse.SUPPRESS,
         help="Threshold mode (e.g., global vs per-label).",
     )
     parser.add_argument(
         "--scale-learning-rate",
         action=argparse.BooleanOptionalAction,
-        default=config.SCALE_LEARNING_RATE,
+        default=argparse.SUPPRESS,
         help="Whether to scale learning rate based on batch size / device.",
     )
     parser.add_argument(
         "--wrap-peft",
         action=argparse.BooleanOptionalAction,
-        default=config.WRAP_PEFT,
+        default=argparse.SUPPRESS,
         help="Whether to apply PEFT (LoRA) wrapping.",
     )
     parser.add_argument(
         "--proxy-checkpoint",
         type=str,
-        default=config.PROXY_CHECKPOINT,
+        default=argparse.SUPPRESS,
         help="Optional proxy checkpoint. If unset assumes checkpoint.",
     )
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default=config.CHECKPOINT,
+        default=argparse.SUPPRESS,
         help="Base pretrained model checkpoint identifier.",
     )
     parser.add_argument(
         "--sequence-length",
         type=int,
-        default=config.SEQUENCE_LENGTH,
+        default=argparse.SUPPRESS,
         help="Max sequence length for tokenization.",
     )
     parser.add_argument(
         "--best-model-metric",
         type=str,
         choices=_METRIC_CHOICES,
-        default=config.BEST_MODEL_METRIC,
+        default=argparse.SUPPRESS,
         help="Metric name used to select the best model checkpoint.",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=config.BATCH_SIZE,
+        default=argparse.SUPPRESS,
         help="Training batch size.",
     )
     parser.add_argument(
         "--train-epochs",
         type=int,
-        default=config.TRAIN_EPOCHS,
+        default=argparse.SUPPRESS,
         help="Number of training epochs.",
     )
     parser.add_argument(
         "--learning-rate",
         type=float,
-        default=config.LEARNING_RATE,
+        default=argparse.SUPPRESS,
         help="Initial learning rate.",
     )
     parser.add_argument(
         "--weight-decay",
         type=float,
-        default=config.WEIGHT_DECAY,
+        default=argparse.SUPPRESS,
         help="Weight decay.",
     )
     parser.add_argument(
         "--lr-scheduler",
         type=str,
-        default=config.LR_SCHEDULER,
+        default=argparse.SUPPRESS,
         help="Scheduler identifier/name.",
     )
     parser.add_argument(
         "--best-threshold-metric",
         type=str,
         choices=_METRIC_CHOICES,
-        default=config.BEST_THRESHOLD_METRIC,
+        default=argparse.SUPPRESS,
         help="Metric name used to select optimal threshold(s).",
     )
     parser.add_argument(
         "--tuning-trials",
         type=int,
-        default=config.TUNING_TRIALS,
+        default=argparse.SUPPRESS,
         help="Number of Optuna trials.",
     )
     parser.add_argument(
-        "--optuna-space-user",
+        "--optuna-space",
         type=_json_or_file,
-        default=None,
+        default=argparse.SUPPRESS,
         help=(
             "Optional partial override for the Optuna search space. Values are merged into the default space "
             "(base or PEFT, depending on `wrap_peft`)."
@@ -226,38 +230,38 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--lora-r",
         type=int,
-        default=config.LORA_R,
+        default=argparse.SUPPRESS,
         help="LoRA rank.",
     )
     parser.add_argument(
         "--lora-alpha",
         type=int,
-        default=config.LORA_ALPHA,
+        default=argparse.SUPPRESS,
         help="LoRA alpha.",
     )
     parser.add_argument(
         "--lora-dropout",
         type=float,
-        default=config.LORA_DROPOUT,
+        default=argparse.SUPPRESS,
         help="LoRA dropout.",
     )
     parser.add_argument(
         "--lora-bias",
         type=str,
         choices=_LORA_BIAS_CHOICES,
-        default=config.LORA_BIAS,
+        default=argparse.SUPPRESS,
         help="LoRA bias handling (validated downstream).",
     )
     parser.add_argument(
         "--early-stopping-patience",
         type=int,
-        default=1,
+        default=argparse.SUPPRESS,
         help="Early stopping patience (epochs without improvement).",
     )
     parser.add_argument(
         "--use-cpu",
         action=argparse.BooleanOptionalAction,
-        default=config.USE_CPU,
+        default=argparse.SUPPRESS,
         help="Force CPU execution.",
     )
 
