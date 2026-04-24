@@ -81,6 +81,9 @@ def test_run_tlmtc_returns_run_result_and_creates_dirs(
     assert result.paths.model_dir.exists()
 
     # Minimal contract: tokenized dataset flows into finetuning + outputs are wired.
+    _, dp_kwargs = dp_cls.call_args
+    assert dp_kwargs["paths"] == result.paths
+
     _, ft_kwargs = ft_cls.call_args
     assert ft_kwargs["tokenized_dataset"] is tokenized
     assert ft_kwargs["paths"] == result.paths
@@ -116,6 +119,64 @@ def test_run_tlmtc_resolves_raw_test_path(
     else:
         assert result.paths.raw_test_data_path.parent == raw_csv.resolve().parent
         assert result.paths.raw_test_data_path.name == "raw_test.csv"
+
+
+def test_run_tlmtc_resolves_selected_settings_from_config_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raw_csv: Path,
+) -> None:
+    """Ensure run_tlmtc loads YAML config values through RunSettings."""
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+run_id: config_run
+
+model:
+  target_name: Config Target
+  sequence_length: 64
+
+split:
+  random_seed: 123
+
+workflow:
+  wrap_peft: false
+
+hpo:
+  optuna_space:
+    batch_sizes: [4, 8]
+""",
+        encoding="utf-8",
+    )
+
+    tokenized = object()
+
+    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
+    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
+    dp_cls = MagicMock(return_value=dp_inst)
+
+    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
+    ft_cls = MagicMock(return_value=ft_inst)
+
+    monkeypatch.setattr(run_mod, "DataPipeline", dp_cls)
+    monkeypatch.setattr(run_mod, "FinetunePipeline", ft_cls)
+
+    result = run_mod.run_tlmtc(
+        raw_csv,
+        work_dir=tmp_path,
+        config_path=config_path,
+    )
+
+    assert result.paths.run_id == "config_run"
+
+    _, dp_kwargs = dp_cls.call_args
+    assert dp_kwargs["model"].target_name == "Config Target"
+    assert dp_kwargs["model"].sequence_length == 64
+    assert dp_kwargs["split"].random_seed == 123
+
+    _, ft_kwargs = ft_cls.call_args
+    assert ft_kwargs["workflow"].wrap_peft is False
+    assert ft_kwargs["hpo"].optuna_space.batch_sizes == [4, 8]
 
 
 def test_run_tlmtc_propagates_data_pipeline_failure(

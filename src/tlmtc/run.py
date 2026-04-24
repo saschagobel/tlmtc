@@ -7,24 +7,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from tlmtc import config
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
-from tlmtc.hpo import resolve_optuna_space
 from tlmtc.paths import RunPaths, resolve_paths
-from tlmtc.settings import (
-    HardwareSettings,
-    HpoSettings,
-    ModelSettings,
-    OptunaSpaceSettings,
-    PeftSettings,
-    SplitSettings,
-    ThresholdSettings,
-    TrainingSettings,
-    WorkflowSettings,
-)
-from tlmtc.types import BestModelMetric, BestThresholdMetric, LoraBias, OptunaSpaceOverride, Threshold
+from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,37 +29,38 @@ class RunResult:
 def run_tlmtc(
     raw_csv: str | Path,
     *,
-    raw_test_csv: str | Path | None = None,
-    work_dir: str | Path | None = None,
-    run_id: str | None = None,
-    target_name: str = config.TARGET_NAME,
-    validation_size: float = config.VALIDATION_SIZE,
-    test_size: float = config.TEST_SIZE,
-    random_seed: int = config.RANDOM_SEED,
-    transfer_learning: bool = config.TRANSFER_LEARNING,
-    hyperparameter_tuning: bool = config.HYPERPARAMETER_TUNING,
-    threshold_optimization: bool = config.THRESHOLD_OPTIMIZATION,
-    threshold_type: Threshold = config.THRESHOLD_TYPE,
-    scale_learning_rate: bool = config.SCALE_LEARNING_RATE,
-    wrap_peft: bool = config.WRAP_PEFT,
-    proxy_checkpoint: str = config.PROXY_CHECKPOINT,
-    checkpoint: str = config.CHECKPOINT,
-    sequence_length: int = config.SEQUENCE_LENGTH,
-    best_model_metric: BestModelMetric = config.BEST_MODEL_METRIC,
-    batch_size: int = config.BATCH_SIZE,
-    train_epochs: int = config.TRAIN_EPOCHS,
-    learning_rate: float = config.LEARNING_RATE,
-    weight_decay: float = config.WEIGHT_DECAY,
-    lr_scheduler: str = config.LR_SCHEDULER,
-    best_threshold_metric: BestThresholdMetric = config.BEST_THRESHOLD_METRIC,
-    tuning_trials: int = config.TUNING_TRIALS,
-    optuna_space_user: OptunaSpaceOverride | None = None,
-    lora_r: int = config.LORA_R,
-    lora_alpha: int = config.LORA_ALPHA,
-    lora_dropout: float = config.LORA_DROPOUT,
-    lora_bias: LoraBias = config.LORA_BIAS,
-    early_stopping_patience: int = 1,
-    use_cpu: bool = config.USE_CPU,
+    raw_test_csv: str | Path | None | Unset = UNSET,
+    work_dir: str | Path | None | Unset = UNSET,
+    config_path: str | Path | Unset = UNSET,
+    run_id: str | None | Unset = UNSET,
+    target_name: str | Unset = UNSET,
+    validation_size: float | Unset = UNSET,
+    test_size: float | Unset = UNSET,
+    random_seed: int | Unset = UNSET,
+    transfer_learning: bool | Unset = UNSET,
+    hyperparameter_tuning: bool | Unset = UNSET,
+    threshold_optimization: bool | Unset = UNSET,
+    threshold_type: str | Unset = UNSET,
+    scale_learning_rate: bool | Unset = UNSET,
+    wrap_peft: bool | Unset = UNSET,
+    proxy_checkpoint: str | Unset = UNSET,
+    checkpoint: str | Unset = UNSET,
+    sequence_length: int | Unset = UNSET,
+    best_model_metric: str | Unset = UNSET,
+    batch_size: int | Unset = UNSET,
+    train_epochs: int | Unset = UNSET,
+    learning_rate: float | Unset = UNSET,
+    weight_decay: float | Unset = UNSET,
+    lr_scheduler: str | Unset = UNSET,
+    best_threshold_metric: str | Unset = UNSET,
+    tuning_trials: int | Unset = UNSET,
+    optuna_space: dict[str, Any] | Unset = UNSET,
+    lora_r: int | Unset = UNSET,
+    lora_alpha: int | Unset = UNSET,
+    lora_dropout: float | Unset = UNSET,
+    lora_bias: str | Unset = UNSET,
+    early_stopping_patience: int | Unset = UNSET,
+    use_cpu: bool | Unset = UNSET,
 ) -> RunResult:
     """Run the full tlmtc pipeline end-to-end.
 
@@ -80,6 +69,7 @@ def run_tlmtc(
         raw_test_csv: Optional path to a test CSV. If omitted, a test split is created from
             `raw_csv` according to `test_size`.
         work_dir: Base directory for resolving relative inputs and creating the run directory.
+        config_path: Path to a YAML configuration file.
         run_id: Optional run identifier used to name the run directory. If exists will resume.
         target_name: Display name for the classification target/task (used in logs/outputs).
         validation_size: Fraction of data used for validation split.
@@ -102,7 +92,7 @@ def run_tlmtc(
         lr_scheduler: Scheduler identifier/name.
         best_threshold_metric: Metric name used to select optimal threshold(s).
         tuning_trials: Number of Optuna trials.
-        optuna_space_user: Optional partial override for the Optuna search space. Values are merged into the
+        optuna_space: Optional partial override for the Optuna search space. Values are merged into the
             default space (base or PEFT, depending on `wrap_peft`). See `OptunaSpaceOverride`
             for supported keys.
         lora_r: LoRA rank.
@@ -115,68 +105,73 @@ def run_tlmtc(
     Returns:
         RunResult: Metadata for this run.
     """
+    settings = RunSettings.resolve(
+        config=load_config_file(config_path) if isinstance(config_path, (str, Path)) else None,
+        env=None,
+        overrides={
+            "raw_csv": raw_csv,
+            "raw_test_csv": raw_test_csv,
+            "work_dir": work_dir,
+            "run_id": run_id,
+            "model": {
+                "target_name": target_name,
+                "proxy_checkpoint": proxy_checkpoint,
+                "checkpoint": checkpoint,
+                "sequence_length": sequence_length,
+            },
+            "split": {
+                "validation_size": validation_size,
+                "test_size": test_size,
+                "random_seed": random_seed,
+            },
+            "workflow": {
+                "hyperparameter_tuning": hyperparameter_tuning,
+                "threshold_optimization": threshold_optimization,
+                "transfer_learning": transfer_learning,
+                "scale_learning_rate": scale_learning_rate,
+                "wrap_peft": wrap_peft,
+            },
+            "training": {
+                "batch_size": batch_size,
+                "train_epochs": train_epochs,
+                "weight_decay": weight_decay,
+                "learning_rate": learning_rate,
+                "lr_scheduler": lr_scheduler,
+                "best_model_metric": best_model_metric,
+                "early_stopping_patience": early_stopping_patience,
+            },
+            "threshold": {
+                "threshold_type": threshold_type,
+                "best_threshold_metric": best_threshold_metric,
+            },
+            "hpo": {
+                "tuning_trials": tuning_trials,
+                "optuna_space": optuna_space,
+            },
+            "peft": {
+                "lora_r": lora_r,
+                "lora_alpha": lora_alpha,
+                "lora_dropout": lora_dropout,
+                "lora_bias": lora_bias,
+            },
+            "hardware": {
+                "use_cpu": use_cpu,
+            },
+        },
+    )
+
     paths = resolve_paths(
-        raw_csv=raw_csv,
-        raw_test_csv=raw_test_csv,
-        work_dir=work_dir,
-        run_id=run_id,
+        raw_csv=settings.raw_csv,
+        raw_test_csv=settings.raw_test_csv,
+        work_dir=settings.work_dir,
+        run_id=settings.run_id,
     ).ensure_dirs()
-
-    optuna_space = resolve_optuna_space(
-        wrap_peft=wrap_peft,
-        space_base=config.OPTUNA_SPACE_BASE,
-        space_peft=config.OPTUNA_SPACE_PEFT,
-        override=optuna_space_user,
-    )
-
-    model_settings = ModelSettings(
-        target_name=target_name,
-        proxy_checkpoint=proxy_checkpoint,
-        checkpoint=checkpoint,
-        sequence_length=sequence_length,
-    )
-    split_settings = SplitSettings(
-        validation_size=validation_size,
-        test_size=test_size,
-        random_seed=random_seed,
-    )
-    workflow_settings = WorkflowSettings(
-        hyperparameter_tuning=hyperparameter_tuning,
-        threshold_optimization=threshold_optimization,
-        transfer_learning=transfer_learning,
-        scale_learning_rate=scale_learning_rate,
-        wrap_peft=wrap_peft,
-    )
-    training_settings = TrainingSettings(
-        batch_size=batch_size,
-        train_epochs=train_epochs,
-        weight_decay=weight_decay,
-        learning_rate=learning_rate,
-        lr_scheduler=lr_scheduler,
-        best_model_metric=best_model_metric,
-        early_stopping_patience=early_stopping_patience,
-    )
-    threshold_settings = ThresholdSettings(
-        threshold_type=threshold_type,
-        best_threshold_metric=best_threshold_metric,
-    )
-    hpo_settings = HpoSettings(
-        tuning_trials=tuning_trials,
-        optuna_space=OptunaSpaceSettings.model_validate(optuna_space),
-    )
-    peft_settings = PeftSettings(
-        lora_r=lora_r,
-        lora_alpha=lora_alpha,
-        lora_dropout=lora_dropout,
-        lora_bias=lora_bias,
-    )
-    hardware_settings = HardwareSettings(use_cpu=use_cpu)
 
     processed = (
         DataPipeline(
             paths=paths,
-            split=split_settings,
-            model=model_settings,
+            split=settings.split,
+            model=settings.model,
         )
         .split_data()
         .get_multi_hot_vectors()
@@ -188,13 +183,13 @@ def run_tlmtc(
         FinetunePipeline(
             tokenized_dataset=processed.tokenized_dataset,
             paths=paths,
-            model=model_settings,
-            workflow=workflow_settings,
-            peft=peft_settings,
-            training=training_settings,
-            hpo=hpo_settings,
-            threshold=threshold_settings,
-            hardware=hardware_settings,
+            model=settings.model,
+            workflow=settings.workflow,
+            peft=settings.peft,
+            training=settings.training,
+            hpo=settings.hpo,
+            threshold=settings.threshold,
+            hardware=settings.hardware,
         )
         .load_pretrained()
         .tune_hyperparameters()
