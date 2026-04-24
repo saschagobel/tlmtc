@@ -17,6 +17,7 @@ from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
     ModelSettings,
+    OptunaSpaceSettings,
     PeftSettings,
     ThresholdSettings,
     TrainingSettings,
@@ -400,7 +401,8 @@ class TestTuneHyperparameters:
         hp_space_fn = hp_search_kwargs["hp_space"]
 
         assert hp_space_fn.func is optuna_hp_space
-        assert hp_space_fn.keywords["space"] == base_search_space
+        assert isinstance(hp_space_fn.keywords["space"], OptunaSpaceSettings)
+        assert hp_space_fn.keywords["space"].model_dump(mode="python") == base_search_space
 
         assert hp_search_kwargs["direction"] == "maximize"
         assert hp_search_kwargs["backend"] == "optuna"

@@ -9,19 +9,20 @@ from typing import Any, Callable
 import optuna
 from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
+from tlmtc.settings import OptunaSpaceSettings
 from tlmtc.training import wrap_model_with_peft
 from tlmtc.types import LoraBias, OptunaSpace, OptunaSpaceOverride
 
 
 def optuna_hp_space(
     trial: optuna.trial.Trial,
-    space: OptunaSpace,
+    space: OptunaSpaceSettings,
 ) -> dict[str, Any]:
     """Define the hyperparameter search space for Optuna tuning.
 
     Args:
         trial: Current Optuna trial object.
-        space: A fully resolved hyperparameter search space dictionary.
+        space: Fully resolved Optuna hyperparameter search space settings.
 
     Returns:
         Dictionary specifying the sampled hyperparameters and their values for the current trial.
@@ -29,24 +30,28 @@ def optuna_hp_space(
     return {
         "learning_rate": trial.suggest_float(
             "learning_rate",
-            space["lr_low"],
-            space["lr_high"],
+            space.lr_low,
+            space.lr_high,
             log=True,
         ),
         "per_device_train_batch_size": trial.suggest_categorical(
             "per_device_train_batch_size",
-            space["batch_sizes"],
+            space.batch_sizes,
         ),
         "weight_decay": trial.suggest_float(
             "weight_decay",
-            space["wd_low"],
-            space["wd_high"],
+            space.wd_low,
+            space.wd_high,
         ),
         "lr_scheduler_type": trial.suggest_categorical(
             "lr_scheduler_type",
-            space["schedulers"],
+            space.schedulers,
         ),
-        "num_train_epochs": trial.suggest_int("num_train_epochs", space["epoch_low"], space["epoch_high"]),
+        "num_train_epochs": trial.suggest_int(
+            "num_train_epochs",
+            space.epoch_low,
+            space.epoch_high,
+        ),
     }
 
 
