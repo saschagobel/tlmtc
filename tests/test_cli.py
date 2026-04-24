@@ -32,7 +32,7 @@ class TestJsonOrFile:
     @pytest.mark.parametrize(
         "value, match",
         [
-            ("not-json", r"Invalid JSON for --optuna-space-user"),
+            ("not-json", r"Invalid JSON for --optuna-space"),
             ("[1, 2]", r"expected a JSON object"),
         ],
     )
@@ -44,7 +44,7 @@ class TestJsonOrFile:
     def test_rejects_missing_at_file(self, tmp_path: Path):
         """Ensure a missing '@file' path is rejected with ArgumentTypeError."""
         missing = tmp_path / "does_not_exist.json"
-        with pytest.raises(argparse.ArgumentTypeError, match=r"Invalid JSON for --optuna-space-user"):
+        with pytest.raises(argparse.ArgumentTypeError, match=r"Invalid JSON for --optuna-space"):
             _json_or_file(f"@{missing}")
 
 
@@ -71,18 +71,32 @@ class TestBuildParser:
             parser.parse_args(["--raw-csv", "raw.csv", "--threshold-type", "nope"])
         assert excinfo.value.code == 2
 
-    def test_optuna_space_user_accepts_json_object_string(self):
-        """Ensure --optuna-space-user accepts an inline JSON object string."""
+    def test_optuna_space_accepts_json_object_string(self):
+        """Ensure --optuna-space accepts an inline JSON object string."""
         parser = build_parser()
-        args = parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space-user", '{"batch_sizes": [8, 16]}'])
-        assert args.optuna_space_user == {"batch_sizes": [8, 16]}
+        args = parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space", '{"batch_sizes": [8, 16]}'])
+        assert args.optuna_space == {"batch_sizes": [8, 16]}
 
-    def test_optuna_space_user_rejects_invalid_json(self):
-        """Ensure --optuna-space-user rejects invalid JSON values."""
+    def test_optuna_space_rejects_invalid_json(self):
+        """Ensure --optuna-space rejects invalid JSON values."""
         parser = build_parser()
         with pytest.raises(SystemExit) as excinfo:
-            parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space-user", "not-json"])
+            parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space", "not-json"])
         assert excinfo.value.code == 2
+
+    def test_omitted_optional_args_are_not_materialized(self):
+        """Ensure omitted optional flags are not forwarded as parser defaults."""
+        parser = build_parser()
+        args = parser.parse_args(["--raw-csv", "raw.csv"])
+
+        parsed = vars(args)
+
+        assert parsed == {"raw_csv": "raw.csv"}
+        assert "batch_size" not in parsed
+        assert "hyperparameter_tuning" not in parsed
+        assert "threshold_type" not in parsed
+        assert "optuna_space" not in parsed
+
 
 
 class TestMain:
@@ -108,7 +122,7 @@ class TestMain:
             [
                 "--raw-csv",
                 "raw.csv",
-                "--optuna-space-user",
+                "--optuna-space",
                 '{"lr_low": 1e-5}',
                 "--no-hyperparameter-tuning",
             ]
@@ -117,8 +131,11 @@ class TestMain:
         assert exit_code == 0
         kwargs = stub_run_tlmtc["kwargs"]
         assert kwargs["raw_csv"] == "raw.csv"
-        assert kwargs["optuna_space_user"] == {"lr_low": 1e-5}
+        assert kwargs["optuna_space"] == {"lr_low": 1e-5}
         assert kwargs["hyperparameter_tuning"] is False
+        assert "batch_size" not in kwargs
+        assert "threshold_type" not in kwargs
+        assert "use_cpu" not in kwargs
 
     def test_main_propagates_parser_error_when_run_tlmtc_raises(self, monkeypatch: pytest.MonkeyPatch):
         """Ensure main() converts downstream exceptions into an argparse usage error (exit code 2)."""
@@ -141,3 +158,13 @@ class TestMain:
         with pytest.raises(SystemExit) as excinfo:
             main([])
         assert excinfo.value.code == 2
+
+    def test_main_forwards_config_path(self, stub_run_tlmtc):
+        """Ensure --config-path is forwarded to run_tlmtc."""
+        exit_code = main(["--raw-csv", "raw.csv", "--config-path", "config.yaml"])
+
+        assert exit_code == 0
+        assert stub_run_tlmtc["kwargs"] == {
+            "raw_csv": "raw.csv",
+            "config_path": "config.yaml",
+        }
