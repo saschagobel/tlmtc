@@ -17,6 +17,7 @@ from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
     ModelSettings,
+    OptunaSpaceSettings,
     PeftSettings,
     SplitSettings,
     ThresholdSettings,
@@ -161,7 +162,7 @@ def run_tlmtc(
     )
     hpo_settings = HpoSettings(
         tuning_trials=tuning_trials,
-        optuna_space=optuna_space,
+        optuna_space=OptunaSpaceSettings.model_validate(optuna_space),
     )
     peft_settings = PeftSettings(
         lora_r=lora_r,
