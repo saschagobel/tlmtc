@@ -98,7 +98,6 @@ class TestBuildParser:
         assert "optuna_space" not in parsed
 
 
-
 class TestMain:
     """Test suite for cli.main()."""
 
