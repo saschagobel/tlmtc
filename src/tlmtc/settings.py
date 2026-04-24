@@ -313,10 +313,7 @@ class RunSettings(ResolvableSettings):
 
     @model_validator(mode="before")
     @classmethod
-    def resolve_optuna_space(
-        cls,
-        value: Any
-    ) -> Any:
+    def resolve_optuna_space(cls, value: Any) -> Any:
         """Resolve the effective Optuna search space from workflow settings and layered user input."""
         workflow = value.get("workflow") or {}
         hpo = value.get("hpo") or {}
@@ -327,10 +324,7 @@ class RunSettings(ResolvableSettings):
         user_space = hpo.get("optuna_space") or {}
         if not isinstance(user_space, dict):
             raise TypeError("hpo.optuna_space must be a mapping of Optuna-space fields to override values.")
-        hpo["optuna_space"] = deep_merge(
-            default_space.model_dump(mode="python"),
-            user_space
-        )
+        hpo["optuna_space"] = deep_merge(default_space.model_dump(mode="python"), user_space)
 
         value["hpo"] = hpo
         return value
