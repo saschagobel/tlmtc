@@ -13,7 +13,6 @@ from tlmtc.types import (
     BestModelMetric,
     BestThresholdMetric,
     LoraBias,
-    OptunaSpace,
     Threshold,
 )
 
@@ -326,6 +325,8 @@ class RunSettings(ResolvableSettings):
         default_space = _DEFAULT_OPTUNA_SPACE_PEFT if wrap_peft else _DEFAULT_OPTUNA_SPACE_BASE
 
         user_space = hpo.get("optuna_space") or {}
+        if not isinstance(user_space, dict):
+            raise TypeError("hpo.optuna_space must be a mapping of Optuna-space fields to override values.")
         hpo["optuna_space"] = deep_merge(
             default_space.model_dump(mode="python"),
             user_space

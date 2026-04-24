@@ -10,7 +10,9 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from tlmtc.settings import (
     UNSET,
     HardwareSettings,
+    HpoSettings,
     ModelSettings,
+    OptunaSpaceSettings,
     PeftSettings,
     ResolvableSettings,
     RunSettings,
@@ -23,7 +25,7 @@ from tlmtc.settings import (
     prune_unset,
 )
 
-SAMPLE_OPTUNA_SPACE = {
+CUSTOM_OPTUNA_SPACE = {
     "lr_low": 1e-5,
     "lr_high": 3e-4,
     "batch_sizes": [8, 16, 32],
@@ -34,7 +36,29 @@ SAMPLE_OPTUNA_SPACE = {
     "epoch_high": 20,
 }
 
-MINIMAL_HPO = {"optuna_space": SAMPLE_OPTUNA_SPACE}
+DEFAULT_OPTUNA_SPACE_BASE = {
+    "lr_low": 1e-5,
+    "lr_high": 3e-4,
+    "batch_sizes": [8, 16, 32],
+    "wd_low": 0.0,
+    "wd_high": 0.3,
+    "schedulers": ["linear", "cosine", "polynomial"],
+    "epoch_low": 5,
+    "epoch_high": 30,
+}
+
+DEFAULT_OPTUNA_SPACE_PEFT = {
+    "lr_low": 3e-5,
+    "lr_high": 5e-4,
+    "batch_sizes": [8, 16, 32, 64],
+    "wd_low": 0.0,
+    "wd_high": 0.05,
+    "schedulers": ["linear", "cosine"],
+    "epoch_low": 5,
+    "epoch_high": 20,
+}
+
+MINIMAL_HPO = {"optuna_space": CUSTOM_OPTUNA_SPACE}
 
 
 class NestedSettings(BaseModel):
@@ -414,10 +438,7 @@ class TestRunSettings:
 
     def test_run_settings_minimal_construction_uses_nested_defaults(self) -> None:
         """RunSettings should construct from the minimal required inputs and apply nested defaults."""
-        settings = RunSettings(
-            raw_csv="train.csv",
-            hpo=MINIMAL_HPO,
-        )
+        settings = RunSettings(raw_csv="train.csv")
 
         assert settings.raw_csv == Path("train.csv")
         assert settings.raw_test_csv is None
@@ -429,6 +450,8 @@ class TestRunSettings:
         assert isinstance(settings.workflow, WorkflowSettings)
         assert isinstance(settings.training, TrainingSettings)
         assert isinstance(settings.threshold, ThresholdSettings)
+        assert isinstance(settings.hpo, HpoSettings)
+        assert isinstance(settings.hpo.optuna_space, OptunaSpaceSettings)
         assert isinstance(settings.peft, PeftSettings)
         assert isinstance(settings.hardware, HardwareSettings)
 
@@ -440,7 +463,7 @@ class TestRunSettings:
         assert settings.peft.lora_r == 8
         assert settings.hardware.use_cpu is False
         assert settings.hpo.tuning_trials == 10
-        assert settings.hpo.optuna_space == SAMPLE_OPTUNA_SPACE
+        assert settings.hpo.optuna_space.model_dump(mode="python") == DEFAULT_OPTUNA_SPACE_PEFT
 
     def test_run_settings_resolve_applies_nested_overrides_and_preserves_defaults(self) -> None:
         """RunSettings.resolve should merge nested overrides while preserving untouched defaults."""
@@ -453,7 +476,12 @@ class TestRunSettings:
                 "split": {
                     "validation_size": 0.2,
                 },
-                "hpo": MINIMAL_HPO,
+                "hpo": {
+                    "optuna_space": {
+                        "batch_sizes": [16],
+                        "epoch_high": 25,
+                    }
+                },
             },
             overrides={
                 "model": {
@@ -478,6 +506,11 @@ class TestRunSettings:
         assert settings.workflow.transfer_learning is True
         assert settings.training.batch_size == 32
         assert settings.training.learning_rate == 2e-5
+        assert settings.hpo.optuna_space.model_dump(mode="python") == {
+            **DEFAULT_OPTUNA_SPACE_BASE,
+            "batch_sizes": [16],
+            "epoch_high": 25,
+        }
 
     def test_run_settings_resolve_prunes_unset_in_nested_overrides(self) -> None:
         """RunSettings.resolve should ignore nested override values explicitly marked as UNSET."""
@@ -517,10 +550,13 @@ class TestRunSettings:
                 hpo=MINIMAL_HPO,
             )
 
-    def test_run_settings_requires_hpo_for_now(self) -> None:
-        """RunSettings should require hpo until optuna-space handling is fully integrated."""
-        with pytest.raises(ValidationError):
-            RunSettings(raw_csv="train.csv")
+    def test_run_settings_synthesizes_hpo_defaults_when_omitted(self) -> None:
+        """RunSettings should synthesize HPO defaults when hpo is omitted."""
+        settings = RunSettings(raw_csv="train.csv")
+
+        assert settings.hpo.tuning_trials == 10
+        assert isinstance(settings.hpo.optuna_space, OptunaSpaceSettings)
+        assert settings.hpo.optuna_space.model_dump(mode="python") == DEFAULT_OPTUNA_SPACE_PEFT
 
     @pytest.mark.parametrize(
         ("payload", "pattern"),
@@ -547,3 +583,21 @@ class TestRunSettings:
         """RunSettings should enforce extra='forbid' at both root and nested levels."""
         with pytest.raises(ValidationError, match=pattern):
             RunSettings(**payload)
+
+    def test_run_settings_preserves_full_explicit_optuna_space(self) -> None:
+        """RunSettings should preserve a fully specified explicit Optuna space."""
+        settings = RunSettings(
+            raw_csv="train.csv",
+            hpo=MINIMAL_HPO,
+        )
+
+        assert isinstance(settings.hpo.optuna_space, OptunaSpaceSettings)
+        assert settings.hpo.optuna_space.model_dump(mode="python") == CUSTOM_OPTUNA_SPACE
+
+    def test_run_settings_rejects_non_mapping_optuna_space_override(self) -> None:
+        """RunSettings should reject non-mapping Optuna-space overrides before merge."""
+        with pytest.raises(TypeError, match="hpo.optuna_space must be a mapping"):
+            RunSettings(
+                raw_csv="train.csv",
+                hpo={"optuna_space": "boom"},
+            )
