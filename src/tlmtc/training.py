@@ -4,7 +4,7 @@ Defines utilities for training, class weighting, and evaluation metrics used dur
 """
 
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,6 @@ from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, T
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
 from tlmtc.settings import TrainingSettings
-from tlmtc.types import LoraBias
 
 
 # training.py
@@ -205,7 +204,7 @@ def wrap_model_with_peft(
     lora_r: int,
     lora_alpha: int,
     lora_dropout: float,
-    lora_bias: LoraBias,
+    lora_bias: Literal["none", "all", "lora_only"],
 ) -> PreTrainedModel | PeftModel | PeftMixedModel:
     """Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
 

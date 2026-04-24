@@ -4,17 +4,10 @@ Shared infrastructure for resolving run settings from layered inputs + settings 
 """
 
 from pathlib import Path
-from typing import Any, Final, Self
+from typing import Any, Final, Literal, Self
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
-
-from tlmtc.types import (
-    BestModelMetric,
-    BestThresholdMetric,
-    LoraBias,
-    Threshold,
-)
 
 
 class _UnsetType:
@@ -189,7 +182,7 @@ class TrainingSettings(BaseModel):
     weight_decay: float = Field(default=0.01, ge=0.0)
     learning_rate: float = Field(default=2e-5, gt=0.0)
     lr_scheduler: str = "linear"
-    best_model_metric: BestModelMetric = "roc_auc_macro"
+    best_model_metric: Literal["f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro"] = "roc_auc_macro"
     early_stopping_patience: PositiveInt = 10
 
 
@@ -198,8 +191,8 @@ class ThresholdSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    threshold_type: Threshold = "label"
-    best_threshold_metric: BestThresholdMetric = "f1_macro"
+    threshold_type: Literal["global", "label"] = "label"
+    best_threshold_metric: Literal["f1_micro", "f1_macro"] = "f1_macro"
 
 
 class OptunaSpaceSettings(BaseModel):
@@ -281,7 +274,7 @@ class PeftSettings(BaseModel):
     lora_r: PositiveInt = 8
     lora_alpha: PositiveInt = 32
     lora_dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
-    lora_bias: LoraBias = "none"
+    lora_bias: Literal["none", "all", "lora_only"] = "none"
 
 
 class HardwareSettings(BaseModel):

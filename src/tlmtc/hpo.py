@@ -3,15 +3,13 @@
 Defines helpers for building Optuna search spaces and trial-scoped model setup.
 """
 
-from copy import deepcopy
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import optuna
 from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
 from tlmtc.settings import OptunaSpaceSettings
 from tlmtc.training import wrap_model_with_peft
-from tlmtc.types import LoraBias, OptunaSpace, OptunaSpaceOverride
 
 
 def optuna_hp_space(
@@ -62,7 +60,7 @@ def make_model_init(
     lora_r: int,
     lora_alpha: int,
     lora_dropout: float,
-    lora_bias: LoraBias,
+    lora_bias: Literal["none", "all", "lora_only"],
 ) -> Callable[[optuna.trial.Trial | None], PreTrainedModel]:
     """Create a model initialization function for hyperparameter search.
 
@@ -128,28 +126,3 @@ def make_compute_objective(
         return metrics["eval_" + best_model_metric]
 
     return compute_objective
-
-
-def resolve_optuna_space(
-    wrap_peft: bool,
-    space_base: OptunaSpace,
-    space_peft: OptunaSpace,
-    override: OptunaSpaceOverride | None,
-) -> OptunaSpace:
-    """...
-
-    Args:
-        wrap_peft: Flag whether to wrap model in parameter-efficient fine-tuning.
-        space_base: ...
-        space_peft: ...
-        override: ...
-
-    Returns:
-        resolved: ...
-    """
-    default = space_peft if wrap_peft else space_base
-    resolved = deepcopy(default)
-
-    if override:
-        resolved.update(override)
-    return resolved
