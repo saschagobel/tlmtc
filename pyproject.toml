@@ -52,6 +52,7 @@ ignore-var-parameters = true
 "src/tlmtc/utils.py" = ["D"]
 "src/tlmtc/data_pipeline.py" = ["D"]
 "src/tlmtc/finetune_pipeline.py" = ["D"]
+"tests/**/*.py" = ["D102"]
 
 [tool.mypy]
 python_version = "3.12"
