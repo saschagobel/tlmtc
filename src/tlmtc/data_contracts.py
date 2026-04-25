@@ -35,7 +35,7 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
             int,
             regex=True,
             nullable=False,
-            required=False,
+            required=True,
             coerce=True,
             checks=pa.Check.isin([0, 1]),
         ),
