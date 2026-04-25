@@ -9,14 +9,16 @@ import numpy as np
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
+from tlmtc.data_contracts import validate_multilabel_frame
+
 
 def df_preprocess(
     df_path: str | Path,
 ) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray]:
-    """Import, preprocess and extract column labels from raw train/test data.
+    """Import, validate, preprocess and extract labels from train/test data.
 
     Args:
-        df_path: Path to the raw CSV data file, with required columns "text", "label_*".
+        df_path: Path to the CSV data file, with required columns "text", "label_*".
 
     Returns:
         df: Preprocessed DataFrame.
@@ -25,21 +27,7 @@ def df_preprocess(
         y: Label matrix as a NumPy array.
     """
     df = pd.read_csv(df_path).dropna()
-    if df.empty:
-        raise ValueError("After dropping missing values, no valid samples remain.")
-
-    if "text" not in df.columns:
-        raise ValueError("Input data must contain a 'text' column.")
-
-    label_cols = [col for col in df.columns if col.startswith("label_")]
-    if len(label_cols) < 2:
-        raise ValueError("Expected at least two 'label_*' columns for multi-label classification.")
-    for col in label_cols:
-        if not df[col].map(lambda x: isinstance(x, (int, float))).all():
-            raise TypeError(f"Column '{col}' must contain only integer values.")
-    allowed_values = {0, 1, 0.0, 1.0}
-    if not set(df[label_cols].stack().unique()).issubset(allowed_values):
-        raise ValueError("Label columns must contain only binary values {0, 1, 0.0, 1.0}.")
+    df, label_cols = validate_multilabel_frame(df)
 
     X = df["text"].values
     y = df[label_cols].values
