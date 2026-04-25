@@ -20,21 +20,20 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-peft = ["peft ~= 0.18"]
 torch = ["torch ~= 2.9"]
+peft = ["peft ~= 0.18"]
+
+[dependency-groups]
 test = ["pytest>=9.0"]
-lint = [
-    "ruff>=0.14",
-    "mypy>=1.19",
-    "types-pyyaml",
-]
+lint = ["ruff>=0.14"]
+type = ["mypy>=1.19", "types-pyyaml"]
 
 [project.scripts]
 tlmtc = "tlmtc.cli:main"
 
 [build-system]
-requires = ["setuptools>=80"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 120
@@ -67,3 +66,11 @@ untyped_calls_exclude = [
 [[tool.mypy.overrides]]
 module = ["tlmtc.training", "tlmtc.finetune_pipeline"]
 disable_error_code = ["unused-ignore"]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
