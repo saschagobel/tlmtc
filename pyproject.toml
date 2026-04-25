@@ -11,6 +11,7 @@ dependencies = [
     "numpy ~= 2.3",
     "optuna ~= 4.6",
     "pandas ~= 2.2",
+    "pandera[pandas] ~= 0.31",
     "pyarrow ~= 22.0",
     "pyyaml >=6,<7",
     "pydantic >=2,<3",
