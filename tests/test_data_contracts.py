@@ -1,18 +1,16 @@
 """Tests for tabular data contracts."""
 
-
 from collections.abc import Callable
 
 import pandas as pd
 import pytest
 
 from tlmtc.data_contracts import (
-    DataContractError,
     TEXT_COL,
     TEXT_PAIR_COL,
+    DataContractError,
     validate_multilabel_frame,
 )
-
 
 FrameFactory = Callable[..., pd.DataFrame]
 
@@ -35,6 +33,7 @@ def valid_frame() -> FrameFactory:
 
 class TestValidateMultilabelFrame:
     """Tests for validating raw multilabel dataframe contracts."""
+
     def test_validates_minimal_multilabel_frame(self, valid_frame: FrameFactory) -> None:
         df = valid_frame()
 
