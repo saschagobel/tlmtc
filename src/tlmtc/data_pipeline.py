@@ -1,5 +1,4 @@
-"""
-Transfer Learning for Multi-Label Text Classification.
+"""Transfer Learning for Multi-Label Text Classification.
 
 Dataset preparation
 """
@@ -36,8 +35,7 @@ class DataPipeline:
         split: SplitSettings,
         model: ModelSettings,
     ) -> None:
-        """
-        Initialize the data pipeline.
+        """Initialize the data pipeline.
 
         Args:
             paths: Run-specific filesystem layout (raw/train/val/test locations).
@@ -54,14 +52,13 @@ class DataPipeline:
         self.tokenized_dataset: DatasetDict | None = None
 
     def split_data(self) -> DataPipeline:
-        """
-        Split data into train, validation and test partitions, reset indices, and save to disk.
+        """Split data into train, validation and test partitions, reset indices, and save to disk.
 
         Saves
         -----
         train_data_path, val_data_path and test_data_path as parquet files
 
-        Returns
+        Returns:
         -------
         DataPipeline
         """
@@ -107,10 +104,9 @@ class DataPipeline:
         return self
 
     def get_multi_hot_vectors(self) -> DataPipeline:
-        """
-        Combine label_* columns into a single 'labels' array per row (multi-hot vector).
+        """Combine label_* columns into a single 'labels' array per row (multi-hot vector).
 
-        Returns
+        Returns:
         -------
         DataPipeline
         """
@@ -127,10 +123,9 @@ class DataPipeline:
         return self
 
     def create_hf_dataset(self) -> DataPipeline:
-        """
-        Assemble train and test data in a Hugging Face DatasetDict.
+        """Assemble train and test data in a Hugging Face DatasetDict.
 
-        Returns
+        Returns:
         -------
         DataPipeline
         """
@@ -152,10 +147,9 @@ class DataPipeline:
         return self
 
     def tokenize_data(self) -> DataPipeline:
-        """
-        Tokenize text and convert multi-hot labels to float tensors.
+        """Tokenize text and convert multi-hot labels to float tensors.
 
-        Returns
+        Returns:
         -------
         DataPipeline
         """
