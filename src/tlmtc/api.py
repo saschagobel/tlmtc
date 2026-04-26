@@ -26,13 +26,6 @@ class TrainResult:
     paths: RunPaths
 
 
-# future
-@dataclass(frozen=True, slots=True)
-class PredictResult:
-    """..."""
-    ...
-
-
 def train_tlmtc(
     raw_csv: str | Path,
     *,
@@ -205,8 +198,3 @@ def train_tlmtc(
         .save_pretrained()
     )
     return TrainResult(paths=paths)
-
-
-def predict_tlmtc() -> PredictResult:
-    """..."""
-    ...
