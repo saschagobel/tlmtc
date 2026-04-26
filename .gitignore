@@ -1,22 +1,39 @@
-# Byte-compiled
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python bytecode
 __pycache__/
 *.pyc
 
 # Virtual environments
 .venv/
-env/
 venv/
+env/
 
 # Build artifacts
 build/
 dist/
 *.egg-info/
+.eggs/
 
-# Testing / linting / type checking cache 
-.pytest_cache/ 
-.mypy_cache/ 
+# Test / lint / type-check caches
+.pytest_cache/
+.mypy_cache/
 .ruff_cache/
+.coverage
+htmlcov/
 
-# IDE settings
-.idea/
-*.iml
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
