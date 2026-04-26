@@ -1,5 +1,4 @@
-"""
-Transfer Learning for Multi-Label Text Classification.
+"""Transfer Learning for Multi-Label Text Classification.
 
 Hyperparameter tuning and model fine-tuning.
 """
@@ -102,10 +101,9 @@ class FinetunePipeline:
     def load_pretrained(
         self,
     ) -> FinetunePipeline:
-        """
-        Load a pretrained Hugging Face model for multi-label classification and optionally wrap with peft.
+        """Load a pretrained Hugging Face model for multi-label classification and optionally wrap with peft.
 
-        Returns
+        Returns:
         -------
         FinetunePipeline
         """
@@ -136,15 +134,14 @@ class FinetunePipeline:
         self,
         trainer: Type[Trainer] = WeightedTrainer,
     ) -> FinetunePipeline:
-        """
-        Run automated hyperparameter optimization on the pretrained Hugging Face proxy model using Optuna.
+        """Run automated hyperparameter optimization on the pretrained Hugging Face proxy model using Optuna.
 
         Parameters
         ----------
         trainer: Type[transformers.Trainer], default=WeightedTrainer
             Custom Hugging Face Trainer for handling class imbalances in multi-label classification
 
-        Returns
+        Returns:
         -------
         FinetunePipeline
         """
@@ -223,15 +220,14 @@ class FinetunePipeline:
         self,
         trainer: Type[Trainer] = WeightedTrainer,
     ) -> FinetunePipeline:
-        """
-        Fine-tune a pretrained Hugging Face model for multi-label classification.
+        """Fine-tune a pretrained Hugging Face model for multi-label classification.
 
         Parameters
         ----------
         trainer: Type[transformers.Trainer], default=WeightedTrainer
             Custom Hugging Face Trainer for handling class imbalances in multi-label classification
 
-        Returns
+        Returns:
         -------
         FinetunePipeline
         """
@@ -266,13 +262,12 @@ class FinetunePipeline:
         return self
 
     def tune_thresholds(self) -> FinetunePipeline:
-        """
-        Tune decision threshold(s) on the validation split using the trained model.
+        """Tune decision threshold(s) on the validation split using the trained model.
 
         This step is post-training calibration: it does not update model weights.
         The tuned threshold(s) are stored in `self.tuned_threshold`.
 
-        Returns
+        Returns:
         -------
         FinetunePipeline
         """
@@ -300,10 +295,9 @@ class FinetunePipeline:
     def save_pretrained(
         self,
     ) -> FinetunePipeline:
-        """
-        Save a fine-tuned Hugging Face model for multi-label classification.
+        """Save a fine-tuned Hugging Face model for multi-label classification.
 
-        Returns
+        Returns:
         -------
         FinetunePipeline
         """
