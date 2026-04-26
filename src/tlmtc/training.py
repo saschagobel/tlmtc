@@ -229,8 +229,7 @@ def wrap_model_with_peft(
         init_lora_weights=True,
         bias=lora_bias,
     )
-    model = get_peft_model(model, peft_config)  # type: ignore[assignment]
-    return model
+    return get_peft_model(model, peft_config)
 
 
 class WeightedTrainer(Trainer):

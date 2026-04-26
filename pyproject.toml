@@ -63,6 +63,10 @@ untyped_calls_exclude = [
     "transformers",
 ]
 
+[[tool.mypy.overrides]]
+module = ["tlmtc.finetune_pipeline"]
+disable_error_code = ["unused-ignore"]
+
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
 
