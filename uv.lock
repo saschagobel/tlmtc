@@ -1843,19 +1843,19 @@ type = [
 
 [package.metadata]
 requires-dist = [
-    { name = "datasets", specifier = "~=4.4" },
-    { name = "iterative-stratification", specifier = "~=0.1" },
-    { name = "numpy", specifier = "~=2.3" },
-    { name = "optuna", specifier = "~=4.6" },
-    { name = "pandas", specifier = "~=2.2" },
-    { name = "pandera", extras = ["pandas"], specifier = "~=0.31" },
-    { name = "peft", marker = "extra == 'peft'", specifier = "~=0.18" },
-    { name = "pyarrow", specifier = "~=22.0" },
+    { name = "datasets", specifier = ">=4.4" },
+    { name = "iterative-stratification", specifier = ">=0.1" },
+    { name = "numpy", specifier = ">=2.3,<3.0" },
+    { name = "optuna", specifier = ">=4.6" },
+    { name = "pandas", specifier = ">=2.2,<3.0" },
+    { name = "pandera", extras = ["pandas"], specifier = ">=0.31" },
+    { name = "peft", marker = "extra == 'peft'", specifier = ">=0.18" },
+    { name = "pyarrow", specifier = ">=22.0" },
     { name = "pydantic", specifier = ">=2,<3" },
-    { name = "pyyaml", specifier = ">=6,<7" },
-    { name = "scikit-learn", specifier = "~=1.7" },
-    { name = "torch", marker = "extra == 'torch'", specifier = "~=2.9", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = "~=4.57" },
+    { name = "pyyaml", specifier = ">=6" },
+    { name = "scikit-learn", specifier = ">=1.7" },
+    { name = "torch", marker = "extra == 'torch'", specifier = ">=2.9", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.57" },
 ]
 provides-extras = ["torch", "peft"]
 

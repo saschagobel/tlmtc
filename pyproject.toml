@@ -4,24 +4,27 @@ version = "0.0.1"
 description = "Transfer Learning for Multi-Label Text Classification"
 readme = "README.md"
 license = { file = "LICENSE.md" }
+authors = [
+  { name = "Sascha Göbel", email = "goebel@hertie-school.org" },
+]
 requires-python = ">=3.12"
 dependencies = [
-    "datasets ~= 4.4",
-    "iterative-stratification ~= 0.1",
-    "numpy ~= 2.3",
-    "optuna ~= 4.6",
-    "pandas ~= 2.2",
-    "pandera[pandas] ~= 0.31",
-    "pyarrow ~= 22.0",
-    "pyyaml >=6,<7",
+    "datasets >= 4.4",
+    "iterative-stratification >= 0.1",
+    "numpy >= 2.3,<3.0",
+    "optuna >= 4.6",
+    "pandas >= 2.2,<3.0",
+    "pandera[pandas] >= 0.31",
+    "pyarrow >= 22.0",
+    "pyyaml >=6",
     "pydantic >=2,<3",
-    "scikit-learn ~= 1.7",
-    "transformers ~= 4.57"
+    "scikit-learn >= 1.7",
+    "transformers >= 4.57"
 ]
 
 [project.optional-dependencies]
-torch = ["torch ~= 2.9"]
-peft = ["peft ~= 0.18"]
+torch = ["torch >= 2.9"]
+peft = ["peft >= 0.18"]
 
 [dependency-groups]
 test = ["pytest>=9.0"]
@@ -47,14 +50,11 @@ convention = "google"
 ignore-var-parameters = true
 
 [tool.ruff.lint.per-file-ignores]
-"src/tlmtc/config.py" = ["D"]
-"src/tlmtc/utils.py" = ["D"]
-"src/tlmtc/data_pipeline.py" = ["D"]
-"src/tlmtc/finetune_pipeline.py" = ["D"]
-"tests/**/*.py" = ["D102"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103"]
 
 [tool.mypy]
 python_version = "3.12"
+files = ["src/tlmtc"]
 strict = true
 ignore_missing_imports = true
 disallow_any_generics = false
@@ -62,10 +62,6 @@ warn_return_any = false
 untyped_calls_exclude = [
     "transformers",
 ]
-
-[[tool.mypy.overrides]]
-module = ["tlmtc.training", "tlmtc.finetune_pipeline"]
-disable_error_code = ["unused-ignore"]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
