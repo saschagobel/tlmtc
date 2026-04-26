@@ -102,21 +102,21 @@ class TestMain:
     """Test suite for cli.main()."""
 
     @pytest.fixture
-    def stub_run_tlmtc(self, monkeypatch: pytest.MonkeyPatch):
-        """Provide a stub tlmtc.run.run_tlmtc and capture kwargs passed by main()."""
+    def stub_train_tlmtc(self, monkeypatch: pytest.MonkeyPatch):
+        """Provide a stub tlmtc.api.train_tlmtc and capture kwargs passed by main()."""
         calls: dict[str, Any] = {}
 
-        def _run_tlmtc(**kwargs: Any) -> None:
+        def _train_tlmtc(**kwargs: Any) -> None:
             calls["kwargs"] = kwargs
 
-        stub = types.ModuleType("tlmtc.run")
-        stub.run_tlmtc = _run_tlmtc  # type: ignore[attr-defined]
+        stub = types.ModuleType("tlmtc.api")
+        stub.train_tlmtc = _train_tlmtc  # type: ignore[attr-defined]
 
-        monkeypatch.setitem(sys.modules, "tlmtc.run", stub)
+        monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
         return calls
 
-    def test_main_invokes_run_tlmtc_and_returns_zero(self, stub_run_tlmtc):
-        """Ensure main() maps argv to run_tlmtc kwargs and returns 0 on success."""
+    def test_main_invokes_train_tlmtc_and_returns_zero(self, stub_train_tlmtc):
+        """Ensure main() maps argv to train_tlmtc kwargs and returns 0 on success."""
         exit_code = main(
             [
                 "--raw-csv",
@@ -128,7 +128,7 @@ class TestMain:
         )
 
         assert exit_code == 0
-        kwargs = stub_run_tlmtc["kwargs"]
+        kwargs = stub_train_tlmtc["kwargs"]
         assert kwargs["raw_csv"] == "raw.csv"
         assert kwargs["optuna_space"] == {"lr_low": 1e-5}
         assert kwargs["hyperparameter_tuning"] is False
@@ -136,15 +136,15 @@ class TestMain:
         assert "threshold_type" not in kwargs
         assert "use_cpu" not in kwargs
 
-    def test_main_propagates_parser_error_when_run_tlmtc_raises(self, monkeypatch: pytest.MonkeyPatch):
+    def test_main_propagates_parser_error_when_train_tlmtc_raises(self, monkeypatch: pytest.MonkeyPatch):
         """Ensure main() converts downstream exceptions into an argparse usage error (exit code 2)."""
 
         def _boom(**_kwargs: Any) -> None:
             raise RuntimeError("boom")
 
-        stub = types.ModuleType("tlmtc.run")
-        stub.run_tlmtc = _boom  # type: ignore[attr-defined]
-        monkeypatch.setitem(sys.modules, "tlmtc.run", stub)
+        stub = types.ModuleType("tlmtc.api")
+        stub.train_tlmtc = _boom  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
 
         with pytest.raises(SystemExit) as excinfo:
             main(["--raw-csv", "raw.csv"])
@@ -158,12 +158,12 @@ class TestMain:
             main([])
         assert excinfo.value.code == 2
 
-    def test_main_forwards_config_path(self, stub_run_tlmtc):
-        """Ensure --config-path is forwarded to run_tlmtc."""
+    def test_main_forwards_config_path(self, stub_train_tlmtc):
+        """Ensure --config-path is forwarded to train_tlmtc."""
         exit_code = main(["--raw-csv", "raw.csv", "--config-path", "config.yaml"])
 
         assert exit_code == 0
-        assert stub_run_tlmtc["kwargs"] == {
+        assert stub_train_tlmtc["kwargs"] == {
             "raw_csv": "raw.csv",
             "config_path": "config.yaml",
         }
