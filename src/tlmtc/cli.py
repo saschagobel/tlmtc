@@ -282,10 +282,10 @@ def main(
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    from tlmtc.run import run_tlmtc
+    from tlmtc.api import train_tlmtc
 
     try:
-        run_tlmtc(**vars(args))
+        train_tlmtc(**vars(args))
     except Exception as e:
         parser.error(str(e))
 
