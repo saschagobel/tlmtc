@@ -1,4 +1,4 @@
-"""Tests for the run_tlmtc library entrypoint."""
+"""Tests for the train_tlmtc library entrypoint."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-import tlmtc.run as run_mod
+import tlmtc.api as train_mod
 
 DATA_PIPELINE_FLUENT: tuple[str, ...] = (
     "split_data",
@@ -52,12 +52,11 @@ def _chainable_mock(fluent_methods: tuple[str, ...]) -> MagicMock:
     return inst
 
 
-def test_run_tlmtc_returns_run_result_and_creates_dirs(
+def test_train_tlmtc_returns_train_result_and_creates_dirs(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     raw_csv: Path,
 ) -> None:
-    """Ensure run_tlmtc returns a RunResult and creates the expected run directories."""
     tokenized = object()
 
     dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
@@ -67,12 +66,12 @@ def test_run_tlmtc_returns_run_result_and_creates_dirs(
     ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
     ft_cls = MagicMock(return_value=ft_inst)
 
-    monkeypatch.setattr(run_mod, "DataPipeline", dp_cls)
-    monkeypatch.setattr(run_mod, "FinetunePipeline", ft_cls)
+    monkeypatch.setattr(train_mod, "DataPipeline", dp_cls)
+    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
 
-    result = run_mod.run_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
+    result = train_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
 
-    assert isinstance(result, run_mod.RunResult)
+    assert isinstance(result, train_mod.TrainResult)
     assert result.paths.run_id == "run_123"
 
     # Observable side effects.
@@ -90,24 +89,23 @@ def test_run_tlmtc_returns_run_result_and_creates_dirs(
 
 
 @pytest.mark.parametrize("provide_raw_test", [False, True])
-def test_run_tlmtc_resolves_raw_test_path(
+def test_train_tlmtc_resolves_raw_test_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     raw_csv: Path,
     raw_test_csv: Path,
     provide_raw_test: bool,
 ) -> None:
-    """Ensure run_tlmtc resolves the raw test CSV path from argument or default."""
     tokenized = object()
 
     dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
     dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
-    monkeypatch.setattr(run_mod, "DataPipeline", MagicMock(return_value=dp_inst))
+    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
 
     ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
-    monkeypatch.setattr(run_mod, "FinetunePipeline", MagicMock(return_value=ft_inst))
+    monkeypatch.setattr(train_mod, "FinetunePipeline", MagicMock(return_value=ft_inst))
 
-    result = run_mod.run_tlmtc(
+    result = train_mod.train_tlmtc(
         raw_csv,
         raw_test_csv=raw_test_csv if provide_raw_test else None,
         work_dir=tmp_path,
@@ -121,12 +119,11 @@ def test_run_tlmtc_resolves_raw_test_path(
         assert result.paths.raw_test_data_path.name == "raw_test.csv"
 
 
-def test_run_tlmtc_resolves_selected_settings_from_config_path(
+def test_train_tlmtc_resolves_selected_settings_from_config_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     raw_csv: Path,
 ) -> None:
-    """Ensure run_tlmtc loads YAML config values through RunSettings."""
     config_path = tmp_path / "config.yml"
     config_path.write_text(
         """
@@ -158,10 +155,10 @@ hpo:
     ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
     ft_cls = MagicMock(return_value=ft_inst)
 
-    monkeypatch.setattr(run_mod, "DataPipeline", dp_cls)
-    monkeypatch.setattr(run_mod, "FinetunePipeline", ft_cls)
+    monkeypatch.setattr(train_mod, "DataPipeline", dp_cls)
+    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
 
-    result = run_mod.run_tlmtc(
+    result = train_mod.train_tlmtc(
         raw_csv,
         work_dir=tmp_path,
         config_path=config_path,
@@ -179,20 +176,20 @@ hpo:
     assert ft_kwargs["hpo"].optuna_space.batch_sizes == [4, 8]
 
 
-def test_run_tlmtc_propagates_data_pipeline_failure(
+def test_train_tlmtc_propagates_data_pipeline_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     raw_csv: Path,
 ) -> None:
-    """Ensure run_tlmtc propagates failures raised during data preparation."""
+    """Ensure train_tlmtc propagates failures raised during data preparation."""
     dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
     dp_inst.split_data.side_effect = ValueError("split failed")
-    monkeypatch.setattr(run_mod, "DataPipeline", MagicMock(return_value=dp_inst))
+    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
 
     ft_cls = MagicMock()
-    monkeypatch.setattr(run_mod, "FinetunePipeline", ft_cls)
+    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
 
     with pytest.raises(ValueError, match="split failed"):
-        run_mod.run_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_fail")
+        train_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_fail")
 
     ft_cls.assert_not_called()
