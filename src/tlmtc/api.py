@@ -16,8 +16,8 @@ from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
 
 
 @dataclass(frozen=True, slots=True)
-class RunResult:
-    """Run metadata returned by `run_tlmtc`.
+class TrainResult:
+    """Train metadata returned by `train_tlmtc`.
 
     Attributes:
         paths: Resolved filesystem layout for this run.
@@ -26,7 +26,7 @@ class RunResult:
     paths: RunPaths
 
 
-def run_tlmtc(
+def train_tlmtc(
     raw_csv: str | Path,
     *,
     raw_test_csv: str | Path | None | Unset = UNSET,
@@ -61,8 +61,8 @@ def run_tlmtc(
     lora_bias: str | Unset = UNSET,
     early_stopping_patience: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
-) -> RunResult:
-    """Run the full tlmtc pipeline end-to-end.
+) -> TrainResult:
+    """Run the full tlmtc training pipeline end-to-end.
 
     Args:
         raw_csv: Path to the multilabel CSV.
@@ -197,4 +197,4 @@ def run_tlmtc(
         .tune_thresholds()
         .save_pretrained()
     )
-    return RunResult(paths=paths)
+    return TrainResult(paths=paths)

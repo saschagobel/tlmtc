@@ -8,15 +8,15 @@ from types import ModuleType
 import pytest
 
 
-def _install_dummy_run_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a lightweight `tlmtc.run` module so API tests don't import heavy ML deps."""
-    mod = ModuleType("tlmtc.run")
+def _install_dummy_api_module(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Install a lightweight `tlmtc.api` module so API tests don't import heavy ML deps."""
+    mod = ModuleType("tlmtc.api")
 
-    def run_tlmtc(*_args: object, **_kwargs: object) -> str:
+    def train_tlmtc(*_args: object, **_kwargs: object) -> str:
         return "ok"
 
-    setattr(mod, "run_tlmtc", run_tlmtc)
-    monkeypatch.setitem(sys.modules, "tlmtc.run", mod)
+    setattr(mod, "train_tlmtc", train_tlmtc)
+    monkeypatch.setitem(sys.modules, "tlmtc.api", mod)
 
 
 def test_public_api_exports_version() -> None:
@@ -27,13 +27,13 @@ def test_public_api_exports_version() -> None:
     assert tlmtc.__version__
 
 
-def test_public_api_lazy_exports_run_tlmtc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests that run_tlmtc is resolved lazily via the public API."""
-    _install_dummy_run_module(monkeypatch)
+def test_public_api_lazy_exports_train_tlmtc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests that train_tlmtc is resolved lazily via the public API."""
+    _install_dummy_api_module(monkeypatch)
 
     import tlmtc
 
-    assert tlmtc.run_tlmtc() == "ok"
+    assert tlmtc.train_tlmtc() == "ok"
 
 
 def test_public_api_rejects_unknown_attribute() -> None:
@@ -49,7 +49,7 @@ def test_public_api_rejects_unknown_attribute() -> None:
     [
         (
             "torch",
-            "Using tlmtc.run_tlmtc requires PyTorch, but it was not found in your environment.",
+            "Using tlmtc.train_tlmtc requires PyTorch, but it was not found in your environment.",
         ),
         (
             "peft",
@@ -65,13 +65,13 @@ def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
     """Ensures that a helpful ImportError is raised when an optional dependency is missing."""
     import tlmtc
 
-    sys.modules.pop("tlmtc.run", None)
+    sys.modules.pop("tlmtc.api", None)
 
     real_import = builtins.__import__
 
     def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
-        # The public API imports *tlmtc.run*, not torch/peft directly.
-        if name == "tlmtc.run":
+        # The public API imports *tlmtc.api*, not torch/peft directly.
+        if name == "tlmtc.api":
             raise ModuleNotFoundError(missing, name=missing)
         return real_import(name, globals, locals, fromlist, level)
 
@@ -79,4 +79,4 @@ def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
         m.setattr(builtins, "__import__", fake_import)
 
         with pytest.raises(ImportError, match=re.escape(expected_msg)):
-            _ = tlmtc.run_tlmtc
+            _ = tlmtc.train_tlmtc
