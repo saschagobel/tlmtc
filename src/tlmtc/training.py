@@ -267,7 +267,7 @@ class WeightedTrainer(Trainer):
         model: torch.nn.Module,
         inputs: dict[str, Tensor],
         return_outputs: bool = False,
-        num_items_in_batch: Tensor | None = None,
+        num_items_in_batch: Tensor | int | None = None,
     ) -> Tensor | tuple[Tensor, ModelOutput]:
         """Compute the weighted BCE loss for multi-label classification with multi-GPU support.
 
