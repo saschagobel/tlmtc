@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-import pytest
-
 from tlmtc.paths import (
     DEFAULT_DATA_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
@@ -16,20 +14,24 @@ from tlmtc.paths import (
 class TestResolvePaths:
     """Test suite for resolve_paths."""
 
-    def test_resolves_relative_inputs_under_work_dir(self, tmp_path: Path):
-        """Ensure relative input paths are anchored under work_dir and run layout is constructed."""
+    def test_resolves_run_layout_under_work_dir(self, tmp_path: Path) -> None:
+        """Ensure the run artifact layout is constructed under work_dir."""
+        raw_csv = tmp_path / "input" / "raw.csv"
+        raw_test_csv = tmp_path / "input" / "raw_test.csv"
+        work_dir = tmp_path / "workspace"
+
         paths = resolve_paths(
-            raw_csv="data/raw.csv",
-            raw_test_csv="data/raw_test.csv",
-            work_dir=tmp_path,
+            raw_csv=raw_csv,
+            raw_test_csv=raw_test_csv,
+            work_dir=work_dir,
             run_id="run123",
         )
 
-        assert paths.work_dir == tmp_path.resolve()
-        assert paths.raw_data_path == (tmp_path / "data" / "raw.csv").resolve()
-        assert paths.raw_test_data_path == (tmp_path / "data" / "raw_test.csv").resolve()
+        expected_work_dir = work_dir.resolve()
+        expected_run_dir = expected_work_dir / DEFAULT_OUTPUTS_DIRNAME / "run123"
 
-        expected_run_dir = (tmp_path / DEFAULT_OUTPUTS_DIRNAME / "run123").resolve()
+        assert paths.work_dir == expected_work_dir
+        assert paths.run_id == "run123"
         assert paths.run_dir == expected_run_dir
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
@@ -39,38 +41,86 @@ class TestResolvePaths:
         assert paths.val_data_path == paths.data_dir / "val.parquet"
         assert paths.test_data_path == paths.data_dir / "test.parquet"
 
-    def test_defaults_raw_test_csv_to_sibling_raw_test(self, tmp_path: Path):
-        """Ensure raw_test_csv defaults to a sibling raw_test.csv next to raw_csv."""
+    def test_resolves_raw_inputs_independently_from_work_dir(self, tmp_path: Path, monkeypatch) -> None:
+        """Ensure relative raw input paths are resolved from cwd, not from work_dir."""
+        project_dir = tmp_path / "project"
+        work_dir = tmp_path / "workspace"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        paths = resolve_paths(
+            raw_csv=Path("data/raw.csv"),
+            raw_test_csv=Path("data/raw_test.csv"),
+            work_dir=work_dir,
+            run_id="run123",
+        )
+
+        assert paths.work_dir == work_dir.resolve()
+        assert paths.raw_data_path == (project_dir / "data" / "raw.csv").resolve()
+        assert paths.raw_test_data_path == (project_dir / "data" / "raw_test.csv").resolve()
+
+        assert paths.raw_data_path != paths.work_dir / "data" / "raw.csv"
+        assert paths.raw_test_data_path != paths.work_dir / "data" / "raw_test.csv"
+
+    def test_preserves_missing_raw_test_csv_as_none(self, tmp_path: Path) -> None:
+        """Ensure omitted raw_test_csv stays absent instead of probing a sibling file."""
         raw_csv = tmp_path / "raw.csv"
-        paths = resolve_paths(raw_csv=raw_csv, work_dir=tmp_path, run_id="run123")
 
-        assert paths.raw_test_data_path == raw_csv.with_name("raw_test.csv").resolve()
+        paths = resolve_paths(
+            raw_csv=raw_csv,
+            raw_test_csv=None,
+            work_dir=tmp_path / "workspace",
+            run_id="run123",
+        )
 
-    def test_uses_cwd_when_work_dir_is_none(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        """Ensure work_dir defaults to the current working directory when not provided."""
+        assert paths.raw_data_path == raw_csv.resolve()
+        assert paths.raw_test_data_path is None
+
+    def test_resolves_relative_work_dir_from_cwd(self, tmp_path: Path, monkeypatch) -> None:
+        """Ensure relative work_dir paths are resolved from the current working directory."""
         monkeypatch.chdir(tmp_path)
 
-        paths = resolve_paths(raw_csv="raw.csv", run_id="run123")
+        paths = resolve_paths(
+            raw_csv=Path("raw.csv"),
+            raw_test_csv=None,
+            work_dir=Path("workspace"),
+            run_id="run123",
+        )
 
-        assert paths.work_dir == tmp_path.resolve()
+        assert paths.work_dir == (tmp_path / "workspace").resolve()
+        assert paths.run_dir == (tmp_path / "workspace" / DEFAULT_OUTPUTS_DIRNAME / "run123").resolve()
         assert paths.raw_data_path == (tmp_path / "raw.csv").resolve()
 
-    def test_generates_run_id_when_missing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-        """Ensure a default run_id is generated when run_id is not provided."""
-        monkeypatch.setattr("tlmtc.paths._default_run_id", lambda: "fixed-run-id", raising=True)
+    def test_accepts_absolute_raw_inputs_outside_work_dir(self, tmp_path: Path) -> None:
+        """Ensure raw inputs may live outside the artifact workspace."""
+        raw_dir = tmp_path / "datasets"
+        work_dir = tmp_path / "workspace"
+        raw_csv = raw_dir / "train.csv"
+        raw_test_csv = raw_dir / "test.csv"
 
-        paths = resolve_paths(raw_csv="raw.csv", work_dir=tmp_path)
+        paths = resolve_paths(
+            raw_csv=raw_csv,
+            raw_test_csv=raw_test_csv,
+            work_dir=work_dir,
+            run_id="run123",
+        )
 
-        assert paths.run_id == "fixed-run-id"
-        assert paths.run_dir == (tmp_path / DEFAULT_OUTPUTS_DIRNAME / "fixed-run-id").resolve()
+        assert paths.raw_data_path == raw_csv.resolve()
+        assert paths.raw_test_data_path == raw_test_csv.resolve()
+        assert paths.run_dir == work_dir.resolve() / DEFAULT_OUTPUTS_DIRNAME / "run123"
 
 
 class TestRunPaths:
     """Test suite for RunPaths."""
 
-    def test_ensure_dirs_creates_structure_and_returns_self(self, tmp_path: Path):
-        """Ensure ensure_dirs creates the run directory structure and returns self."""
-        paths = resolve_paths(raw_csv="raw.csv", work_dir=tmp_path, run_id="run123")
+    def test_ensure_dirs_creates_artifact_structure_and_returns_self(self, tmp_path: Path) -> None:
+        """Ensure ensure_dirs creates the artifact directory structure and returns self."""
+        paths = resolve_paths(
+            raw_csv=tmp_path / "raw.csv",
+            raw_test_csv=None,
+            work_dir=tmp_path / "workspace",
+            run_id="run123",
+        )
 
         result = paths.ensure_dirs()
 
@@ -79,3 +129,18 @@ class TestRunPaths:
         assert paths.data_dir.is_dir()
         assert paths.logs_dir.is_dir()
         assert paths.model_dir.is_dir()
+
+    def test_ensure_dirs_does_not_create_raw_input_parent_dirs(self, tmp_path: Path) -> None:
+        """Ensure ensure_dirs only creates artifact directories, not raw input locations."""
+        raw_csv = tmp_path / "missing-inputs" / "raw.csv"
+        paths = resolve_paths(
+            raw_csv=raw_csv,
+            raw_test_csv=None,
+            work_dir=tmp_path / "workspace",
+            run_id="run123",
+        )
+
+        paths.ensure_dirs()
+
+        assert paths.data_dir.is_dir()
+        assert not raw_csv.parent.exists()

@@ -66,7 +66,7 @@ def pipeline_instance_factory(
     split_settings: SplitSettings,
     model_settings: ModelSettings,
 ) -> Callable[..., DataPipeline]:
-    """Factory for DataPipeline instances using in-test RunPaths (no resolve_paths coupling)."""
+    """Factory for DataPipeline instances using in-test RunPaths."""
 
     def _factory(*, raw_csv: Path, raw_test_csv: Path | None) -> DataPipeline:
         run_id = "test-run"
@@ -75,14 +75,12 @@ def pipeline_instance_factory(
         logs_dir = run_dir / "logs"
         model_dir = run_dir / "model"
 
-        raw_test_path = raw_test_csv if raw_test_csv is not None else (tmp_path / "__missing_raw_test__.csv")
-
         paths = RunPaths(
             work_dir=tmp_path,
             run_dir=run_dir,
             run_id=run_id,
             raw_data_path=raw_csv,
-            raw_test_data_path=raw_test_path,
+            raw_test_data_path=raw_test_csv,
             data_dir=data_dir,
             logs_dir=logs_dir,
             model_dir=model_dir,
@@ -142,6 +140,22 @@ class TestSplitData:
         )
 
         with pytest.raises(FileNotFoundError):
+            dp.split_data()
+
+    def test_raises_error_when_explicit_raw_test_data_missing(
+        self,
+        tmp_path: Path,
+        sample_raw_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        missing_raw_test = tmp_path / "missing_raw_test.csv"
+
+        dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=missing_raw_test,
+        )
+
+        with pytest.raises(FileNotFoundError, match="Raw test data not found"):
             dp.split_data()
 
     def test_raises_error_on_mismatched_label_columns(
