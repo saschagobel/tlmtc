@@ -1,55 +1,134 @@
 """Tests for tlmtc.cli."""
 
-from __future__ import annotations
-
-import argparse
+import re
 import sys
 import types
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import typer
+from typer.testing import CliRunner
 
-from tlmtc.cli import _json_or_file, build_parser, main
+from tlmtc.cli import app, parse_optuna_space
+from tlmtc.settings import UNSET
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
-class TestJsonOrFile:
-    """Test suite for _json_or_file()."""
+def clean_cli_output(
+    output: str,
+) -> str:
+    """Remove ANSI styling from Typer/Rich CLI output."""
+    return _ANSI_ESCAPE_RE.sub("", output)
 
-    def test_parses_json_object_from_string(self):
+
+@pytest.fixture
+def runner() -> CliRunner:
+    """Provide an isolated Typer CLI runner."""
+    return CliRunner()
+
+
+def invoke_cli(
+    runner: CliRunner,
+    args: list[str],
+) -> Any:
+    """Invoke the Typer app with deterministic help/error rendering."""
+    return runner.invoke(app, args, color=False, terminal_width=120)
+
+
+@pytest.fixture
+def stub_train_tlmtc(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Provide a stub tlmtc.api.train_tlmtc and capture kwargs passed by the CLI.
+
+    The CLI imports train_tlmtc lazily from tlmtc.api inside the train command, so
+    tests stub the module import target rather than patching a top-level cli symbol.
+    """
+    calls: dict[str, Any] = {}
+
+    def _train_tlmtc(**kwargs: Any) -> SimpleNamespace:
+        calls["kwargs"] = kwargs
+        return SimpleNamespace(paths=SimpleNamespace(run_dir=Path("tlmtc_outputs/test-run")))
+
+    stub = types.ModuleType("tlmtc.api")
+    stub.train_tlmtc = _train_tlmtc  # type: ignore[attr-defined]
+
+    monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
+    return calls
+
+
+class TestParseOptunaSpace:
+    """Test suite for parse_optuna_space()."""
+
+    def test_returns_unset_for_omitted_value(self) -> None:
+        """Ensure omitted CLI values map to UNSET."""
+        assert parse_optuna_space(None) is UNSET
+
+    def test_parses_json_object_from_string(self) -> None:
         """Ensure a JSON object string is parsed into a dict."""
-        parsed = _json_or_file('{"a": 1, "b": "x"}')
+        parsed = parse_optuna_space('{"a": 1, "b": "x"}')
+
         assert parsed == {"a": 1, "b": "x"}
 
-    def test_parses_json_object_from_at_file(self, tmp_path: Path):
+    def test_parses_json_object_from_at_file(self, tmp_path: Path) -> None:
         """Ensure an '@'-prefixed path is read and parsed as a JSON object."""
         fp = tmp_path / "space.json"
         fp.write_text('{"lr_low": 1e-5}', encoding="utf-8")
 
-        parsed = _json_or_file(f"@{fp}")
+        parsed = parse_optuna_space(f"@{fp}")
+
         assert parsed == {"lr_low": 1e-5}
 
     @pytest.mark.parametrize(
         "value, match",
         [
-            ("not-json", r"Invalid JSON for --optuna-space"),
-            ("[1, 2]", r"expected a JSON object"),
+            ("not-json", r"Expected a JSON object or @file\.json"),
+            ("[1, 2]", r"Expected a JSON object"),
         ],
     )
-    def test_rejects_invalid_or_non_object_json(self, value: str, match: str):
-        """Ensure invalid JSON and non-object JSON are rejected with ArgumentTypeError."""
-        with pytest.raises(argparse.ArgumentTypeError, match=match):
-            _json_or_file(value)
+    def test_rejects_invalid_or_non_object_json(self, value: str, match: str) -> None:
+        """Ensure invalid JSON and non-object JSON are rejected."""
+        with pytest.raises(typer.BadParameter, match=match):
+            parse_optuna_space(value)
 
-    def test_rejects_missing_at_file(self, tmp_path: Path):
-        """Ensure a missing '@file' path is rejected with ArgumentTypeError."""
+    def test_rejects_missing_at_file(self, tmp_path: Path) -> None:
+        """Ensure a missing '@file' path is rejected."""
         missing = tmp_path / "does_not_exist.json"
-        with pytest.raises(argparse.ArgumentTypeError, match=r"Invalid JSON for --optuna-space"):
-            _json_or_file(f"@{missing}")
+
+        with pytest.raises(typer.BadParameter, match=r"Could not read JSON file"):
+            parse_optuna_space(f"@{missing}")
 
 
-class TestBuildParser:
-    """Test suite for build_parser()."""
+class TestCliApp:
+    """Test suite for the Typer CLI app."""
+
+    def test_root_help_is_shown_without_command(self, runner: CliRunner) -> None:
+        """Ensure invoking the root command without a subcommand prints help."""
+        result = invoke_cli(runner, [])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code == 0
+        assert "Transfer learning for multi-label text classification." in output
+        assert "train" in output
+
+    def test_version_flag_prints_version(self, runner: CliRunner) -> None:
+        """Ensure --version prints the package version."""
+        result = invoke_cli(runner, ["--version"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code == 0
+        assert "0.0.1" in output
+
+    def test_train_help_is_available(self, runner: CliRunner) -> None:
+        """Ensure train command help is available."""
+        result = invoke_cli(runner, ["train", "--help"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code == 0
+        assert "--raw-csv" in output
+        assert "--optuna-space" in output
+        assert "--use-cpu" in output
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -58,86 +137,128 @@ class TestBuildParser:
             ("--no-transfer-learning", False),
         ],
     )
-    def test_boolean_optional_action_parses_explicit_flags(self, flag: str, expected: bool):
-        """Ensure BooleanOptionalAction flags set the expected boolean value."""
-        parser = build_parser()
-        args = parser.parse_args(["--raw-csv", "raw.csv", flag])
-        assert args.transfer_learning is expected
+    def test_boolean_flag_pairs_parse_explicit_values(
+        self,
+        runner: CliRunner,
+        flag: str,
+        expected: bool,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure Typer boolean flag pairs set the expected boolean value."""
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", flag])
 
-    def test_choice_validation_rejects_invalid_threshold_type(self):
-        """Ensure argparse rejects invalid values for choice-constrained flags."""
-        parser = build_parser()
-        with pytest.raises(SystemExit) as excinfo:
-            parser.parse_args(["--raw-csv", "raw.csv", "--threshold-type", "nope"])
-        assert excinfo.value.code == 2
+        assert result.exit_code == 0
+        assert stub_train_tlmtc["kwargs"]["transfer_learning"] is expected
 
-    def test_optuna_space_accepts_json_object_string(self):
-        """Ensure --optuna-space accepts an inline JSON object string."""
-        parser = build_parser()
-        args = parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space", '{"batch_sizes": [8, 16]}'])
-        assert args.optuna_space == {"batch_sizes": [8, 16]}
-
-    def test_optuna_space_rejects_invalid_json(self):
-        """Ensure --optuna-space rejects invalid JSON values."""
-        parser = build_parser()
-        with pytest.raises(SystemExit) as excinfo:
-            parser.parse_args(["--raw-csv", "raw.csv", "--optuna-space", "not-json"])
-        assert excinfo.value.code == 2
-
-    def test_omitted_optional_args_are_not_materialized(self):
-        """Ensure omitted optional flags are not forwarded as parser defaults."""
-        parser = build_parser()
-        args = parser.parse_args(["--raw-csv", "raw.csv"])
-
-        parsed = vars(args)
-
-        assert parsed == {"raw_csv": "raw.csv"}
-        assert "batch_size" not in parsed
-        assert "hyperparameter_tuning" not in parsed
-        assert "threshold_type" not in parsed
-        assert "optuna_space" not in parsed
-
-
-class TestMain:
-    """Test suite for cli.main()."""
-
-    @pytest.fixture
-    def stub_train_tlmtc(self, monkeypatch: pytest.MonkeyPatch):
-        """Provide a stub tlmtc.api.train_tlmtc and capture kwargs passed by main()."""
-        calls: dict[str, Any] = {}
-
-        def _train_tlmtc(**kwargs: Any) -> None:
-            calls["kwargs"] = kwargs
-
-        stub = types.ModuleType("tlmtc.api")
-        stub.train_tlmtc = _train_tlmtc  # type: ignore[attr-defined]
-
-        monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
-        return calls
-
-    def test_main_invokes_train_tlmtc_and_returns_zero(self, stub_train_tlmtc):
-        """Ensure main() maps argv to train_tlmtc kwargs and returns 0 on success."""
-        exit_code = main(
+    def test_train_invokes_train_tlmtc(
+        self,
+        runner: CliRunner,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure train maps CLI options to train_tlmtc kwargs."""
+        result = invoke_cli(
+            runner,
             [
+                "train",
                 "--raw-csv",
                 "raw.csv",
                 "--optuna-space",
                 '{"lr_low": 1e-5}',
                 "--no-hyperparameter-tuning",
-            ]
+            ],
         )
+        output = clean_cli_output(result.output)
 
-        assert exit_code == 0
+        assert result.exit_code == 0
+        assert "Run completed: tlmtc_outputs/test-run" in output
+
         kwargs = stub_train_tlmtc["kwargs"]
         assert kwargs["raw_csv"] == "raw.csv"
         assert kwargs["optuna_space"] == {"lr_low": 1e-5}
         assert kwargs["hyperparameter_tuning"] is False
-        assert "batch_size" not in kwargs
-        assert "threshold_type" not in kwargs
-        assert "use_cpu" not in kwargs
+        assert kwargs["batch_size"] is UNSET
+        assert kwargs["threshold_type"] is UNSET
+        assert kwargs["use_cpu"] is UNSET
 
-    def test_main_propagates_parser_error_when_train_tlmtc_raises(self, monkeypatch: pytest.MonkeyPatch):
-        """Ensure main() converts downstream exceptions into an argparse usage error (exit code 2)."""
+    def test_train_forwards_config_path(
+        self,
+        runner: CliRunner,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure --config-path is forwarded to train_tlmtc."""
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--config-path", "config.yaml"])
+
+        assert result.exit_code == 0
+        kwargs = stub_train_tlmtc["kwargs"]
+        assert kwargs["raw_csv"] == "raw.csv"
+        assert kwargs["config_path"] == "config.yaml"
+
+    def test_train_omitted_optional_args_are_forwarded_as_unset(
+        self,
+        runner: CliRunner,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure omitted optional flags preserve layered settings semantics via UNSET."""
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv"])
+
+        assert result.exit_code == 0
+
+        kwargs = stub_train_tlmtc["kwargs"]
+        assert kwargs["raw_csv"] == "raw.csv"
+        assert kwargs["raw_test_csv"] is UNSET
+        assert kwargs["work_dir"] is UNSET
+        assert kwargs["batch_size"] is UNSET
+        assert kwargs["hyperparameter_tuning"] is UNSET
+        assert kwargs["threshold_type"] is UNSET
+        assert kwargs["optuna_space"] is UNSET
+        assert kwargs["use_cpu"] is UNSET
+
+    def test_train_accepts_optuna_space_from_file(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure --optuna-space accepts an @file JSON object."""
+        fp = tmp_path / "space.json"
+        fp.write_text('{"batch_sizes": [8, 16]}', encoding="utf-8")
+
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", f"@{fp}"])
+
+        assert result.exit_code == 0
+        assert stub_train_tlmtc["kwargs"]["optuna_space"] == {"batch_sizes": [8, 16]}
+
+    def test_train_rejects_invalid_optuna_space_json(self, runner: CliRunner) -> None:
+        """Ensure --optuna-space rejects invalid JSON values."""
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "not-json"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code != 0
+        assert "Expected a JSON object or @file.json" in output
+
+    def test_train_rejects_non_object_optuna_space_json(self, runner: CliRunner) -> None:
+        """Ensure --optuna-space rejects JSON values that are not objects."""
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "[1, 2]"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code != 0
+        assert "Expected a JSON object" in output
+
+    def test_train_requires_raw_csv(self, runner: CliRunner) -> None:
+        """Ensure train exits with a usage error when required args are missing."""
+        result = invoke_cli(runner, ["train"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code != 0
+        assert "Missing option" in output
+        assert "--raw-csv" in output
+
+    def test_train_propagates_downstream_exception(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Ensure downstream exceptions are not converted into fake parser errors."""
 
         def _boom(**_kwargs: Any) -> None:
             raise RuntimeError("boom")
@@ -146,24 +267,8 @@ class TestMain:
         stub.train_tlmtc = _boom  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
 
-        with pytest.raises(SystemExit) as excinfo:
-            main(["--raw-csv", "raw.csv"])
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv"])
 
-        # argparse uses exit code 2 for CLI usage errors.
-        assert excinfo.value.code == 2
-
-    def test_main_requires_raw_csv(self):
-        """Ensure main() exits with a usage error when required args are missing."""
-        with pytest.raises(SystemExit) as excinfo:
-            main([])
-        assert excinfo.value.code == 2
-
-    def test_main_forwards_config_path(self, stub_train_tlmtc):
-        """Ensure --config-path is forwarded to train_tlmtc."""
-        exit_code = main(["--raw-csv", "raw.csv", "--config-path", "config.yaml"])
-
-        assert exit_code == 0
-        assert stub_train_tlmtc["kwargs"] == {
-            "raw_csv": "raw.csv",
-            "config_path": "config.yaml",
-        }
+        assert result.exit_code != 0
+        assert isinstance(result.exception, RuntimeError)
+        assert str(result.exception) == "boom"

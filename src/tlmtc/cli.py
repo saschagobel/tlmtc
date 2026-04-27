@@ -1,296 +1,279 @@
 """Run the tlmtc pipeline via the command line.
 
-Defines the argparse-based CLI entrypoint that maps command-line arguments to `run_tlmtc()`.
+Defines the Typer-based CLI entrypoint that maps command-line arguments to
+the public tlmtc API.
 """
 
-from __future__ import annotations
-
-import argparse
 import json
+from pathlib import Path
 from typing import Any
 
-_THRESHOLD_CHOICES = ("global", "label")
-_METRIC_CHOICES = ("f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro")
-_LORA_BIAS_CHOICES = ("none", "all", "lora_only")
+import typer
+
+from tlmtc import __version__
+from tlmtc.settings import UNSET, Unset
+
+app = typer.Typer(
+    name="tlmtc",
+    help="Transfer learning for multi-label text classification.",
+)
 
 
-def _json_or_file(
-    value: str,
-) -> dict[str, Any]:
-    """Parse a JSON object from a string or an '@'-prefixed file path.
+def parse_optuna_space(
+    value: str | None,
+) -> dict[str, Any] | Unset:
+    """Parse an optional Optuna search-space override from JSON or a JSON file.
 
-    Args:
-        value: JSON string, or an '@'-prefixed path to a JSON file.
-
-    Returns:
-        parsed: Parsed JSON object as a dictionary.
+    Omitted CLI values are converted to the UNSET sentinel.
+    Provided values must be JSON objects. Values prefixed with '@' are interpreted
+    as paths to JSON files.
     """
+    if value is None:
+        return UNSET
+
     try:
         if value.startswith("@"):
-            with open(value[1:], "r", encoding="utf-8") as f:
-                parsed = json.load(f)
+            parsed = json.loads(Path(value[1:]).read_text(encoding="utf-8"))
         else:
             parsed = json.loads(value)
-    except (OSError, json.JSONDecodeError) as e:
-        raise argparse.ArgumentTypeError(
-            "Invalid JSON for --optuna-space-user (expected JSON object or @file.json)."
-        ) from e
-
+    except OSError as exc:
+        raise typer.BadParameter(f"Could not read JSON file: {value}") from exc
+    except json.JSONDecodeError as exc:
+        raise typer.BadParameter("Expected a JSON object or @file.json.") from exc
     if not isinstance(parsed, dict):
-        raise argparse.ArgumentTypeError(
-            "Invalid JSON for --optuna-space-user (expected a JSON object like '{\"k\": 1}')."
-        )
+        raise typer.BadParameter("Expected a JSON object like '{\"lr_low\": 1e-5}'.")
 
     return parsed
 
 
-def build_parser() -> argparse.ArgumentParser:
-    """Build the tlmtc CLI argument parser.
-
-    Returns:
-        argparse.ArgumentParser: configured with flags corresponding to the `run_tlmtc()`
-           keyword arguments.
-    """
-    parser = argparse.ArgumentParser(
-        prog="tlmtc",
-        description="Run the full tlmtc pipeline end-to-end.",
-        allow_abbrev=False,
-    )
-
-    parser.add_argument(
-        "--raw-csv",
-        type=str,
-        required=True,
-        help="Path to the multilabel CSV.",
-    )
-    parser.add_argument(
-        "--raw-test-csv",
-        type=str,
-        default=argparse.SUPPRESS,
-        help=(
-            "Optional path to a test CSV. If omitted, a test split is created from --raw-csv according to --test-size."
-        ),
-    )
-    parser.add_argument(
-        "--work-dir",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Base directory for resolving relative inputs and creating the run directory.",
-    )
-    parser.add_argument(
-        "--config-path",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Optional path to a YAML configuration file.",
-    )
-    parser.add_argument(
-        "--run-id",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Optional run identifier used to name the run directory. If exists will resume.",
-    )
-    parser.add_argument(
-        "--target-name",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Display name for the classification target/task (used in logs/outputs).",
-    )
-    parser.add_argument(
-        "--validation-size",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Fraction of data used for validation split.",
-    )
-    parser.add_argument(
-        "--test-size",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Fraction of data used for test split (only used when `raw_test_csv` is None).",
-    )
-    parser.add_argument(
-        "--random-seed",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Random seed used for splitting/shuffling.",
-    )
-    parser.add_argument(
-        "--transfer-learning",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Whether to fine-tune a pretrained checkpoint.",
-    )
-    parser.add_argument(
-        "--hyperparameter-tuning",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Whether to run Optuna hyperparameter tuning.",
-    )
-    parser.add_argument(
-        "--threshold-optimization",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Whether to tune decision threshold(s) post-training.",
-    )
-    parser.add_argument(
-        "--threshold-type",
-        type=str,
-        choices=_THRESHOLD_CHOICES,
-        default=argparse.SUPPRESS,
-        help="Threshold mode (e.g., global vs per-label).",
-    )
-    parser.add_argument(
-        "--scale-learning-rate",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Whether to scale learning rate based on batch size / device.",
-    )
-    parser.add_argument(
-        "--wrap-peft",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Whether to apply PEFT (LoRA) wrapping.",
-    )
-    parser.add_argument(
-        "--proxy-checkpoint",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Optional proxy checkpoint. If unset assumes checkpoint.",
-    )
-    parser.add_argument(
-        "--checkpoint",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Base pretrained model checkpoint identifier.",
-    )
-    parser.add_argument(
-        "--sequence-length",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Max sequence length for tokenization.",
-    )
-    parser.add_argument(
-        "--best-model-metric",
-        type=str,
-        choices=_METRIC_CHOICES,
-        default=argparse.SUPPRESS,
-        help="Metric name used to select the best model checkpoint.",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Training batch size.",
-    )
-    parser.add_argument(
-        "--train-epochs",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Number of training epochs.",
-    )
-    parser.add_argument(
-        "--learning-rate",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Initial learning rate.",
-    )
-    parser.add_argument(
-        "--weight-decay",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="Weight decay.",
-    )
-    parser.add_argument(
-        "--lr-scheduler",
-        type=str,
-        default=argparse.SUPPRESS,
-        help="Scheduler identifier/name.",
-    )
-    parser.add_argument(
-        "--best-threshold-metric",
-        type=str,
-        choices=_METRIC_CHOICES,
-        default=argparse.SUPPRESS,
-        help="Metric name used to select optimal threshold(s).",
-    )
-    parser.add_argument(
-        "--tuning-trials",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Number of Optuna trials.",
-    )
-    parser.add_argument(
-        "--optuna-space",
-        type=_json_or_file,
-        default=argparse.SUPPRESS,
-        help=(
-            "Optional partial override for the Optuna search space. Values are merged into the default space "
-            "(base or PEFT, depending on `wrap_peft`)."
-        ),
-    )
-    parser.add_argument(
-        "--lora-r",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="LoRA rank.",
-    )
-    parser.add_argument(
-        "--lora-alpha",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="LoRA alpha.",
-    )
-    parser.add_argument(
-        "--lora-dropout",
-        type=float,
-        default=argparse.SUPPRESS,
-        help="LoRA dropout.",
-    )
-    parser.add_argument(
-        "--lora-bias",
-        type=str,
-        choices=_LORA_BIAS_CHOICES,
-        default=argparse.SUPPRESS,
-        help="LoRA bias handling (validated downstream).",
-    )
-    parser.add_argument(
-        "--early-stopping-patience",
-        type=int,
-        default=argparse.SUPPRESS,
-        help="Early stopping patience (epochs without improvement).",
-    )
-    parser.add_argument(
-        "--use-cpu",
-        action=argparse.BooleanOptionalAction,
-        default=argparse.SUPPRESS,
-        help="Force CPU execution.",
-    )
-
-    return parser
-
-
+@app.callback(invoke_without_command=True)
 def main(
-    argv: list[str] | None = None,
-) -> int:
-    """Run the tlmtc CLI.
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False,
+        "--version",
+        help="Print the installed tlmtc version and exit.",
+        is_eager=True,
+    ),
+) -> None:
+    """Run the tlmtc CLI."""
+    if version:
+        typer.echo(__version__)
+        raise typer.Exit(code=0)
 
-    Args:
-        argv: Optional list of CLI arguments. If None, arguments are read from `sys.argv`.
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(code=0)
 
-    Returns:
-        Process exit code (0 on success).
-    """
-    parser = build_parser()
-    args = parser.parse_args(argv)
 
+@app.command("train")
+def train_command(
+    raw_csv: str = typer.Option(
+        ...,
+        "--raw-csv",
+        help="Path to the multilabel CSV.",
+    ),
+    raw_test_csv: str | None = typer.Option(
+        None,
+        "--raw-test-csv",
+        help="Optional path to a test CSV. If omitted, a test split is created from --raw-csv.",
+    ),
+    work_dir: str | None = typer.Option(
+        None,
+        "--work-dir",
+        help="Base directory for resolving relative inputs and creating the run directory.",
+    ),
+    config_path: str | None = typer.Option(
+        None,
+        "--config-path",
+        help="Optional path to a YAML configuration file.",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Optional run identifier used to name the run directory. If it exists, the run may resume.",
+    ),
+    target_name: str | None = typer.Option(
+        None,
+        "--target-name",
+        help="Display name for the classification target/task.",
+    ),
+    validation_size: float | None = typer.Option(
+        None,
+        "--validation-size",
+        help="Fraction of data used for validation split.",
+    ),
+    test_size: float | None = typer.Option(
+        None,
+        "--test-size",
+        help="Fraction of data used for test split when --raw-test-csv is omitted.",
+    ),
+    random_seed: int | None = typer.Option(
+        None,
+        "--random-seed",
+        help="Random seed used for splitting/shuffling.",
+    ),
+    transfer_learning: bool | None = typer.Option(
+        None,
+        "--transfer-learning/--no-transfer-learning",
+        help="Whether to fine-tune a pretrained checkpoint.",
+    ),
+    hyperparameter_tuning: bool | None = typer.Option(
+        None,
+        "--hyperparameter-tuning/--no-hyperparameter-tuning",
+        help="Whether to run Optuna hyperparameter tuning.",
+    ),
+    threshold_optimization: bool | None = typer.Option(
+        None,
+        "--threshold-optimization/--no-threshold-optimization",
+        help="Whether to tune decision threshold(s) post-training.",
+    ),
+    threshold_type: str | None = typer.Option(
+        None,
+        "--threshold-type",
+        help="Threshold mode.",
+    ),
+    scale_learning_rate: bool | None = typer.Option(
+        None,
+        "--scale-learning-rate/--no-scale-learning-rate",
+        help="Whether to scale learning rate based on proxy/full checkpoint size.",
+    ),
+    wrap_peft: bool | None = typer.Option(
+        None,
+        "--wrap-peft/--no-wrap-peft",
+        help="Whether to apply PEFT/LoRA wrapping.",
+    ),
+    proxy_checkpoint: str | None = typer.Option(
+        None,
+        "--proxy-checkpoint",
+        help="Proxy pretrained model checkpoint used for HPO.",
+    ),
+    checkpoint: str | None = typer.Option(
+        None,
+        "--checkpoint",
+        help="Base pretrained model checkpoint identifier.",
+    ),
+    sequence_length: int | None = typer.Option(
+        None,
+        "--sequence-length",
+        help="Max sequence length for tokenization.",
+    ),
+    best_model_metric: str | None = typer.Option(
+        None,
+        "--best-model-metric",
+        help="Metric used to select the best model checkpoint.",
+    ),
+    batch_size: int | None = typer.Option(
+        None,
+        "--batch-size",
+        help="Training batch size.",
+    ),
+    train_epochs: int | None = typer.Option(
+        None,
+        "--train-epochs",
+        help="Number of training epochs.",
+    ),
+    learning_rate: float | None = typer.Option(
+        None,
+        "--learning-rate",
+        help="Initial learning rate.",
+    ),
+    weight_decay: float | None = typer.Option(
+        None,
+        "--weight-decay",
+        help="Weight decay.",
+    ),
+    lr_scheduler: str | None = typer.Option(
+        None,
+        "--lr-scheduler",
+        help="Learning rate scheduler identifier/name.",
+    ),
+    best_threshold_metric: str | None = typer.Option(
+        None,
+        "--best-threshold-metric",
+        help="Metric used to select optimal decision threshold(s).",
+    ),
+    tuning_trials: int | None = typer.Option(
+        None,
+        "--tuning-trials",
+        help="Number of Optuna trials.",
+    ),
+    optuna_space: str | None = typer.Option(
+        None,
+        "--optuna-space",
+        help=(
+            "Optional partial override for the Optuna search space as JSON or @file.json. "
+            "Values are merged into the default space."
+        ),
+    ),
+    lora_r: int | None = typer.Option(
+        None,
+        "--lora-r",
+        help="LoRA rank.",
+    ),
+    lora_alpha: int | None = typer.Option(
+        None,
+        "--lora-alpha",
+        help="LoRA alpha.",
+    ),
+    lora_dropout: float | None = typer.Option(
+        None,
+        "--lora-dropout",
+        help="LoRA dropout.",
+    ),
+    lora_bias: str | None = typer.Option(
+        None,
+        "--lora-bias",
+        help="LoRA bias handling.",
+    ),
+    early_stopping_patience: int | None = typer.Option(
+        None,
+        "--early-stopping-patience",
+        help="Early stopping patience in epochs without improvement.",
+    ),
+    use_cpu: bool | None = typer.Option(
+        None,
+        "--use-cpu/--no-use-cpu",
+        help="Force CPU execution.",
+    ),
+) -> None:
+    """Run the full tlmtc training pipeline end-to-end."""
     from tlmtc.api import train_tlmtc
 
-    try:
-        train_tlmtc(**vars(args))
-    except Exception as e:
-        parser.error(str(e))
+    result = train_tlmtc(
+        raw_csv=raw_csv,
+        raw_test_csv=UNSET if raw_test_csv is None else raw_test_csv,
+        work_dir=UNSET if work_dir is None else work_dir,
+        config_path=UNSET if config_path is None else config_path,
+        run_id=UNSET if run_id is None else run_id,
+        target_name=UNSET if target_name is None else target_name,
+        validation_size=UNSET if validation_size is None else validation_size,
+        test_size=UNSET if test_size is None else test_size,
+        random_seed=UNSET if random_seed is None else random_seed,
+        transfer_learning=UNSET if transfer_learning is None else transfer_learning,
+        hyperparameter_tuning=UNSET if hyperparameter_tuning is None else hyperparameter_tuning,
+        threshold_optimization=UNSET if threshold_optimization is None else threshold_optimization,
+        threshold_type=UNSET if threshold_type is None else threshold_type,
+        scale_learning_rate=UNSET if scale_learning_rate is None else scale_learning_rate,
+        wrap_peft=UNSET if wrap_peft is None else wrap_peft,
+        proxy_checkpoint=UNSET if proxy_checkpoint is None else proxy_checkpoint,
+        checkpoint=UNSET if checkpoint is None else checkpoint,
+        sequence_length=UNSET if sequence_length is None else sequence_length,
+        best_model_metric=UNSET if best_model_metric is None else best_model_metric,
+        batch_size=UNSET if batch_size is None else batch_size,
+        train_epochs=UNSET if train_epochs is None else train_epochs,
+        learning_rate=UNSET if learning_rate is None else learning_rate,
+        weight_decay=UNSET if weight_decay is None else weight_decay,
+        lr_scheduler=UNSET if lr_scheduler is None else lr_scheduler,
+        best_threshold_metric=UNSET if best_threshold_metric is None else best_threshold_metric,
+        tuning_trials=UNSET if tuning_trials is None else tuning_trials,
+        optuna_space=parse_optuna_space(optuna_space),
+        lora_r=UNSET if lora_r is None else lora_r,
+        lora_alpha=UNSET if lora_alpha is None else lora_alpha,
+        lora_dropout=UNSET if lora_dropout is None else lora_dropout,
+        lora_bias=UNSET if lora_bias is None else lora_bias,
+        early_stopping_patience=UNSET if early_stopping_patience is None else early_stopping_patience,
+        use_cpu=UNSET if use_cpu is None else use_cpu,
+    )
 
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    typer.echo(f"Run completed: {result.paths.run_dir}")
