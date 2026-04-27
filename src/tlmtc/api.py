@@ -29,8 +29,8 @@ class TrainResult:
 def train_tlmtc(
     raw_csv: str | Path,
     *,
-    raw_test_csv: str | Path | None | Unset = UNSET,
-    work_dir: str | Path | None | Unset = UNSET,
+    raw_test_csv: str | Path | Unset = UNSET,
+    work_dir: str | Path | Unset = UNSET,
     config_path: str | Path | Unset = UNSET,
     run_id: str | None | Unset = UNSET,
     target_name: str | Unset = UNSET,
