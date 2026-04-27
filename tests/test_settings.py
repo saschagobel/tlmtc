@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from textwrap import dedent
+from uuid import UUID
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -163,42 +165,44 @@ class TestSettingsInfrastructure:
         """prune_unset should recursively remove UNSET values."""
         assert prune_unset(value) == expected
 
-        @pytest.mark.parametrize(
-            ("content", "expected"),
-            [
-                (
+    @pytest.mark.parametrize(
+        ("content", "expected"),
+        [
+            (
+                dedent(
                     """
-        foo: 1
-        bar: hello
-        nested:
-          alpha: 10
-          beta: 20
-        """.strip(),
-                    {
-                        "foo": 1,
-                        "bar": "hello",
-                        "nested": {
-                            "alpha": 10,
-                            "beta": 20,
-                        },
+                        foo: 1
+                        bar: hello
+                        nested:
+                          alpha: 10
+                          beta: 20
+                        """
+                ).strip(),
+                {
+                    "foo": 1,
+                    "bar": "hello",
+                    "nested": {
+                        "alpha": 10,
+                        "beta": 20,
                     },
-                ),
-                ("", {}),
-                ("   \n\n   ", {}),
-                ("# comment only\n# another comment\n", {}),
-            ],
-        )
-        def test_load_config_file_reads_yaml_mapping(
-            self,
-            tmp_path: Path,
-            content: str,
-            expected: dict[str, object],
-        ) -> None:
-            """load_config_file should return parsed YAML mapping data."""
-            config_path = tmp_path / "config.yaml"
-            config_path.write_text(content, encoding="utf-8")
+                },
+            ),
+            ("", {}),
+            ("   \n\n   ", {}),
+            ("# comment only\n# another comment\n", {}),
+        ],
+    )
+    def test_load_config_file_reads_yaml_mapping(
+        self,
+        tmp_path: Path,
+        content: str,
+        expected: dict[str, object],
+    ) -> None:
+        """load_config_file should return parsed YAML mapping data."""
+        config_path = tmp_path / "config.yaml"
+        config_path.write_text(content, encoding="utf-8")
 
-            assert load_config_file(config_path) == expected
+        assert load_config_file(config_path) == expected
 
     def test_load_config_file_raises_for_missing_file(self, tmp_path: Path) -> None:
         """load_config_file should fail clearly for missing config files."""
@@ -442,8 +446,9 @@ class TestRunSettings:
 
         assert settings.raw_csv == Path("train.csv")
         assert settings.raw_test_csv is None
-        assert settings.work_dir is None
-        assert settings.run_id is None
+        assert settings.work_dir == Path.cwd()
+        assert isinstance(settings.run_id, str)
+        assert settings.run_id
 
         assert isinstance(settings.model, ModelSettings)
         assert isinstance(settings.split, SplitSettings)
@@ -464,6 +469,32 @@ class TestRunSettings:
         assert settings.hardware.use_cpu is False
         assert settings.hpo.tuning_trials == 10
         assert settings.hpo.optuna_space.model_dump(mode="python") == DEFAULT_OPTUNA_SPACE_PEFT
+
+    def test_run_settings_defaults_work_dir_to_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """RunSettings should default work_dir to the current working directory."""
+        monkeypatch.chdir(tmp_path)
+
+        settings = RunSettings(raw_csv="train.csv")
+
+        assert settings.work_dir == tmp_path
+
+    def test_run_settings_generates_run_id_by_default(self) -> None:
+        """RunSettings should generate a non-empty run identifier by default."""
+        settings = RunSettings(raw_csv="train.csv")
+
+        UUID(settings.run_id)
+        assert len(settings.run_id) == 32
+
+    def test_run_settings_accepts_explicit_work_dir_and_run_id(self, tmp_path: Path) -> None:
+        """RunSettings should preserve explicit work_dir and run_id values."""
+        settings = RunSettings(
+            raw_csv="train.csv",
+            work_dir=tmp_path / "workspace",
+            run_id="manual-run",
+        )
+
+        assert settings.work_dir == tmp_path / "workspace"
+        assert settings.run_id == "manual-run"
 
     def test_run_settings_resolve_applies_nested_overrides_and_preserves_defaults(self) -> None:
         """RunSettings.resolve should merge nested overrides while preserving untouched defaults."""
