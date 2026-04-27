@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import partial
 from tempfile import TemporaryDirectory
-from typing import Type, Union
+from typing import Any, Protocol, Union
 
 import numpy as np
 import pandas as pd
@@ -36,6 +36,14 @@ from tlmtc.training import (
     get_training_args,
     wrap_model_with_peft,
 )
+
+
+class TrainerFactory(Protocol):
+    """Factory for Trainer-compatible instances used by FinetunePipeline."""
+
+    def __call__(self, **kwargs: Any) -> Trainer:
+        """Create a configured Trainer instance."""
+        ...
 
 
 class FinetunePipeline:
@@ -132,7 +140,7 @@ class FinetunePipeline:
 
     def tune_hyperparameters(
         self,
-        trainer: Type[Trainer] = WeightedTrainer,
+        trainer: TrainerFactory = WeightedTrainer,
     ) -> FinetunePipeline:
         """Run automated hyperparameter optimization on the pretrained Hugging Face proxy model using Optuna.
 
@@ -201,6 +209,9 @@ class FinetunePipeline:
                 compute_objective=compute_objective,
                 load_if_exists=True,
             )
+        if isinstance(best_run, list):
+            raise RuntimeError("Expected a single best run from single-objective HPO, but received a list.")
+
         if self.workflow.scale_learning_rate:
             self.runtime_training.learning_rate = get_scaled_lr(
                 learning_rate=best_run.hyperparameters["learning_rate"],
@@ -218,7 +229,7 @@ class FinetunePipeline:
 
     def fine_tune_pretrained(
         self,
-        trainer: Type[Trainer] = WeightedTrainer,
+        trainer: TrainerFactory = WeightedTrainer,
     ) -> FinetunePipeline:
         """Fine-tune a pretrained Hugging Face model for multi-label classification.
 
