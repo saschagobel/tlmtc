@@ -19,7 +19,7 @@ dependencies = [
     "pyyaml >=6",
     "pydantic >=2,<3",
     "scikit-learn >= 1.7",
-    "transformers >= 4.57"
+    "transformers>=5.5.3"
 ]
 
 [project.optional-dependencies]
