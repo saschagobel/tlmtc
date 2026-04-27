@@ -62,8 +62,6 @@ class DataPipeline:
         -------
         DataPipeline
         """
-        raw_data_exists = self.paths.raw_data_path.exists()
-        raw_test_data_exists = self.paths.raw_test_data_path.exists()
         train_data_exists = self.paths.train_data_path.exists()
         test_data_exists = self.paths.test_data_path.exists()
         val_data_exists = self.paths.val_data_path.exists()
@@ -74,11 +72,14 @@ class DataPipeline:
             self.test_data = pd.read_parquet(self.paths.test_data_path)
             return self
 
-        if not raw_data_exists:
+        if not self.paths.raw_data_path.exists():
             raise FileNotFoundError(f"Raw data not found at {self.paths.raw_data_path}.")
         df, label_cols, X, y = df_preprocess(self.paths.raw_data_path)
 
-        if raw_test_data_exists:
+        if self.paths.raw_test_data_path is not None:
+            if not self.paths.raw_test_data_path.exists():
+                raise FileNotFoundError(f"Raw test data not found at {self.paths.raw_test_data_path}.")
+
             df_test, label_cols_test, _, _ = df_preprocess(self.paths.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise ValueError("Mismatch between train/test label columns")
