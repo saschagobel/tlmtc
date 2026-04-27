@@ -7,14 +7,13 @@ from __future__ import annotations
 
 from functools import partial
 from tempfile import TemporaryDirectory
-from typing import Any, Protocol, Type, Union
+from typing import Any, Protocol, Union
 
 import numpy as np
 import pandas as pd
 import torch
 from datasets import DatasetDict
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
-from transformers.trainer_utils import BestRun
 
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
@@ -42,7 +41,9 @@ from tlmtc.training import (
 class TrainerFactory(Protocol):
     """Factory for Trainer-compatible instances used by FinetunePipeline."""
 
-    def __call__(self, **kwargs: Any) -> Trainer: ...
+    def __call__(self, **kwargs: Any) -> Trainer:
+        """Create a configured Trainer instance."""
+        ...
 
 
 class FinetunePipeline:
