@@ -33,7 +33,7 @@ lint = ["ruff>=0.14,<1.0"]
 type = ["mypy>=1.19,<2.0", "types-pyyaml"]
 
 [project.scripts]
-tlmtc = "tlmtc.cli:main"
+tlmtc = "tlmtc.cli:app"
 
 [build-system]
 requires = ["hatchling"]
