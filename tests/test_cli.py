@@ -1,5 +1,6 @@
 """Tests for tlmtc.cli."""
 
+import re
 import sys
 import types
 from pathlib import Path
@@ -12,6 +13,15 @@ from typer.testing import CliRunner
 
 from tlmtc.cli import app, parse_optuna_space
 from tlmtc.settings import UNSET
+
+_ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def clean_cli_output(
+    output: str,
+) -> str:
+    """Remove ANSI styling from Typer/Rich CLI output."""
+    return _ANSI_ESCAPE_RE.sub("", output)
 
 
 @pytest.fixture
@@ -96,26 +106,29 @@ class TestCliApp:
     def test_root_help_is_shown_without_command(self, runner: CliRunner) -> None:
         """Ensure invoking the root command without a subcommand prints help."""
         result = invoke_cli(runner, [])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "Transfer learning for multi-label text classification." in result.output
-        assert "train" in result.output
+        assert "Transfer learning for multi-label text classification." in output
+        assert "train" in output
 
     def test_version_flag_prints_version(self, runner: CliRunner) -> None:
         """Ensure --version prints the package version."""
         result = invoke_cli(runner, ["--version"])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "0.0.1" in result.output
+        assert "0.0.1" in output
 
     def test_train_help_is_available(self, runner: CliRunner) -> None:
         """Ensure train command help is available."""
         result = invoke_cli(runner, ["train", "--help"])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "--raw-csv" in result.output
-        assert "--optuna-space" in result.output
-        assert "--use-cpu" in result.output
+        assert "--raw-csv" in output
+        assert "--optuna-space" in output
+        assert "--use-cpu" in output
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -154,9 +167,10 @@ class TestCliApp:
                 "--no-hyperparameter-tuning",
             ],
         )
+        output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "Run completed: tlmtc_outputs/test-run" in result.output
+        assert "Run completed: tlmtc_outputs/test-run" in output
 
         kwargs = stub_train_tlmtc["kwargs"]
         assert kwargs["raw_csv"] == "raw.csv"
@@ -217,24 +231,27 @@ class TestCliApp:
     def test_train_rejects_invalid_optuna_space_json(self, runner: CliRunner) -> None:
         """Ensure --optuna-space rejects invalid JSON values."""
         result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "not-json"])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
-        assert "Expected a JSON object or @file.json" in result.output
+        assert "Expected a JSON object or @file.json" in output
 
     def test_train_rejects_non_object_optuna_space_json(self, runner: CliRunner) -> None:
         """Ensure --optuna-space rejects JSON values that are not objects."""
         result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "[1, 2]"])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
-        assert "Expected a JSON object" in result.output
+        assert "Expected a JSON object" in output
 
     def test_train_requires_raw_csv(self, runner: CliRunner) -> None:
         """Ensure train exits with a usage error when required args are missing."""
         result = invoke_cli(runner, ["train"])
+        output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
-        assert "Missing option" in result.output
-        assert "--raw-csv" in result.output
+        assert "Missing option" in output
+        assert "--raw-csv" in output
 
     def test_train_propagates_downstream_exception(
         self,
