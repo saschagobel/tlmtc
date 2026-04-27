@@ -88,13 +88,11 @@ def test_train_tlmtc_returns_train_result_and_creates_dirs(
     assert ft_kwargs["paths"] == result.paths
 
 
-@pytest.mark.parametrize("provide_raw_test", [False, True])
-def test_train_tlmtc_resolves_raw_test_path(
+def test_train_tlmtc_preserves_explicit_raw_test_path(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     raw_csv: Path,
     raw_test_csv: Path,
-    provide_raw_test: bool,
 ) -> None:
     tokenized = object()
 
@@ -107,16 +105,35 @@ def test_train_tlmtc_resolves_raw_test_path(
 
     result = train_mod.train_tlmtc(
         raw_csv,
-        raw_test_csv=raw_test_csv if provide_raw_test else None,
+        raw_test_csv=raw_test_csv,
         work_dir=tmp_path,
         run_id="run_abc",
     )
 
-    if provide_raw_test:
-        assert result.paths.raw_test_data_path == raw_test_csv.resolve()
-    else:
-        assert result.paths.raw_test_data_path.parent == raw_csv.resolve().parent
-        assert result.paths.raw_test_data_path.name == "raw_test.csv"
+    assert result.paths.raw_test_data_path == raw_test_csv.resolve()
+
+
+def test_train_tlmtc_leaves_raw_test_path_absent_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    raw_csv: Path,
+) -> None:
+    tokenized = object()
+
+    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
+    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
+    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
+
+    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
+    monkeypatch.setattr(train_mod, "FinetunePipeline", MagicMock(return_value=ft_inst))
+
+    result = train_mod.train_tlmtc(
+        raw_csv,
+        work_dir=tmp_path,
+        run_id="run_abc",
+    )
+
+    assert result.paths.raw_test_data_path is None
 
 
 def test_train_tlmtc_resolves_selected_settings_from_config_path(
