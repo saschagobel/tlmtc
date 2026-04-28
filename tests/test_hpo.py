@@ -1,5 +1,7 @@
 """Tests for hpo helpers."""
 
+import math
+
 import pytest
 from optuna.trial import FixedTrial
 from transformers import BertConfig, BertForSequenceClassification
@@ -70,8 +72,8 @@ def test_make_compute_objective_returns_callable() -> None:
     assert compute_obj(metrics) == 0.73
 
 
-def test_optuna_hp_space_returns_expected_dict():
-    """Ensure `optuna_hp_space` returns the expected sampled hyperparameters."""
+def test_optuna_hp_space_returns_expected_dict() -> None:
+    """Ensure `optuna_hp_space` returns sampled hyperparameters with batch-size-scaled LR."""
     space = OptunaSpaceSettings(
         lr_low=1e-5,
         lr_high=1e-4,
@@ -81,11 +83,12 @@ def test_optuna_hp_space_returns_expected_dict():
         schedulers=["linear", "cosine"],
         epoch_low=2,
         epoch_high=5,
+        lr_reference_batch_size=16,
     )
 
     trial = FixedTrial(
         {
-            "learning_rate": 5e-5,
+            "learning_rate_base": 5e-5,
             "per_device_train_batch_size": 8,
             "weight_decay": 0.01,
             "lr_scheduler_type": "cosine",
@@ -96,9 +99,38 @@ def test_optuna_hp_space_returns_expected_dict():
     result = optuna_hp_space(trial, space)
 
     assert result == {
-        "learning_rate": 5e-5,
+        "learning_rate": 5e-5 * math.sqrt(8 / 16),
         "per_device_train_batch_size": 8,
         "weight_decay": 0.01,
         "lr_scheduler_type": "cosine",
         "num_train_epochs": 3,
     }
+
+
+def test_optuna_hp_space_keeps_learning_rate_base_at_reference_batch_size() -> None:
+    """At the reference batch size, effective LR should equal the sampled base LR."""
+    space = OptunaSpaceSettings(
+        lr_low=1e-5,
+        lr_high=1e-4,
+        batch_sizes=[8, 16],
+        wd_low=0.0,
+        wd_high=0.1,
+        schedulers=["linear", "cosine"],
+        epoch_low=2,
+        epoch_high=5,
+        lr_reference_batch_size=16,
+    )
+
+    trial = FixedTrial(
+        {
+            "learning_rate_base": 5e-5,
+            "per_device_train_batch_size": 16,
+            "weight_decay": 0.01,
+            "lr_scheduler_type": "cosine",
+            "num_train_epochs": 3,
+        }
+    )
+
+    result = optuna_hp_space(trial, space)
+
+    assert result["learning_rate"] == 5e-5
