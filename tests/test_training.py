@@ -14,6 +14,7 @@ from tlmtc.training import (
     compute_metrics,
     get_class_weights,
     get_scaled_lr,
+    infer_modules_to_save,
     multi_label_metrics,
     wrap_model_with_peft,
 )
@@ -46,6 +47,20 @@ class DummyModel(torch.nn.Module):
         """Compute logits for a batch of inputs."""
         logits = self.linear(input_ids.float())
         return type("Output", (), {"logits": logits})
+
+class DummyNestedHeadNames(torch.nn.Module):
+    """Model with nested classifier-like names that should not be inferred as top-level heads."""
+
+    def __init__(self):
+        """Initialize the dummy nested model."""
+        super().__init__()
+        self.encoder = torch.nn.ModuleDict(
+            {
+                "classifier": torch.nn.Linear(4, 4),
+                "head": torch.nn.Linear(4, 4),
+            }
+        )
+        self.output = torch.nn.Linear(4, 2)
 
 
 def test_get_class_weights_uses_train_split_only_when_validation_missing(tmp_path):
@@ -143,6 +158,18 @@ def test_compute_metrics_forwards_eval_prediction_to_multi_label_metrics():
     assert result == expected
 
 
+def test_infer_modules_to_save_detects_top_level_classifier_head(base_test_model):
+    """Ensure PEFT modules_to_save inference detects top-level classification heads."""
+    assert infer_modules_to_save(base_test_model) == ["classifier"]
+
+
+def test_infer_modules_to_save_ignores_nested_matching_module_names():
+    """Ensure PEFT modules_to_save inference does not match nested encoder modules."""
+    model = DummyNestedHeadNames()
+
+    assert infer_modules_to_save(model) == []
+
+
 def test_wrap_peft_attaches_peft_config_to_model(base_test_model):
     """Ensure `_wrap_peft` wraps the base model with LoRA adapters exposing `peft_config`."""
     wrapped = wrap_model_with_peft(
@@ -154,6 +181,23 @@ def test_wrap_peft_attaches_peft_config_to_model(base_test_model):
     )
 
     assert hasattr(wrapped, "peft_config")
+
+
+def test_wrap_peft_includes_inferred_modules_to_save(base_test_model):
+    """Ensure PEFT wrapping includes inferred task-specific classification modules."""
+    inferred_modules = infer_modules_to_save(base_test_model)
+
+    wrapped = wrap_model_with_peft(
+        model=base_test_model,
+        lora_r=4,
+        lora_alpha=8,
+        lora_dropout=0.1,
+        lora_bias="none",
+    )
+
+    peft_config = wrapped.peft_config["default"]
+
+    assert set(inferred_modules).issubset(set(peft_config.modules_to_save))
 
 
 def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path):
