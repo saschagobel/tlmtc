@@ -209,6 +209,7 @@ class OptunaSpaceSettings(BaseModel):
     schedulers: list[str] = Field(..., min_length=1)
     epoch_low: PositiveInt
     epoch_high: PositiveInt
+    lr_reference_batch_size: PositiveInt
 
     @model_validator(mode="after")
     def validate_space(self) -> Self:
@@ -237,24 +238,26 @@ class OptunaSpaceSettings(BaseModel):
 
 _DEFAULT_OPTUNA_SPACE_BASE: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
     lr_low=1e-5,
-    lr_high=3e-4,
+    lr_high=8e-5,
     batch_sizes=[8, 16, 32],
     wd_low=0.0,
-    wd_high=0.3,
+    wd_high=0.1,
     schedulers=["linear", "cosine", "polynomial"],
     epoch_low=5,
     epoch_high=30,
+    lr_reference_batch_size=32,
 )
 
 _DEFAULT_OPTUNA_SPACE_PEFT: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
-    lr_low=3e-5,
-    lr_high=5e-4,
-    batch_sizes=[8, 16, 32, 64],
+    lr_low=5e-5,
+    lr_high=4e-4,
+    batch_sizes=[8, 16, 32],
     wd_low=0.0,
-    wd_high=0.05,
+    wd_high=0.01,
     schedulers=["linear", "cosine"],
     epoch_low=5,
     epoch_high=20,
+    lr_reference_batch_size=32,
 )
 
 
