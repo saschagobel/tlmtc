@@ -36,28 +36,31 @@ CUSTOM_OPTUNA_SPACE = {
     "schedulers": ["linear", "cosine"],
     "epoch_low": 5,
     "epoch_high": 20,
+    "lr_reference_batch_size": 32,
 }
 
 DEFAULT_OPTUNA_SPACE_BASE = {
     "lr_low": 1e-5,
-    "lr_high": 3e-4,
+    "lr_high": 8e-5,
     "batch_sizes": [8, 16, 32],
     "wd_low": 0.0,
-    "wd_high": 0.3,
+    "wd_high": 0.1,
     "schedulers": ["linear", "cosine", "polynomial"],
     "epoch_low": 5,
     "epoch_high": 30,
+    "lr_reference_batch_size": 32,
 }
 
 DEFAULT_OPTUNA_SPACE_PEFT = {
-    "lr_low": 3e-5,
-    "lr_high": 5e-4,
-    "batch_sizes": [8, 16, 32, 64],
+    "lr_low": 5e-5,
+    "lr_high": 4e-4,
+    "batch_sizes": [8, 16, 32],
     "wd_low": 0.0,
-    "wd_high": 0.05,
+    "wd_high": 0.01,
     "schedulers": ["linear", "cosine"],
     "epoch_low": 5,
     "epoch_high": 20,
+    "lr_reference_batch_size": 32,
 }
 
 MINIMAL_HPO = {"optuna_space": CUSTOM_OPTUNA_SPACE}
@@ -407,6 +410,14 @@ class TestBundleSettings:
             (TrainingSettings, {"weight_decay": -0.1}, "weight_decay"),
             (PeftSettings, {"lora_dropout": 1.0}, "lora_dropout"),
             (PeftSettings, {"lora_r": 0}, "lora_r"),
+            (
+                OptunaSpaceSettings,
+                {
+                    **CUSTOM_OPTUNA_SPACE,
+                    "lr_reference_batch_size": 0,
+                },
+                "lr_reference_batch_size",
+            ),
         ],
     )
     def test_settings_bundles_reject_invalid_values(
