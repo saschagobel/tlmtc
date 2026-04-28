@@ -19,8 +19,16 @@ from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defin
 
 from tlmtc.settings import TrainingSettings
 
+SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE = (
+    "classifier",
+    "classification_head",
+    "score",
+    "pre_classifier",
+    "pooler",
+    "head",
+)
 
-# training.py
+
 class TrainingRuntimeState(BaseModel):
     """Mutable effective training state for a concrete run."""
 
@@ -199,6 +207,14 @@ def compute_metrics(
     return result
 
 
+def infer_modules_to_save(
+    model: PreTrainedModel,
+) -> list[str]:
+    """Infer top-level sequence-classification modules to train and save with PEFT."""
+    top_level_modules = dict(model.named_children())
+    return [name for name in SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE if name in top_level_modules]
+
+
 def wrap_model_with_peft(
     model: PreTrainedModel,
     lora_r: int,
@@ -222,6 +238,7 @@ def wrap_model_with_peft(
         task_type=TaskType.SEQ_CLS,
         inference_mode=False,
         target_modules="all-linear",
+        modules_to_save=infer_modules_to_save(model) or None,
         r=lora_r,
         lora_alpha=lora_alpha,
         lora_dropout=lora_dropout,
