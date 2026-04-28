@@ -128,22 +128,16 @@ def get_scaled_lr(
 
 def get_class_weights(
     train_data_path: str | Path,
-    val_data_path: str | Path | None = None,
 ) -> torch.Tensor:
     """Compute label-specific weights for positive classes.
 
     Args:
         train_data_path: Path to train split.
-        val_data_path: Path to validation split.
 
     Returns:
         torch.Tensor with class weights for each label.
     """
     train_data = pd.read_parquet(train_data_path)
-
-    if val_data_path is not None:
-        val_data = pd.read_parquet(val_data_path)
-        train_data = pd.concat([train_data, val_data], axis=0, ignore_index=True)
 
     label_cols = [col for col in train_data.columns if col.startswith("label_")]
     labels_array = train_data[label_cols].values
