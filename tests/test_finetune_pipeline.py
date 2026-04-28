@@ -154,6 +154,7 @@ def base_search_space():
         "schedulers": ["linear"],
         "epoch_low": 1,
         "epoch_high": 3,
+        "lr_reference_batch_size": 16,
     }
 
 
