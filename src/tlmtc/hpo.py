@@ -3,6 +3,7 @@
 Defines helpers for building Optuna search spaces and trial-scoped model setup.
 """
 
+import math
 from typing import Any, Callable, Literal
 
 import optuna
@@ -25,17 +26,22 @@ def optuna_hp_space(
     Returns:
         Dictionary specifying the sampled hyperparameters and their values for the current trial.
     """
+    batch_size = trial.suggest_categorical(
+        "per_device_train_batch_size",
+        space.batch_sizes,
+    )
+    learning_rate_base = trial.suggest_float(
+        "learning_rate_base",
+        space.lr_low,
+        space.lr_high,
+        log=True,
+    )
+    learning_rate = learning_rate_base * math.sqrt(
+        batch_size / space.lr_reference_batch_size,
+    )
     return {
-        "learning_rate": trial.suggest_float(
-            "learning_rate",
-            space.lr_low,
-            space.lr_high,
-            log=True,
-        ),
-        "per_device_train_batch_size": trial.suggest_categorical(
-            "per_device_train_batch_size",
-            space.batch_sizes,
-        ),
+        "learning_rate": learning_rate,
+        "per_device_train_batch_size": batch_size,
         "weight_decay": trial.suggest_float(
             "weight_decay",
             space.wd_low,

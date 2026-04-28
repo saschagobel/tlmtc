@@ -64,8 +64,8 @@ class DummyNestedHeadNames(torch.nn.Module):
         self.output = torch.nn.Linear(4, 2)
 
 
-def test_get_class_weights_uses_train_split_only_when_validation_missing(tmp_path):
-    """Ensure `_get_class_weights` computes weights from train data when no validation split is provided."""
+def test_get_class_weights_uses_train_split(tmp_path):
+    """Ensure `get_class_weights` computes weights from the training split."""
     df = pd.DataFrame(
         {
             "text": ["a", "b", "c", "d"],
@@ -80,33 +80,6 @@ def test_get_class_weights_uses_train_split_only_when_validation_missing(tmp_pat
 
     expected = torch.tensor([2.0, 0.6666667], dtype=torch.float)
 
-    assert torch.allclose(weights, expected, atol=1e-4)
-
-
-def test_get_class_weights_merges_train_and_validation_splits(tmp_path):
-    """Ensure `_get_class_weights` concatenates train and validation data before computing weights."""
-    train_df = pd.DataFrame(
-        {
-            "text": ["a", "b"],
-            "label_x": [0, 1],
-        }
-    )
-    val_df = pd.DataFrame(
-        {
-            "text": ["c", "d", "e"],
-            "label_x": [1, 1, 0],
-        }
-    )
-
-    train_path = tmp_path / "train.parquet"
-    val_path = tmp_path / "val.parquet"
-
-    train_df.to_parquet(train_path, index=False)
-    val_df.to_parquet(val_path, index=False)
-
-    weights = get_class_weights(train_path, val_path)
-
-    expected = torch.tensor([0.8333333], dtype=torch.float)
     assert torch.allclose(weights, expected, atol=1e-4)
 
 
