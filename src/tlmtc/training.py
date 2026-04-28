@@ -19,7 +19,6 @@ from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defin
 
 from tlmtc.settings import TrainingSettings
 
-
 SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE = (
     "classifier",
     "classification_head",

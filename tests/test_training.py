@@ -48,6 +48,7 @@ class DummyModel(torch.nn.Module):
         logits = self.linear(input_ids.float())
         return type("Output", (), {"logits": logits})
 
+
 class DummyNestedHeadNames(torch.nn.Module):
     """Model with nested classifier-like names that should not be inferred as top-level heads."""
 
