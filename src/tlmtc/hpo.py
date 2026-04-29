@@ -30,17 +30,16 @@ def optuna_hp_space(
         "per_device_train_batch_size",
         space.batch_sizes,
     )
-    learning_rate_base = trial.suggest_float(
-        "learning_rate_base",
-        space.lr_low,
-        space.lr_high,
-        log=True,
-    )
-    learning_rate = learning_rate_base * math.sqrt(
+    lr_scale = math.sqrt(
         batch_size / space.lr_reference_batch_size,
     )
     return {
-        "learning_rate": learning_rate,
+        "learning_rate": trial.suggest_float(
+            "learning_rate",
+            space.lr_low * lr_scale,
+            space.lr_high * lr_scale,
+            log=True,
+        ),
         "per_device_train_batch_size": batch_size,
         "weight_decay": trial.suggest_float(
             "weight_decay",
