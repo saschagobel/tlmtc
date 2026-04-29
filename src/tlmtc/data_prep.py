@@ -26,7 +26,7 @@ def df_preprocess(
         X: Text samples as a NumPy array.
         y: Label matrix as a NumPy array.
     """
-    df = pd.read_csv(df_path).dropna()
+    df = pd.read_csv(df_path).dropna().reset_index(drop=True)
     df, label_cols = validate_multilabel_frame(df)
 
     X = df["text"].values
