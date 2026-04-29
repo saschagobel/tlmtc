@@ -46,6 +46,10 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
             lambda df: df.columns.str.startswith(LABEL_PREFIX).sum() >= MIN_LABEL_COLS,
             error=f"expected at least {MIN_LABEL_COLS} '{LABEL_PREFIX}*' columns",
         ),
+        pa.Check(
+            lambda df: df.loc[:, df.columns.str.startswith(LABEL_PREFIX)].sum(axis=0).gt(0).all(),
+            error=f"each '{LABEL_PREFIX}*' column must contain at least one positive example",
+        ),
     ],
     strict=False,
     ordered=False,

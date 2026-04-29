@@ -129,3 +129,16 @@ class TestValidateMultilabelFrame:
     def test_rejects_invalid_column_values(self, valid_frame: FrameFactory, overrides: dict[str, object]) -> None:
         with pytest.raises(DataContractError, match="multilabel data contract"):
             validate_multilabel_frame(valid_frame(**overrides))
+
+    def test_rejects_label_columns_without_positive_examples(self) -> None:
+        """Ensure every label column has at least one positive example."""
+        df = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text", "third text"],
+                "label_a": [1, 0, 0],
+                "label_b": [0, 0, 0],
+            }
+        )
+
+        with pytest.raises(DataContractError, match="multilabel data contract"):
+            validate_multilabel_frame(df)
