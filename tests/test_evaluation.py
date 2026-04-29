@@ -462,7 +462,7 @@ class TestEvaluationArtifactsUtils:
             assert np.array_equal(np.diag(co_abs), y.sum(axis=0))
 
             assert np.allclose(co_rel, co_rel.T)
-            assert np.array_equal(np.diag(co_rel), np.ones(n_labels))
+            assert np.array_equal(np.diag(co_rel), (np.diag(co_abs) > 0).astype(float))
 
             diag = np.diag(co_abs).astype(float)
             assert np.all(diag > 0)
@@ -502,6 +502,36 @@ class TestEvaluationArtifactsUtils:
 
         assert np.array_equal(y_true, y_true0)
         assert np.array_equal(y_pred, y_pred0)
+
+    def test_get_co_occurrence_handles_zero_predicted_support_without_undefined_values(self):
+        """Ensure predicted zero-support labels produce finite relative co-occurrence values."""
+        y_true = np.array(
+            [
+                [1, 0],
+                [0, 1],
+                [1, 1],
+            ]
+        )
+        y_pred = np.array(
+            [
+                [1, 0],
+                [1, 0],
+                [0, 0],
+            ]
+        )
+
+        out = get_co_occurrence(y_true=y_true, y_pred=y_pred)
+
+        assert np.isfinite(out["co_true_rel"]).all()
+        assert np.isfinite(out["co_pred_rel"]).all()
+
+        assert np.array_equal(out["co_pred_abs"], y_pred.T @ y_pred)
+        assert np.array_equal(np.diag(out["co_pred_abs"]), np.array([2, 0]))
+
+        assert out["co_pred_rel"][0, 0] == pytest.approx(1.0)
+        assert out["co_pred_rel"][1, 1] == pytest.approx(0.0)
+        assert out["co_pred_rel"][0, 1] == pytest.approx(0.0)
+        assert out["co_pred_rel"][1, 0] == pytest.approx(0.0)
 
     def test_get_losses_returns_expected_dataframe_and_inner_join_behavior(self, log_history_with_losses):
         """Ensure _get_losses returns a well-formed per-epoch loss table and keeps only shared epochs."""

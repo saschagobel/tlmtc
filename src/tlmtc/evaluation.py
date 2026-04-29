@@ -185,20 +185,25 @@ def get_co_occurrence(
     Returns:
         Dictionary containing absolute and relative label co-occurrence.
     """
-    co_true_abs = np.dot(y_true.T, y_true)
-    diag_true = np.diag(co_true_abs)
-    co_true_rel = co_true_abs / np.sqrt(np.outer(diag_true, diag_true))
-    np.fill_diagonal(co_true_rel, 1.0)
-    co_pred_abs = np.dot(y_pred.T, y_pred)
-    diag_pred = np.diag(co_pred_abs)
-    co_pred_rel = co_pred_abs / np.sqrt(np.outer(diag_pred, diag_pred))
-    np.fill_diagonal(co_pred_rel, 1.0)
-    return {
-        "co_true_abs": co_true_abs,
-        "co_pred_abs": co_pred_abs,
-        "co_true_rel": co_true_rel,
-        "co_pred_rel": co_pred_rel,
-    }
+    results: dict[str, np.ndarray] = {}
+
+    for name, labels in (("true", y_true), ("pred", y_pred)):
+        c_abs = np.dot(labels.T, labels)
+        diag = np.diag(c_abs)
+
+        denom = np.sqrt(np.outer(diag, diag))
+        c_rel = np.divide(
+            c_abs,
+            denom,
+            out=np.zeros_like(c_abs, dtype=float),
+            where=denom != 0,
+        )
+        np.fill_diagonal(c_rel, diag > 0)
+
+        results[f"co_{name}_abs"] = c_abs
+        results[f"co_{name}_rel"] = c_rel
+
+    return results
 
 
 def get_losses(
