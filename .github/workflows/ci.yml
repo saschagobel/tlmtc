@@ -91,7 +91,7 @@ jobs:
         run: uv lock --check
 
       - name: Install test dependencies
-        run: uv sync --group test --extra torch --extra peft --frozen
+        run: uv sync --group test --extra training --frozen
 
       - name: Run unit tests
         run: uv run pytest -q

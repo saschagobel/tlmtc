@@ -21,13 +21,11 @@ def __getattr__(
     except ModuleNotFoundError as exc:
         missing = getattr(exc, "name", None)
 
-        if missing == "torch":
+        if missing in {"torch", "peft"}:
             raise ImportError(
-                "Using tlmtc.train_tlmtc requires PyTorch, but it was not found in your environment."
+                "`torch` and `peft` are required for `tlmtc.train_tlmtc`. "
+                "Install them with: `pip install 'tlmtc[training]'`."
             ) from exc
-
-        if missing == "peft":
-            raise ImportError("PEFT support was requested, but `peft` is not installed.") from exc
 
         raise
 
