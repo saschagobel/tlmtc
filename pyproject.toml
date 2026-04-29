@@ -21,6 +21,7 @@ dependencies = [
     "scikit-learn >=1.7,<2.0",
     "transformers >=4.57,<6.0",
     "typer>=0.12,<1",
+    "great-tables>=0.20,<1.0",
 ]
 
 [project.optional-dependencies]
