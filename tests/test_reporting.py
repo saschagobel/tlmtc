@@ -2,11 +2,13 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 from great_tables import GT
+from transformers import TrainingArguments
 
-from tlmtc.reporting import make_global_metrics_table, make_label_metrics_table
+from tlmtc.reporting import make_global_metrics_table, make_hyperparameters_table, make_label_metrics_table
 
 
 @pytest.fixture
@@ -71,6 +73,22 @@ def label_eval_metrics() -> dict[str, dict[str, float]]:
             "pred_support": 0.55,
         },
     }
+
+
+@pytest.fixture
+def trainer_with_args(tmp_path: Path) -> object:
+    """Provide a minimal Trainer-like object with training arguments."""
+    args = TrainingArguments(
+        output_dir=str(tmp_path / "trainer"),
+        learning_rate=2e-5,
+        per_device_train_batch_size=16,
+        weight_decay=0.01,
+        lr_scheduler_type="linear",
+        num_train_epochs=5,
+        report_to="none",
+    )
+
+    return type("TrainerStub", (), {"args": args})()
 
 
 class TestMakeGlobalMetricsTable:
@@ -258,3 +276,82 @@ class TestMakeLabelMetricsTable:
         assert "Test examples" in html
         assert "2" in html
         assert "1" in html
+
+
+class TestMakeHyperparametersTable:
+    """Tests for hyperparameter table rendering."""
+
+    def test_returns_gt_table(
+        self,
+        trainer_with_args: object,
+    ) -> None:
+        """Hyperparameter reporting returns a Great Tables object."""
+        table = make_hyperparameters_table(
+            threshold=np.array([0.42]),
+            trainer=trainer_with_args,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        assert isinstance(table, GT)
+
+    def test_builds_expected_global_threshold_rows(
+        self,
+        trainer_with_args: object,
+    ) -> None:
+        """Hyperparameter table renders a single threshold as a global threshold."""
+        table = make_hyperparameters_table(
+            threshold=np.array([0.42]),
+            trainer=trainer_with_args,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        result = table._tbl_data
+
+        assert result.to_dict("records") == [
+            {"Metric": "Global threshold", "Value": "0.42"},
+            {"Metric": "Learning rate", "Value": "2.00e-05"},
+            {"Metric": "Batch size", "Value": 16},
+            {"Metric": "Weight decay", "Value": "0.010"},
+            {"Metric": "Learning scheduler", "Value": "linear"},
+            {"Metric": "Epochs", "Value": 5},
+        ]
+
+    def test_builds_expected_label_threshold_rows(
+        self,
+        trainer_with_args: object,
+    ) -> None:
+        """Hyperparameter table renders multiple thresholds as label-specific thresholds."""
+        table = make_hyperparameters_table(
+            threshold=np.array([0.31, 0.47, 0.62]),
+            trainer=trainer_with_args,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        result = table._tbl_data
+
+        assert result.to_dict("records")[0] == {
+            "Metric": "Label-specific thresholds",
+            "Value": "0.31, 0.47, 0.62",
+        }
+
+    def test_renders_header_metadata(
+        self,
+        trainer_with_args: object,
+    ) -> None:
+        """Hyperparameter table renders target and model metadata."""
+        table = make_hyperparameters_table(
+            threshold=np.array([0.42]),
+            trainer=trainer_with_args,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        html = table.as_raw_html()
+
+        assert "Multi-label Classification" in html
+        assert "Policy" in html
+        assert "model-v1" in html
+        assert "Hyperparameters" in html
