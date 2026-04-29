@@ -273,6 +273,8 @@ class WeightedTrainer(Trainer):
         """Initialize the trainer with optional class weights."""
         super().__init__(*args, **kwargs)
 
+        self.model_accepts_loss_kwargs = False
+
         if class_weights is not None:
             class_weights = class_weights.to(self.args.device)
 
