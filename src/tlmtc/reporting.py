@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from great_tables import GT, loc, md, style
+from transformers import Trainer
 
 
 def make_global_metrics_table(
@@ -124,4 +126,56 @@ def make_label_metrics_table(
             style=style.text(weight=500),
             locations=loc.column_header(),
         )
+    )
+
+
+def make_hyperparameters_table(threshold: np.ndarray, trainer: Trainer, target_name: str, checkpoint: str) -> GT:
+    """Create a formatted summary table of selected hyperparameters and tuned thresholds."""
+    if threshold.size == 1:
+        threshold_name = "Global threshold"
+        threshold_value = f"{threshold.item():.2f}"
+    else:
+        threshold_name = "Label-specific thresholds"
+        threshold_value = ", ".join(f"{value:.2f}" for value in threshold)
+
+    df = pd.DataFrame(
+        {
+            "Metric": [
+                threshold_name,
+                "Learning rate",
+                "Batch size",
+                "Weight decay",
+                "Learning scheduler",
+                "Epochs",
+            ],
+            "Value": [
+                threshold_value,
+                f"{trainer.args.learning_rate:.2e}",
+                trainer.args.per_device_train_batch_size,
+                f"{trainer.args.weight_decay:.3f}",
+                trainer.args.lr_scheduler_type,
+                trainer.args.num_train_epochs,
+            ],
+        }
+    )
+
+    model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+
+    return (
+        GT(df)
+        .tab_header(
+            title=md(f"**Multi-label Classification<br>of {target_name}**"),
+            subtitle=md(f"*Hyperparameters<br>for fine-tuned {model_name}*"),
+        )
+        .tab_stubhead(label="Metric")
+        .tab_style(
+            style=style.text(weight=250),
+            locations=loc.row_groups(),
+        )
+        .tab_style(
+            style=style.text(weight=500),
+            locations=[loc.stubhead(), loc.column_header()],
+        )
+        .tab_style(style=style.text(whitespace="pre"), locations=loc.stub())
+        .tab_options(stub_border_style="none")
     )
