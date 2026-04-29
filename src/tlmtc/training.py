@@ -12,7 +12,6 @@ import torch
 from peft import LoraConfig, PeftMixedModel, PeftModel, TaskType, get_peft_model
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 from sklearn.metrics import f1_score, roc_auc_score
-from sklearn.utils.class_weight import compute_class_weight
 from torch import Tensor
 from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
@@ -138,24 +137,24 @@ def get_scaled_lr(
 def get_class_weights(
     train_data_path: str | Path,
 ) -> torch.Tensor:
-    """Compute label-specific weights for positive classes.
+    """Compute label-specific positive-class weights for BCE loss.
 
     Args:
         train_data_path: Path to train split.
 
     Returns:
-        torch.Tensor with class weights for each label.
+        torch.Tensor with one BCEWithLogitsLoss `pos_weight` value per label.
     """
     train_data = pd.read_parquet(train_data_path)
 
     label_cols = [col for col in train_data.columns if col.startswith("label_")]
-    labels_array = train_data[label_cols].values
-    num_labels = labels_array.shape[1]
-    class_weights = [
-        compute_class_weight(class_weight="balanced", classes=np.array([0, 1]), y=labels_array[:, i])[1]
-        for i in range(num_labels)
-    ]
-    return torch.tensor(class_weights, dtype=torch.float)
+    labels_array = train_data[label_cols].to_numpy()
+
+    positive_counts = labels_array.sum(axis=0)
+    negative_counts = labels_array.shape[0] - positive_counts
+
+    pos_weights = negative_counts / positive_counts
+    return torch.tensor(pos_weights, dtype=torch.float)
 
 
 def multi_label_metrics(

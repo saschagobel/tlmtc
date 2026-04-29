@@ -64,8 +64,7 @@ class DummyNestedHeadNames(torch.nn.Module):
         self.output = torch.nn.Linear(4, 2)
 
 
-def test_get_class_weights_uses_train_split(tmp_path):
-    """Ensure `get_class_weights` computes weights from the training split."""
+def test_get_class_weights_computes_bce_pos_weights_from_train_split(tmp_path):
     df = pd.DataFrame(
         {
             "text": ["a", "b", "c", "d"],
@@ -78,7 +77,7 @@ def test_get_class_weights_uses_train_split(tmp_path):
 
     weights = get_class_weights(train_path)
 
-    expected = torch.tensor([2.0, 0.6666667], dtype=torch.float)
+    expected = torch.tensor([3.0, 0.3333333], dtype=torch.float)
 
     assert torch.allclose(weights, expected, atol=1e-4)
 
