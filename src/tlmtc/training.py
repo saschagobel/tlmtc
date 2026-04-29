@@ -107,7 +107,7 @@ def get_scaled_lr(
     proxy_checkpoint: str,
     peft: bool,
 ) -> float:
-    """Scale the learning rate by hidden size.
+    """Conservatively transfer a proxy-tuned learning rate to a target checkpoint.
 
     Args:
         learning_rate: Learning rate for optimizer.
@@ -116,14 +116,23 @@ def get_scaled_lr(
         peft: Flag whether model uses parameter-efficient fine-tuning.
 
     Returns:
-        Scaled learning rate.
+        Transferred learning rate for the target checkpoint.
     """
-    checkpoint_hidden_size = AutoConfig.from_pretrained(checkpoint).hidden_size
-    proxy_checkpoint_hidden_size = AutoConfig.from_pretrained(proxy_checkpoint).hidden_size
-    if peft:
-        return learning_rate * (checkpoint_hidden_size / proxy_checkpoint_hidden_size) ** 0.5
-    else:
-        return learning_rate * (proxy_checkpoint_hidden_size / checkpoint_hidden_size)
+    full_finetune_exponent = 0.5
+    peft_exponent = 0.25
+    min_scale = 0.5
+    max_scale = 1.0
+
+    target_hidden_size = AutoConfig.from_pretrained(checkpoint).hidden_size
+    proxy_hidden_size = AutoConfig.from_pretrained(proxy_checkpoint).hidden_size
+
+    hidden_size_ratio = proxy_hidden_size / target_hidden_size
+    exponent = peft_exponent if peft else full_finetune_exponent
+
+    scale = hidden_size_ratio**exponent
+    bounded_scale = min(max(scale, min_scale), max_scale)
+
+    return learning_rate * bounded_scale
 
 
 def get_class_weights(
