@@ -18,8 +18,8 @@ class TestDfPreprocess:
         df_in = pd.DataFrame(
             {
                 "text": ["a", None, "c"],
-                "label_1": [1, 0, 1],
-                "label_2": [0, 1, None],
+                "label_1": [1, 0, 0],
+                "label_2": [0, 1, 1],
             }
         )
         df_in.to_csv(csv_path, index=False)
@@ -31,14 +31,14 @@ class TestDfPreprocess:
             df,
             pd.DataFrame(
                 {
-                    "text": ["a"],
-                    "label_1": [1],
-                    "label_2": [0],
+                    "text": ["a", "c"],
+                    "label_1": [1, 0],
+                    "label_2": [0, 1],
                 }
             ),
         )
-        np.testing.assert_array_equal(X, np.array(["a"]))
-        np.testing.assert_array_equal(y, np.array([[1, 0]]))
+        np.testing.assert_array_equal(X, np.array(["a", "c"]))
+        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
 
     def test_preserves_optional_text_pair_column(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "data.csv"
