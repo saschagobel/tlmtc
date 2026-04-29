@@ -174,8 +174,8 @@ def test_wrap_peft_includes_inferred_modules_to_save(base_test_model):
     assert set(inferred_modules).issubset(set(peft_config.modules_to_save))
 
 
-def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path):
-    """Ensure _get_scaled_lr scales the base learning rate correctly for PEFT and non-PEFT configurations."""
+def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path):
+    """Ensure get_scaled_lr applies bounded conservative proxy-to-target LR transfer scaling."""
     proxy_dir = tmp_path / "proxy"
     target_dir = tmp_path / "target"
 
@@ -186,8 +186,9 @@ def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path
     target_config.save_pretrained(target_dir)
 
     lr = 1e-4
-    expected_non_peft = lr * (proxy_config.hidden_size / target_config.hidden_size)
-    expected_peft = lr * (target_config.hidden_size / proxy_config.hidden_size) ** 0.5
+    hidden_size_ratio = proxy_config.hidden_size / target_config.hidden_size
+    expected_non_peft = lr * hidden_size_ratio**0.5
+    expected_peft = lr * hidden_size_ratio**0.25
 
     scaled_non_peft = get_scaled_lr(
         learning_rate=lr,
@@ -203,8 +204,10 @@ def test_get_scaled_lr_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path
         peft=True,
     )
 
-    assert pytest.approx(scaled_non_peft) == expected_non_peft
-    assert pytest.approx(scaled_peft) == expected_peft
+    assert scaled_non_peft == pytest.approx(expected_non_peft)
+    assert scaled_peft == pytest.approx(expected_peft)
+    assert scaled_peft > scaled_non_peft
+    assert scaled_peft <= lr
 
 
 class TestTrainingRuntimeState:
