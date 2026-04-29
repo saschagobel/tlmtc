@@ -44,28 +44,19 @@ def test_public_api_rejects_unknown_attribute() -> None:
         _ = tlmtc.not_a_real_symbol  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize(
-    ("missing", "expected_msg"),
-    [
-        (
-            "torch",
-            "Using tlmtc.train_tlmtc requires PyTorch, but it was not found in your environment.",
-        ),
-        (
-            "peft",
-            "PEFT support was requested, but `peft` is not installed.",
-        ),
-    ],
-)
+@pytest.mark.parametrize("missing", ["torch", "peft"])
 def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
     monkeypatch: pytest.MonkeyPatch,
     missing: str,
-    expected_msg: str,
 ) -> None:
-    """Ensures that a helpful ImportError is raised when an optional dependency is missing."""
+    """Ensures that a helpful ImportError is raised when training dependencies are missing."""
     import tlmtc
 
     sys.modules.pop("tlmtc.api", None)
+
+    expected_msg = (
+        "`torch` and `peft` are required for `tlmtc.train_tlmtc`. Install them with: `pip install 'tlmtc[training]'`."
+    )
 
     real_import = builtins.__import__
 
