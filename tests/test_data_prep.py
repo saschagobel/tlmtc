@@ -77,14 +77,18 @@ class TestDfPreprocess:
 class TestDfSplit:
     """Test suite for the _df_split utility function."""
 
-    def test_produces_expected_train_and_test_shapes(self) -> None:
-        df = pd.DataFrame(
+    @staticmethod
+    def _balanced_split_frame(n: int = 20) -> pd.DataFrame:
+        return pd.DataFrame(
             {
-                "text": [f"sample {i}" for i in range(10)],
-                "label_a": np.random.randint(0, 2, 10),
-                "label_b": np.random.randint(0, 2, 10),
+                "text": [f"sample {i}" for i in range(n)],
+                "label_a": ([1, 0] * ((n + 1) // 2))[:n],
+                "label_b": ([0, 1, 1, 0] * ((n + 3) // 4))[:n],
             }
         )
+
+    def test_produces_expected_train_and_test_shapes(self) -> None:
+        df = self._balanced_split_frame(n=20)
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
@@ -101,37 +105,23 @@ class TestDfSplit:
         assert list(test.columns) == list(df.columns)
 
     def test_split_is_reproducible_with_same_seed(self) -> None:
-        df = pd.DataFrame(
-            {
-                "text": [f"sample {i}" for i in range(12)],
-                "label_a": np.random.randint(0, 2, 12),
-                "label_b": np.random.randint(0, 2, 12),
-            }
-        )
+        df = self._balanced_split_frame(n=20)
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
         train1, test1 = df_split(df, X, y, test_size=0.25, random_seed=123)
         train2, test2 = df_split(df, X, y, test_size=0.25, random_seed=123)
 
-        # Identical splits
         pd.testing.assert_frame_equal(train1, train2)
         pd.testing.assert_frame_equal(test1, test2)
 
     def test_train_and_test_have_no_overlap(self) -> None:
-        df = pd.DataFrame(
-            {
-                "text": [f"sample {i}" for i in range(20)],
-                "label_a": np.random.randint(0, 2, 20),
-                "label_b": np.random.randint(0, 2, 20),
-            }
-        )
+        df = self._balanced_split_frame(n=20)
         X = df["text"].values
         y = df[["label_a", "label_b"]].values
 
         train, test = df_split(df, X, y, test_size=0.2, random_seed=99)
 
-        # Unique ids
         train_ids = set(train["text"])
         test_ids = set(test["text"])
 
@@ -153,6 +143,20 @@ class TestDfSplit:
         for label in ["label_a", "label_b"]:
             assert train[label].nunique() == 2
             assert test[label].nunique() == 2
+
+    def test_raises_error_when_split_lacks_positive_label_support(self) -> None:
+        df = pd.DataFrame(
+            {
+                "text": [f"sample {i}" for i in range(8)],
+                "label_a": [1, 1, 1, 1, 0, 0, 0, 0],
+                "label_b": [1, 0, 0, 0, 0, 0, 0, 0],
+            }
+        )
+        X = df["text"].values
+        y = df[["label_a", "label_b"]].values
+
+        with pytest.raises(ValueError, match="Could not create a valid multilabel stratified split"):
+            df_split(df=df, X=X, y=y, test_size=0.25, random_seed=42)
 
 
 class TestDfSave:

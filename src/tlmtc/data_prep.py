@@ -54,11 +54,33 @@ def df_split(
         train_data: Train set.
         test_data: Test set.
     """
-    msss = MultilabelStratifiedShuffleSplit(n_splits=1, test_size=test_size, random_state=random_seed)
-    for train_idx, test_idx in msss.split(X, y):
+    max_split_attempts = 3
+    label_cols = [col for col in df.columns if col.startswith("label_")]
+    missing_positive_labels: list[str] = []
+
+    for attempt in range(max_split_attempts):
+        splitter = MultilabelStratifiedShuffleSplit(
+            n_splits=1,
+            test_size=test_size,
+            random_state=random_seed + attempt,
+        )
+
+        train_idx, test_idx = next(splitter.split(X, y))
         train_data = df.iloc[train_idx].reset_index(drop=True)
         test_data = df.iloc[test_idx].reset_index(drop=True)
-    return train_data, test_data
+
+        missing_positive_labels = [col for col in label_cols if train_data[col].sum() == 0 or test_data[col].sum() == 0]
+
+        if not missing_positive_labels:
+            return train_data, test_data
+
+    raise ValueError(
+        "Could not create a valid multilabel stratified split after "
+        f"{max_split_attempts} attempts. The following labels have no positive examples "
+        f"in at least one split partition: {missing_positive_labels}. "
+        "Increase the smaller split size, provide more positive examples for rare labels, "
+        "or remove/merge labels with insufficient support."
+    )
 
 
 def df_save(
