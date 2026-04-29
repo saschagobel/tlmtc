@@ -18,9 +18,22 @@ def sample_raw_csv(tmp_path: Path):
     """Create a small synthetic multi-label dataset and write it to raw.csv."""
     df = pd.DataFrame(
         {
-            "text": ["hello world ooqz", "foo bar", "hello", "bar world qooz"],
-            "label_a": [1, 0, 1, 0],
-            "label_b": [0, 1, 1, 0],
+            "text": [
+                "hello world ooqz",
+                "foo bar",
+                "hello",
+                "bar world qooz",
+                "alpha beta",
+                "gamma delta",
+                "epsilon zeta",
+                "eta theta",
+                "iota kappa",
+                "lambda mu",
+                "nu xi",
+                "omicron pi",
+            ],
+            "label_a": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            "label_b": [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0],
         }
     )
     csv_path = tmp_path / "raw.csv"
@@ -33,9 +46,9 @@ def sample_raw_test_csv(tmp_path: Path):
     """Create a small synthetic multi-label test dataset and write it to raw_test.csv."""
     df = pd.DataFrame(
         {
-            "text": ["ooqz world", "foo Hello", "hello bar"],
-            "label_a": [1, 1, 0],
-            "label_b": [1, 0, 0],
+            "text": ["ooqz world", "foo Hello", "hello bar", "bar baz"],
+            "label_a": [1, 1, 0, 0],
+            "label_b": [1, 0, 1, 0],
         }
     )
     csv_path = tmp_path / "raw_test.csv"
@@ -46,7 +59,7 @@ def sample_raw_test_csv(tmp_path: Path):
 @pytest.fixture
 def split_settings() -> SplitSettings:
     """Return deterministic split configuration for test runs."""
-    return SplitSettings(validation_size=0.15, test_size=0.15, random_seed=42)
+    return SplitSettings(validation_size=0.25, test_size=0.25, random_seed=42)
 
 
 @pytest.fixture
