@@ -2,10 +2,30 @@
 
 from pathlib import Path
 
+import matplotlib.patheffects as pe
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from great_tables import GT, loc, md, style
+from matplotlib import rc_context
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.figure import Figure
 from transformers import Trainer
+
+FONT_CFG = {
+    "font.family": "sans-serif",
+    "font.sans-serif": [
+        "Ubuntu",
+        "-apple-system",
+        "BlinkMacSystemFont",
+        "Segoe UI",
+        "Roboto",
+        "Oxygen",
+        "Cantarell",
+        "Helvetica Neue",
+        "Arial",
+    ],
+}
 
 
 def make_global_metrics_table(
@@ -179,3 +199,72 @@ def make_hyperparameters_table(threshold: np.ndarray, trainer: Trainer, target_n
         .tab_style(style=style.text(whitespace="pre"), locations=loc.stub())
         .tab_options(stub_border_style="none")
     )
+
+
+def make_roc_curves_plot(
+    roc_curves: dict[str, dict[int | str, np.ndarray | float]],
+    target_name: str,
+    checkpoint: str,
+    label_names: list[str],
+) -> Figure:
+    """Create a figure of global and label-specific ROC curves."""
+    fpr = roc_curves["fpr"]
+    tpr = roc_curves["tpr"]
+    roc_auc = roc_curves["roc_auc"]
+
+    num_labels = len(label_names)
+    model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+
+    with rc_context(rc=FONT_CFG):
+        cmap = LinearSegmentedColormap.from_list(
+            "roc_label_range",
+            ["#3366CC", "#B39DDB"],
+        )
+        colors = [cmap(i / (num_labels - 1)) for i in range(num_labels)]
+        fig, ax = plt.subplots(figsize=(7, 6))
+        ax.set_aspect("equal", adjustable="box")
+
+        ax.plot(fpr["micro"], tpr["micro"], label=f"Micro (AUC = {roc_auc['micro']:.2f})", color="#3366CC", linewidth=2)
+        ax.plot(
+            fpr["macro"],
+            tpr["macro"],
+            label=f"Macro (AUC = {roc_auc['macro']:.2f})",
+            color="#B39DDB",
+            linewidth=2,
+        )
+        for i in range(num_labels):
+            ax.plot(
+                fpr[i],
+                tpr[i],
+                lw=1,
+                alpha=0.25,
+                color=colors[i],
+                linestyle="--",
+            )
+        ax.plot([0, 1], [0, 1], "k--", lw=1, alpha=0.25)
+        ax.set_xlim(0.0, 1.0)
+        ax.set_ylim(0.0, 1.0)
+        ax.set_xticks([0.2, 0.4, 0.6, 0.8])
+        ax.set_yticks([0.2, 0.4, 0.6, 0.8])
+        ax.set_xlabel("False Positive Rate")
+        ax.set_ylabel("True Positive Rate")
+        ax.set_title(
+            f"Multi-label Classification of {target_name}",
+            fontsize=14,
+            path_effects=[pe.withStroke(linewidth=0.25, foreground="black")],
+            loc="center",
+            pad=20,
+        )
+        ax.text(
+            0.5,
+            1.01,
+            f"Discriminative performance for fine-tuned {model_name}",
+            fontsize=11,
+            style="italic",
+            ha="center",
+            va="bottom",
+            transform=ax.transAxes,
+        )
+        ax.legend(loc="lower right", fontsize="small")
+        fig.tight_layout()
+        return fig
