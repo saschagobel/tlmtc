@@ -86,9 +86,10 @@ def test_optuna_hp_space_returns_expected_dict() -> None:
         lr_reference_batch_size=16,
     )
 
+    scaled_learning_rate = 5e-5 * math.sqrt(8 / 16)
     trial = FixedTrial(
         {
-            "learning_rate_base": 5e-5,
+            "learning_rate": scaled_learning_rate,
             "per_device_train_batch_size": 8,
             "weight_decay": 0.01,
             "lr_scheduler_type": "cosine",
@@ -99,7 +100,7 @@ def test_optuna_hp_space_returns_expected_dict() -> None:
     result = optuna_hp_space(trial, space)
 
     assert result == {
-        "learning_rate": 5e-5 * math.sqrt(8 / 16),
+        "learning_rate": scaled_learning_rate,
         "per_device_train_batch_size": 8,
         "weight_decay": 0.01,
         "lr_scheduler_type": "cosine",
@@ -107,8 +108,8 @@ def test_optuna_hp_space_returns_expected_dict() -> None:
     }
 
 
-def test_optuna_hp_space_keeps_learning_rate_base_at_reference_batch_size() -> None:
-    """At the reference batch size, effective LR should equal the sampled base LR."""
+def test_optuna_hp_space_keeps_learning_rate_unchanged_at_reference_batch_size() -> None:
+    """At the reference batch size, the sampled effective LR should be unchanged."""
     space = OptunaSpaceSettings(
         lr_low=1e-5,
         lr_high=1e-4,
@@ -123,7 +124,7 @@ def test_optuna_hp_space_keeps_learning_rate_base_at_reference_batch_size() -> N
 
     trial = FixedTrial(
         {
-            "learning_rate_base": 5e-5,
+            "learning_rate": 5e-5,
             "per_device_train_batch_size": 16,
             "weight_decay": 0.01,
             "lr_scheduler_type": "cosine",
