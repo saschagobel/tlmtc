@@ -87,6 +87,7 @@ def pipeline_instance_factory(
         data_dir = run_dir / "data"
         logs_dir = run_dir / "logs"
         model_dir = run_dir / "model"
+        eval_dir = run_dir / "evaluation"
 
         paths = RunPaths(
             work_dir=tmp_path,
@@ -97,6 +98,7 @@ def pipeline_instance_factory(
             data_dir=data_dir,
             logs_dir=logs_dir,
             model_dir=model_dir,
+            eval_dir=eval_dir,
             train_data_path=data_dir / "train.parquet",
             val_data_path=data_dir / "val.parquet",
             test_data_path=data_dir / "test.parquet",
