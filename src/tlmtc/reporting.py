@@ -401,3 +401,71 @@ def make_loss_curves_plot(
         ax.legend(fontsize=11)
         fig.tight_layout()
         return fig
+
+
+def make_objective_values_plot(
+    objective_values: pd.DataFrame,
+    target_name: str,
+    checkpoint: str,
+) -> Figure:
+    """Create a figure of objective values across hyperparameter optimization trials."""
+    values = (
+        objective_values.sort_values("number")
+        .assign(number=lambda df: df["number"] + 1)
+        .assign(best_so_far=lambda df: df["value"].cummax())
+    )
+    model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+
+    with rc_context(rc=FONT_CFG):
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        ax.plot(
+            values['number'],
+            values['value'],
+            marker='o',
+            markersize=6,
+            linewidth=2,
+            markerfacecolor='#3366CC',
+            markeredgecolor='#3366CC',
+            color='#B39DDB',
+            label='Objective Value'
+        )
+        ax.plot(
+            values['number'],
+            values['best_so_far'],
+            color='#E57383',
+            linestyle='--',
+            linewidth=1.5,
+            alpha=0.6,
+            label='Best so far'
+        )
+
+        ax.set_xlim(values['number'].min(), values['number'].max())
+        ax.set_ylim(0.0, 1.0)
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=7, integer=True))
+        ticks = [tick for tick in ax.get_xticks() if 1 < tick < values['number'].max()]
+        ax.set_xticks(ticks)
+        ax.set_yticks([0.2, 0.4, 0.6, 0.8])
+        ax.set_title(
+            f"Multi-label Classification of {target_name}",
+            fontsize=14,
+            path_effects=[pe.withStroke(linewidth=0.25, foreground='black')],
+            loc='center',
+            pad=20
+        )
+        ax.text(
+            0.5,
+            1.01,
+            f"Hyperparameter optimization for fine-tuned {model_name}",
+            fontsize=11,
+            style='italic',
+            ha='center',
+            va='bottom',
+            transform=ax.transAxes,
+        )
+
+        ax.set_xlabel('Trial Number', fontsize=12)
+        ax.set_ylabel('Objective Value', fontsize=12)
+        ax.grid(True, linestyle="--", alpha=0.6)
+        fig.tight_layout()
+        return fig
