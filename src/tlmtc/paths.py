@@ -9,10 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Self
 
-DEFAULT_OUTPUTS_DIRNAME: Final[str] = "tlmtc_outputs"
+DEFAULT_OUTPUTS_DIRNAME: Final[str] = "train_outputs"
 DEFAULT_DATA_DIRNAME: Final[str] = "data"
 DEFAULT_LOGS_DIRNAME: Final[str] = "logs"
 DEFAULT_MODEL_DIRNAME: Final[str] = "model"
+DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,11 +22,12 @@ class RunPaths:
 
     Directory structure:
       <work_dir>/
-        tlmtc_outputs/
+        train_outputs/
           <run_id>/
             data/     (train/val/test splits)
             logs/  (training/HPO logs)
             model/    (exported model artifacts)
+            evaluation/  (metrics, tables, and plots)
 
     Attributes:
         work_dir: Base directory used to resolve relative inputs and contain tlmtc outputs.
@@ -36,6 +38,7 @@ class RunPaths:
         data_dir: Directory containing prepared dataset splits for this run.
         logs_dir: Directory containing logs and HPO artifacts for this run.
         model_dir: Directory containing exported model artifacts for this run.
+        eval_dir: Directory containing evaluation reporting artifacts for this run.
         train_data_path: Path to the prepared training split artifact (`train.parquet`).
         val_data_path: Path to the prepared validation split artifact (`val.parquet`).
         test_data_path: Path to the prepared test split artifact (`test.parquet`).
@@ -51,6 +54,7 @@ class RunPaths:
     data_dir: Path
     logs_dir: Path
     model_dir: Path
+    eval_dir: Path
 
     train_data_path: Path
     val_data_path: Path
@@ -68,6 +72,7 @@ class RunPaths:
             self.data_dir,
             self.logs_dir,
             self.model_dir,
+            self.eval_dir,
         ):
             directory.mkdir(parents=True, exist_ok=True)
         return self
@@ -83,6 +88,7 @@ def resolve_paths(
     data_dirname: str = DEFAULT_DATA_DIRNAME,
     logs_dirname: str = DEFAULT_LOGS_DIRNAME,
     model_dirname: str = DEFAULT_MODEL_DIRNAME,
+    eval_dirname: str = DEFAULT_EVAL_DIRNAME,
 ) -> RunPaths:
     """Resolve all filesystem paths for a single tlmtc run.
 
@@ -96,6 +102,7 @@ def resolve_paths(
         data_dirname: Name of the data subdirectory under `run_dir`.
         logs_dirname: Name of the logs subdirectory under `run_dir`.
         model_dirname: Name of the model subdirectory under `run_dir`.
+        eval_dirname: Name of the evaluation subdirectory under `run_dir`.
 
     Returns:
         RunPaths: Bundle containing absolute paths for inputs and run artifacts.
@@ -109,6 +116,7 @@ def resolve_paths(
     data_dir = run_dir / data_dirname
     logs_dir = run_dir / logs_dirname
     model_dir = run_dir / model_dirname
+    eval_dir = run_dir / eval_dirname
 
     return RunPaths(
         work_dir=resolved_work_dir,
@@ -119,6 +127,7 @@ def resolve_paths(
         data_dir=data_dir,
         logs_dir=logs_dir,
         model_dir=model_dir,
+        eval_dir=eval_dir,
         train_data_path=data_dir / "train.parquet",
         val_data_path=data_dir / "val.parquet",
         test_data_path=data_dir / "test.parquet",
