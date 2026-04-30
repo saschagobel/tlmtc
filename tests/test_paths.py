@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tlmtc.paths import (
     DEFAULT_DATA_DIRNAME,
+    DEFAULT_EVAL_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
     DEFAULT_MODEL_DIRNAME,
     DEFAULT_OUTPUTS_DIRNAME,
@@ -34,6 +35,7 @@ class TestResolvePaths:
         assert paths.run_id == "run123"
         assert paths.run_dir == expected_run_dir
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
+        assert paths.eval_dir == expected_run_dir / DEFAULT_EVAL_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
         assert paths.model_dir == expected_run_dir / DEFAULT_MODEL_DIRNAME
 
@@ -127,6 +129,7 @@ class TestRunPaths:
         assert result is paths
         assert paths.run_dir.is_dir()
         assert paths.data_dir.is_dir()
+        assert paths.eval_dir.is_dir()
         assert paths.logs_dir.is_dir()
         assert paths.model_dir.is_dir()
 
@@ -143,4 +146,5 @@ class TestRunPaths:
         paths.ensure_dirs()
 
         assert paths.data_dir.is_dir()
+        assert paths.eval_dir.is_dir()
         assert not raw_csv.parent.exists()
