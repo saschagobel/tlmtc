@@ -16,8 +16,8 @@ from tlmtc.reporting import (
     make_hyperparameters_table,
     make_label_metrics_table,
     make_loss_curves_plot,
-    make_roc_curves_plot,
     make_objective_values_plot,
+    make_roc_curves_plot,
 )
 
 
@@ -120,6 +120,7 @@ def co_occurrence() -> dict[str, np.ndarray]:
         "co_pred_rel": np.array([[1.0, 0.33], [0.33, 1.0]]),
     }
 
+
 @pytest.fixture
 def objective_values() -> pd.DataFrame:
     """Provide unsorted HPO objective values for reporting tests."""
@@ -127,6 +128,18 @@ def objective_values() -> pd.DataFrame:
         {
             "number": [2, 0, 1, 3],
             "value": [0.71, 0.35, 0.62, 0.68],
+        }
+    )
+
+
+@pytest.fixture
+def losses() -> pd.DataFrame:
+    """Provide per-epoch training and evaluation losses for reporting tests."""
+    return pd.DataFrame(
+        {
+            "epoch": [1, 2, 3, 4, 5, 6],
+            "train_loss": [0.92, 0.78, 0.64, 0.53, 0.45, 0.39],
+            "eval_loss": [0.95, 0.81, 0.69, 0.57, 0.49, 0.44],
         }
     )
 
@@ -466,7 +479,9 @@ class TestMakeRocCurvesPlot:
         assert ax.get_title() == f"Multi-label Classification of {target_name}"
         assert ax.get_xlabel() == "False Positive Rate"
         assert ax.get_ylabel() == "True Positive Rate"
-        assert ax.texts[0].get_text() == f"Discriminative performance for fine-tuned {expected_model_name}"
+        assert any(
+            f"Discriminative performance for fine-tuned {expected_model_name}" == text.get_text() for text in ax.texts
+        )
         assert legend is not None
         assert [text.get_text() for text in legend.get_texts()] == [
             "Micro (AUC = 0.87)",
@@ -577,18 +592,6 @@ class TestMakeCooccurrenceHeatmapsPlot:
                 checkpoint="user/model-v1",
                 label_names=["label_a", "label_b"],
             )
-
-
-@pytest.fixture
-def losses() -> pd.DataFrame:
-    """Provide per-epoch training and evaluation losses for reporting tests."""
-    return pd.DataFrame(
-        {
-            "epoch": [1, 2, 3, 4, 5, 6],
-            "train_loss": [0.92, 0.78, 0.64, 0.53, 0.45, 0.39],
-            "eval_loss": [0.95, 0.81, 0.69, 0.57, 0.49, 0.44],
-        }
-    )
 
 
 class TestMakeLossCurvesPlot:
@@ -752,8 +755,7 @@ class TestMakeObjectiveValuesPlot:
         assert ax.get_xlabel() == "Trial Number"
         assert ax.get_ylabel() == "Objective Value"
         assert any(
-            f"Hyperparameter optimization for fine-tuned {expected_model_name}" == text.get_text()
-            for text in ax.texts
+            f"Hyperparameter optimization for fine-tuned {expected_model_name}" == text.get_text() for text in ax.texts
         )
 
     def test_plots_sorted_objective_values_and_running_best(
