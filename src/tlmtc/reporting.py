@@ -12,6 +12,7 @@ from matplotlib import rc_context
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import ConstrainedLayoutEngine
+from matplotlib.ticker import MaxNLocator
 from transformers import Trainer
 
 FONT_CFG = {
@@ -341,4 +342,62 @@ def make_cooccurrence_heatmaps_plot(
         for ax in axes:
             ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right", fontsize=9)
             ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=9)
+        return fig
+
+
+def make_loss_curves_plot(
+    losses: pd.DataFrame,
+    target_name: str,
+    checkpoint: str,
+    best_epoch: int,
+) -> Figure:
+    """Create a figure of training and evaluation loss curves across epochs."""
+    model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+
+    with rc_context(rc=FONT_CFG):
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        ax.plot(
+            losses["epoch"],
+            losses["train_loss"],
+            label="Train Loss",
+            linewidth=2,
+            color="#3366CC",
+        )
+        ax.plot(
+            losses["epoch"],
+            losses["eval_loss"],
+            label="Eval Loss",
+            linewidth=2,
+            color="#B39DDB",
+        )
+        ax.axvline(best_epoch, color="#E57383", linestyle="--", linewidth=1.5, alpha=0.6, label="Best Model")
+
+        ax.set_xlim(losses["epoch"].min(), losses["epoch"].max())
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=7, integer=True))
+        ticks = [tick for tick in ax.get_xticks() if 1 < tick < losses["epoch"].max()]
+        ax.set_xticks(ticks)
+
+        ax.set_title(
+            f"Multi-label Classification of {target_name}",
+            fontsize=14,
+            path_effects=[pe.withStroke(linewidth=0.25, foreground="black")],
+            loc="center",
+            pad=20,
+        )
+        ax.text(
+            0.5,
+            1.01,
+            f"Training dynamics for fine-tuned {model_name}",
+            fontsize=11,
+            style="italic",
+            ha="center",
+            va="bottom",
+            transform=ax.transAxes,
+        )
+        ax.set_xlabel("Epoch", fontsize=12)
+        ax.set_ylabel("Loss", fontsize=12)
+        ax.grid(True, linestyle="--", alpha=0.6)
+        ax.legend(fontsize=11)
+        fig.tight_layout()
         return fig
