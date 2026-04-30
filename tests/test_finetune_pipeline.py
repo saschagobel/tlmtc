@@ -68,6 +68,7 @@ def pipeline_factory(tmp_path, base_search_space):
             data_dir=run_dir / "data",
             logs_dir=run_dir / "logs",
             model_dir=run_dir / "model",
+            eval_dir=run_dir / "evaluation",
             train_data_path=train_path,
             val_data_path=run_dir / "data" / "val.parquet",
             test_data_path=run_dir / "data" / "test.parquet",
