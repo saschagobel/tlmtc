@@ -6,10 +6,12 @@ import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from great_tables import GT, loc, md, style
 from matplotlib import rc_context
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
+from matplotlib.layout_engine import ConstrainedLayoutEngine
 from transformers import Trainer
 
 FONT_CFG = {
@@ -267,4 +269,76 @@ def make_roc_curves_plot(
         )
         ax.legend(loc="lower right", fontsize="small")
         fig.tight_layout()
+        return fig
+
+
+def make_cooccurrence_heatmaps_plot(
+    co_occurrence: dict[str, np.ndarray], target_name: str, checkpoint: str, label_names: list[str]
+) -> Figure:
+    """Create heatmaps of true and predicted label co-occurrence."""
+    model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+
+    with rc_context(rc=FONT_CFG):
+        cmap = LinearSegmentedColormap.from_list(
+            "cooccurrence_range",
+            ["#FFFFFF", "#3366CC"],
+        )
+        fig, axes = plt.subplots(
+            1,
+            2,
+            figsize=(10, 5),
+            layout=ConstrainedLayoutEngine(h_pad=0.5),
+        )
+
+        sns.heatmap(
+            co_occurrence["co_true_rel"],
+            ax=axes[0],
+            cmap=cmap,
+            square=True,
+            xticklabels=label_names,
+            yticklabels=label_names,
+            cbar=False,
+            vmin=0,
+            vmax=1,
+            linewidths=0.3,
+            annot=co_occurrence["co_true_abs"].astype(int),
+            fmt="d",
+        )
+        axes[0].set_title("True label co-occurrence")
+
+        sns.heatmap(
+            co_occurrence["co_pred_rel"],
+            ax=axes[1],
+            cmap=cmap,
+            square=True,
+            xticklabels=label_names,
+            yticklabels=label_names,
+            cbar=True,
+            vmin=0,
+            vmax=1,
+            linewidths=0.3,
+            annot=co_occurrence["co_pred_abs"].astype(int),
+            fmt="d",
+        )
+        axes[1].set_title("Predicted label co-occurrence")
+
+        fig.suptitle(
+            f"Multi-label Classification of {target_name}",
+            fontsize=14,
+            path_effects=[pe.withStroke(linewidth=0.25, foreground="black")],
+            ha="center",
+            y=0.99,
+        )
+        fig.text(
+            0.5,
+            0.93,
+            f"Structural alignment for fine-tuned {model_name}",
+            fontsize=11,
+            style="italic",
+            ha="center",
+            va="center",
+        )
+        for ax in axes:
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right", fontsize=9)
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=9)
         return fig
