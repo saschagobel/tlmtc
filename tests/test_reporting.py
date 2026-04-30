@@ -17,6 +17,7 @@ from tlmtc.reporting import (
     make_label_metrics_table,
     make_loss_curves_plot,
     make_roc_curves_plot,
+    make_objective_values_plot,
 )
 
 
@@ -118,6 +119,16 @@ def co_occurrence() -> dict[str, np.ndarray]:
         "co_pred_abs": np.array([[2, 1], [1, 3]]),
         "co_pred_rel": np.array([[1.0, 0.33], [0.33, 1.0]]),
     }
+
+@pytest.fixture
+def objective_values() -> pd.DataFrame:
+    """Provide unsorted HPO objective values for reporting tests."""
+    return pd.DataFrame(
+        {
+            "number": [2, 0, 1, 3],
+            "value": [0.71, 0.35, 0.62, 0.68],
+        }
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -694,4 +705,137 @@ class TestMakeLossCurvesPlot:
                 target_name="Policy",
                 checkpoint="user/model-v1",
                 best_epoch=2,
+            )
+
+
+class TestMakeObjectiveValuesPlot:
+    """Tests for objective value plot rendering."""
+
+    def test_returns_figure(
+        self,
+        objective_values: pd.DataFrame,
+    ) -> None:
+        """Objective value reporting returns a Matplotlib figure."""
+        fig = make_objective_values_plot(
+            objective_values=objective_values,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1
+
+    @pytest.mark.parametrize(
+        ("target_name", "checkpoint", "expected_model_name"),
+        [
+            ("Policy", "user/model-v1", "model-v1"),
+            ("Risk", "org/nested-model", "nested-model"),
+        ],
+    )
+    def test_renders_expected_metadata_and_labels(
+        self,
+        objective_values: pd.DataFrame,
+        target_name: str,
+        checkpoint: str,
+        expected_model_name: str,
+    ) -> None:
+        """Objective value plot renders titles, labels, and subtitle."""
+        fig = make_objective_values_plot(
+            objective_values=objective_values,
+            target_name=target_name,
+            checkpoint=checkpoint,
+        )
+
+        ax = fig.axes[0]
+
+        assert ax.get_title() == f"Multi-label Classification of {target_name}"
+        assert ax.get_xlabel() == "Trial Number"
+        assert ax.get_ylabel() == "Objective Value"
+        assert any(
+            f"Hyperparameter optimization for fine-tuned {expected_model_name}" == text.get_text()
+            for text in ax.texts
+        )
+
+    def test_plots_sorted_objective_values_and_running_best(
+        self,
+        objective_values: pd.DataFrame,
+    ) -> None:
+        """Objective value plot sorts trials, shifts numbering to one-based, and plots the running best."""
+        fig = make_objective_values_plot(
+            objective_values=objective_values,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        ax = fig.axes[0]
+
+        assert len(ax.lines) == 2
+
+        np.testing.assert_allclose(ax.lines[0].get_xdata(), np.array([1, 2, 3, 4]))
+        np.testing.assert_allclose(ax.lines[0].get_ydata(), np.array([0.35, 0.62, 0.71, 0.68]))
+
+        np.testing.assert_allclose(ax.lines[1].get_xdata(), np.array([1, 2, 3, 4]))
+        np.testing.assert_allclose(ax.lines[1].get_ydata(), np.array([0.35, 0.62, 0.71, 0.71]))
+
+    def test_uses_only_interior_trial_ticks(
+        self,
+        objective_values: pd.DataFrame,
+    ) -> None:
+        """Objective value plot suppresses boundary trial ticks."""
+        fig = make_objective_values_plot(
+            objective_values=objective_values,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        ax = fig.axes[0]
+        ticks = ax.get_xticks()
+        max_trial = objective_values["number"].max() + 1
+
+        assert all(1 < tick < max_trial for tick in ticks)
+
+    def test_sets_expected_y_axis_scale(
+        self,
+        objective_values: pd.DataFrame,
+    ) -> None:
+        """Objective value plot uses the expected bounded objective-value scale."""
+        fig = make_objective_values_plot(
+            objective_values=objective_values,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        ax = fig.axes[0]
+
+        assert ax.get_ylim() == (0.0, 1.0)
+        np.testing.assert_allclose(ax.get_yticks(), np.array([0.2, 0.4, 0.6, 0.8]))
+
+    def test_does_not_mutate_input_dataframe(
+        self,
+        objective_values: pd.DataFrame,
+    ) -> None:
+        """Objective value plot does not modify the caller-provided dataframe."""
+        original = objective_values.copy(deep=True)
+
+        make_objective_values_plot(
+            objective_values=objective_values,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+        )
+
+        pd.testing.assert_frame_equal(objective_values, original)
+
+    def test_missing_value_column_raises_key_error(self) -> None:
+        """Objective value plot requires the complete objective-value contract."""
+        incomplete_objective_values = pd.DataFrame(
+            {
+                "number": [0, 1, 2],
+            }
+        )
+
+        with pytest.raises(KeyError):
+            make_objective_values_plot(
+                objective_values=incomplete_objective_values,
+                target_name="Policy",
+                checkpoint="user/model-v1",
             )
