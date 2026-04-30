@@ -23,6 +23,7 @@ dependencies = [
     "typer>=0.12,<1",
     "great-tables>=0.20,<1.0",
     "matplotlib>=3.10,<4",
+    "seaborn>=0.13,<1.0",
 ]
 
 [project.optional-dependencies]
