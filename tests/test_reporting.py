@@ -2,13 +2,21 @@
 
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 from great_tables import GT
+from matplotlib.figure import Figure
 from transformers import TrainingArguments
 
-from tlmtc.reporting import make_global_metrics_table, make_hyperparameters_table, make_label_metrics_table
+from tlmtc.reporting import (
+    make_cooccurrence_heatmaps_plot,
+    make_global_metrics_table,
+    make_hyperparameters_table,
+    make_label_metrics_table,
+    make_roc_curves_plot,
+)
 
 
 @pytest.fixture
@@ -73,6 +81,49 @@ def label_eval_metrics() -> dict[str, dict[str, float]]:
             "pred_support": 0.55,
         },
     }
+
+
+@pytest.fixture
+def roc_curves() -> dict[str, dict[int | str, np.ndarray | float]]:
+    """Provide ROC curve payload matching the reporting contract."""
+    return {
+        "fpr": {
+            0: np.array([0.0, 0.2, 1.0]),
+            1: np.array([0.0, 0.1, 1.0]),
+            "micro": np.array([0.0, 0.15, 1.0]),
+            "macro": np.array([0.0, 0.18, 1.0]),
+        },
+        "tpr": {
+            0: np.array([0.0, 0.8, 1.0]),
+            1: np.array([0.0, 0.9, 1.0]),
+            "micro": np.array([0.0, 0.85, 1.0]),
+            "macro": np.array([0.0, 0.84, 1.0]),
+        },
+        "roc_auc": {
+            0: 0.82,
+            1: 0.91,
+            "micro": 0.87,
+            "macro": 0.86,
+        },
+    }
+
+
+@pytest.fixture
+def co_occurrence() -> dict[str, np.ndarray]:
+    """Provide co-occurrence matrices matching the reporting contract."""
+    return {
+        "co_true_abs": np.array([[3, 1], [1, 2]]),
+        "co_true_rel": np.array([[1.0, 0.41], [0.41, 1.0]]),
+        "co_pred_abs": np.array([[2, 1], [1, 3]]),
+        "co_pred_rel": np.array([[1.0, 0.33], [0.33, 1.0]]),
+    }
+
+
+@pytest.fixture(autouse=True)
+def cleanup_plots():
+    """Automatically close all figures after every test."""
+    yield
+    plt.close("all")
 
 
 @pytest.fixture
@@ -355,3 +406,162 @@ class TestMakeHyperparametersTable:
         assert "Policy" in html
         assert "model-v1" in html
         assert "Hyperparameters" in html
+
+
+class TestMakeRocCurvesPlot:
+    """Tests for ROC curve plot rendering."""
+
+    def test_returns_figure(
+        self,
+        roc_curves: dict[str, dict[int | str, np.ndarray | float]],
+    ) -> None:
+        """ROC curve reporting returns a Matplotlib figure."""
+        fig = make_roc_curves_plot(
+            roc_curves=roc_curves,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            label_names=["label_a", "label_b"],
+        )
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1
+
+    @pytest.mark.parametrize(
+        ("target_name", "checkpoint", "expected_model_name"),
+        [
+            ("Policy", "user/model-v1", "model-v1"),
+            ("Risk", "org/nested-model", "nested-model"),
+        ],
+    )
+    def test_renders_expected_axes_metadata_and_legend(
+        self,
+        roc_curves: dict[str, dict[int | str, np.ndarray | float]],
+        target_name: str,
+        checkpoint: str,
+        expected_model_name: str,
+    ) -> None:
+        """ROC curve plot renders titles, labels, subtitle, and summary legend entries."""
+        fig = make_roc_curves_plot(
+            roc_curves=roc_curves,
+            target_name=target_name,
+            checkpoint=checkpoint,
+            label_names=["label_a", "label_b"],
+        )
+
+        ax = fig.axes[0]
+        legend = ax.get_legend()
+
+        assert ax.get_title() == f"Multi-label Classification of {target_name}"
+        assert ax.get_xlabel() == "False Positive Rate"
+        assert ax.get_ylabel() == "True Positive Rate"
+        assert ax.texts[0].get_text() == f"Discriminative performance for fine-tuned {expected_model_name}"
+        assert legend is not None
+        assert [text.get_text() for text in legend.get_texts()] == [
+            "Micro (AUC = 0.87)",
+            "Macro (AUC = 0.86)",
+        ]
+
+    def test_plots_micro_macro_label_and_baseline_lines(
+        self,
+        roc_curves: dict[str, dict[int | str, np.ndarray | float]],
+    ) -> None:
+        """ROC curve plot contains one line per label plus micro, macro, and diagonal baseline."""
+        label_names = ["label_a", "label_b"]
+
+        fig = make_roc_curves_plot(
+            roc_curves=roc_curves,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            label_names=label_names,
+        )
+
+        ax = fig.axes[0]
+        assert len(ax.lines) == len(label_names) + 3
+
+    def test_missing_curve_key_raises_key_error(self) -> None:
+        """ROC curve plot requires the complete ROC curve contract."""
+        with pytest.raises(KeyError):
+            make_roc_curves_plot(
+                roc_curves={},
+                target_name="Policy",
+                checkpoint="user/model-v1",
+                label_names=["label_a", "label_b"],
+            )
+
+
+class TestMakeCooccurrenceHeatmapsPlot:
+    """Tests for co-occurrence heatmap rendering."""
+
+    def test_returns_figure(
+        self,
+        co_occurrence: dict[str, np.ndarray],
+    ) -> None:
+        """Co-occurrence heatmap reporting returns a Matplotlib figure."""
+        fig = make_cooccurrence_heatmaps_plot(
+            co_occurrence=co_occurrence,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            label_names=["label_a", "label_b"],
+        )
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 3
+
+    @pytest.mark.parametrize(
+        ("target_name", "checkpoint", "expected_model_name"),
+        [
+            ("Policy", "user/model-v1", "model-v1"),
+            ("Risk", "org/nested-model", "nested-model"),
+        ],
+    )
+    def test_renders_expected_titles_and_metadata(
+        self,
+        co_occurrence: dict[str, np.ndarray],
+        target_name: str,
+        checkpoint: str,
+        expected_model_name: str,
+    ) -> None:
+        """Co-occurrence heatmaps render panel titles and figure metadata."""
+        fig = make_cooccurrence_heatmaps_plot(
+            co_occurrence=co_occurrence,
+            target_name=target_name,
+            checkpoint=checkpoint,
+            label_names=["label_a", "label_b"],
+        )
+
+        ax_true, ax_pred = fig.axes[:2]
+        figure_texts = [text.get_text() for text in fig.texts]
+
+        assert fig.get_suptitle() == f"Multi-label Classification of {target_name}"
+        assert f"Structural alignment for fine-tuned {expected_model_name}" in figure_texts
+        assert ax_true.get_title() == "True label co-occurrence"
+        assert ax_pred.get_title() == "Predicted label co-occurrence"
+        assert [tick.get_text() for tick in ax_true.get_xticklabels()] == ["label_a", "label_b"]
+        assert [tick.get_text() for tick in ax_true.get_yticklabels()] == ["label_a", "label_b"]
+
+    def test_annotates_all_cells(
+        self,
+        co_occurrence: dict[str, np.ndarray],
+    ) -> None:
+        """Co-occurrence heatmaps annotate every matrix cell with absolute counts."""
+        fig = make_cooccurrence_heatmaps_plot(
+            co_occurrence=co_occurrence,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            label_names=["label_a", "label_b"],
+        )
+
+        ax_true, ax_pred = fig.axes[:2]
+
+        assert [text.get_text() for text in ax_true.texts] == ["3", "1", "1", "2"]
+        assert [text.get_text() for text in ax_pred.texts] == ["2", "1", "1", "3"]
+
+    def test_missing_matrix_key_raises_key_error(self) -> None:
+        """Co-occurrence heatmap plot requires the complete co-occurrence contract."""
+        with pytest.raises(KeyError):
+            make_cooccurrence_heatmaps_plot(
+                co_occurrence={},
+                target_name="Policy",
+                checkpoint="user/model-v1",
+                label_names=["label_a", "label_b"],
+            )
