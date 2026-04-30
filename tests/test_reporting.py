@@ -15,6 +15,7 @@ from tlmtc.reporting import (
     make_global_metrics_table,
     make_hyperparameters_table,
     make_label_metrics_table,
+    make_loss_curves_plot,
     make_roc_curves_plot,
 )
 
@@ -564,4 +565,133 @@ class TestMakeCooccurrenceHeatmapsPlot:
                 target_name="Policy",
                 checkpoint="user/model-v1",
                 label_names=["label_a", "label_b"],
+            )
+
+
+@pytest.fixture
+def losses() -> pd.DataFrame:
+    """Provide per-epoch training and evaluation losses for reporting tests."""
+    return pd.DataFrame(
+        {
+            "epoch": [1, 2, 3, 4, 5, 6],
+            "train_loss": [0.92, 0.78, 0.64, 0.53, 0.45, 0.39],
+            "eval_loss": [0.95, 0.81, 0.69, 0.57, 0.49, 0.44],
+        }
+    )
+
+
+class TestMakeLossCurvesPlot:
+    """Tests for loss curve plot rendering."""
+
+    def test_returns_figure(
+        self,
+        losses: pd.DataFrame,
+    ) -> None:
+        """Loss curve reporting returns a Matplotlib figure."""
+        fig = make_loss_curves_plot(
+            losses=losses,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            best_epoch=4,
+        )
+
+        assert isinstance(fig, Figure)
+        assert len(fig.axes) == 1
+
+    @pytest.mark.parametrize(
+        ("target_name", "checkpoint", "expected_model_name"),
+        [
+            ("Policy", "user/model-v1", "model-v1"),
+            ("Risk", "org/nested-model", "nested-model"),
+        ],
+    )
+    def test_renders_expected_metadata_labels_and_legend(
+        self,
+        losses: pd.DataFrame,
+        target_name: str,
+        checkpoint: str,
+        expected_model_name: str,
+    ) -> None:
+        """Loss curve plot renders titles, labels, subtitle, and legend entries."""
+        fig = make_loss_curves_plot(
+            losses=losses,
+            target_name=target_name,
+            checkpoint=checkpoint,
+            best_epoch=4,
+        )
+
+        ax = fig.axes[0]
+        legend = ax.get_legend()
+
+        assert ax.get_title() == f"Multi-label Classification of {target_name}"
+        assert ax.get_xlabel() == "Epoch"
+        assert ax.get_ylabel() == "Loss"
+
+        assert any(f"Training dynamics for fine-tuned {expected_model_name}" == text.get_text() for text in ax.texts)
+
+        assert legend is not None
+        assert [text.get_text() for text in legend.get_texts()] == [
+            "Train Loss",
+            "Eval Loss",
+            "Best Model",
+        ]
+
+    def test_plots_two_loss_curves_and_best_epoch_marker(
+        self,
+        losses: pd.DataFrame,
+    ) -> None:
+        """Loss curve plot contains two loss curves and one best-epoch marker."""
+        best_epoch = 4
+
+        fig = make_loss_curves_plot(
+            losses=losses,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            best_epoch=best_epoch,
+        )
+
+        ax = fig.axes[0]
+
+        assert len(ax.lines) == 3
+
+        np.testing.assert_allclose(ax.lines[0].get_xdata(), losses["epoch"].to_numpy())
+        np.testing.assert_allclose(ax.lines[0].get_ydata(), losses["train_loss"].to_numpy())
+
+        np.testing.assert_allclose(ax.lines[1].get_xdata(), losses["epoch"].to_numpy())
+        np.testing.assert_allclose(ax.lines[1].get_ydata(), losses["eval_loss"].to_numpy())
+
+        np.testing.assert_allclose(ax.lines[2].get_xdata(), np.array([best_epoch, best_epoch]))
+
+    def test_uses_only_interior_epoch_ticks(
+        self,
+        losses: pd.DataFrame,
+    ) -> None:
+        """Loss curve plot suppresses boundary epoch ticks."""
+        fig = make_loss_curves_plot(
+            losses=losses,
+            target_name="Policy",
+            checkpoint="user/model-v1",
+            best_epoch=4,
+        )
+
+        ax = fig.axes[0]
+        ticks = ax.get_xticks()
+
+        assert all(losses["epoch"].min() < tick < losses["epoch"].max() for tick in ticks)
+
+    def test_missing_loss_column_raises_key_error(self) -> None:
+        """Loss curve plot requires the complete losses contract."""
+        incomplete_losses = pd.DataFrame(
+            {
+                "epoch": [1, 2, 3],
+                "train_loss": [0.9, 0.7, 0.5],
+            }
+        )
+
+        with pytest.raises(KeyError):
+            make_loss_curves_plot(
+                losses=incomplete_losses,
+                target_name="Policy",
+                checkpoint="user/model-v1",
+                best_epoch=2,
             )
