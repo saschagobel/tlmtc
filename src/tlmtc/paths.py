@@ -42,6 +42,16 @@ class RunPaths:
         train_data_path: Path to the prepared training split artifact (`train.parquet`).
         val_data_path: Path to the prepared validation split artifact (`val.parquet`).
         test_data_path: Path to the prepared test split artifact (`test.parquet`).
+        optuna_trials_path: Path to the persisted Optuna study SQLite database.
+        global_metrics_path: Path to the global metrics JSON artifact.
+        label_metrics_path: Path to the label metrics JSON artifact.
+        global_metrics_table_path: Path to the global metrics HTML table.
+        label_metrics_table_path: Path to the label metrics HTML table.
+        hyperparameters_table_path: Path to the hyperparameters HTML table.
+        roc_plot_path: Path to the ROC curve PDF.
+        co_occurrence_plot_path: Path to the label co-occurrence PDF.
+        loss_plot_path: Path to the loss curve PDF.
+        objective_values_plot_path: Path to the Optuna objective-values PDF.
     """
 
     work_dir: Path
@@ -59,6 +69,18 @@ class RunPaths:
     train_data_path: Path
     val_data_path: Path
     test_data_path: Path
+
+    optuna_trials_path: Path
+
+    global_metrics_path: Path
+    label_metrics_path: Path
+    global_metrics_table_path: Path
+    label_metrics_table_path: Path
+    hyperparameters_table_path: Path
+    roc_plot_path: Path
+    co_occurrence_plot_path: Path
+    loss_plot_path: Path
+    objective_values_plot_path: Path
 
     def ensure_dirs(
         self,
@@ -131,4 +153,14 @@ def resolve_paths(
         train_data_path=data_dir / "train.parquet",
         val_data_path=data_dir / "val.parquet",
         test_data_path=data_dir / "test.parquet",
+        global_metrics_path=eval_dir / "global_metrics.json",
+        label_metrics_path=eval_dir / "label_metrics.json",
+        global_metrics_table_path=eval_dir / "global_metrics_table.html",
+        label_metrics_table_path=eval_dir / "label_metrics_table.html",
+        hyperparameters_table_path=eval_dir / "hyperparameters_table.html",
+        roc_plot_path=eval_dir / "roc_plot.pdf",
+        co_occurrence_plot_path=eval_dir / "co_occurrence.pdf",
+        loss_plot_path=eval_dir / "loss_plot.pdf",
+        objective_values_plot_path=eval_dir / "objective_values_plot.pdf",
+        optuna_trials_path=logs_dir / "optuna_trials.db",
     )
