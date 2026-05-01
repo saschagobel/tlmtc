@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from tlmtc.data_pipeline import DataPipeline
+from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.paths import RunPaths, resolve_paths
 from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
@@ -165,34 +166,45 @@ def train_tlmtc(
         run_id=settings.run_id,
     ).ensure_dirs()
 
-    processed = (
-        DataPipeline(
-            paths=paths,
-            split=settings.split,
-            model=settings.model,
-        )
-        .split_data()
-        .get_multi_hot_vectors()
-        .create_hf_dataset()
-        .tokenize_data()
+    data_pipeline = DataPipeline(
+        paths=paths,
+        split=settings.split,
+        model=settings.model,
     )
+    data_pipeline.split_data()
+    data_pipeline.get_multi_hot_vectors()
+    data_pipeline.create_hf_dataset()
+    data_pipeline.tokenize_data()
 
-    (
-        FinetunePipeline(
-            tokenized_dataset=processed.tokenized_dataset,
-            paths=paths,
-            model=settings.model,
-            workflow=settings.workflow,
-            peft=settings.peft,
-            training=settings.training,
-            hpo=settings.hpo,
-            threshold=settings.threshold,
-            hardware=settings.hardware,
-        )
-        .load_pretrained()
-        .tune_hyperparameters()
-        .fine_tune_pretrained()
-        .tune_thresholds()
-        .save_pretrained()
+    finetune_pipeline = FinetunePipeline(
+        tokenized_dataset=data_pipeline.tokenized_dataset,
+        paths=paths,
+        model=settings.model,
+        workflow=settings.workflow,
+        peft=settings.peft,
+        training=settings.training,
+        hpo=settings.hpo,
+        threshold=settings.threshold,
+        hardware=settings.hardware,
     )
+    finetune_pipeline.load_pretrained()
+    finetune_pipeline.tune_hyperparameters()
+    finetune_pipeline.fine_tune_pretrained()
+    finetune_pipeline.tune_thresholds()
+    finetune_pipeline.save_pretrained()
+
+    evaluation_pipeline = EvaluationPipeline(
+        tokenized_dataset=data_pipeline.tokenized_dataset,
+        updated_trainer=finetune_pipeline.updated_trainer,
+        paths=paths,
+        model=settings.model,
+        workflow=settings.workflow,
+        training=settings.training,
+        tuned_threshold=finetune_pipeline.tuned_threshold,
+    )
+    evaluation_pipeline.run_evaluation()
+    evaluation_pipeline.save_metrics()
+    evaluation_pipeline.render_tables()
+    evaluation_pipeline.render_figures()
+
     return TrainResult(paths=paths)
