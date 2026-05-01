@@ -3,14 +3,14 @@
 Dataset preparation
 """
 
-from __future__ import annotations
+from typing import Self
 
 import pandas as pd
 import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
-from tlmtc.data_prep import df_preprocess, df_save, df_split
+from tlmtc.data_preparation import df_preprocess, df_save, df_split
 from tlmtc.paths import RunPaths
 from tlmtc.settings import ModelSettings, SplitSettings
 
@@ -51,7 +51,7 @@ class DataPipeline:
         self.hf_dataset: DatasetDict | None = None
         self.tokenized_dataset: DatasetDict | None = None
 
-    def split_data(self) -> DataPipeline:
+    def split_data(self) -> Self:
         """Split data into train, validation and test partitions, reset indices, and save to disk.
 
         Saves
@@ -104,7 +104,7 @@ class DataPipeline:
         df_save(df=self.test_data, path=self.paths.test_data_path)
         return self
 
-    def get_multi_hot_vectors(self) -> DataPipeline:
+    def get_multi_hot_vectors(self) -> Self:
         """Combine label_* columns into a single 'labels' array per row (multi-hot vector).
 
         Returns:
@@ -123,7 +123,7 @@ class DataPipeline:
             setattr(self, attr, df)
         return self
 
-    def create_hf_dataset(self) -> DataPipeline:
+    def create_hf_dataset(self) -> Self:
         """Assemble train and test data in a Hugging Face DatasetDict.
 
         Returns:
@@ -147,7 +147,7 @@ class DataPipeline:
         self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
-    def tokenize_data(self) -> DataPipeline:
+    def tokenize_data(self) -> Self:
         """Tokenize text and convert multi-hot labels to float tensors.
 
         Returns:

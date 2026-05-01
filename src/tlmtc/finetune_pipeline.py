@@ -3,11 +3,9 @@
 Hyperparameter tuning and model fine-tuning.
 """
 
-from __future__ import annotations
-
 from functools import partial
 from tempfile import TemporaryDirectory
-from typing import Any, Protocol
+from typing import Any, Protocol, Self
 
 import numpy as np
 import pandas as pd
@@ -108,7 +106,7 @@ class FinetunePipeline:
 
     def load_pretrained(
         self,
-    ) -> FinetunePipeline:
+    ) -> Self:
         """Load a pretrained Hugging Face model for multi-label classification and optionally wrap with peft.
 
         Returns:
@@ -141,7 +139,7 @@ class FinetunePipeline:
     def tune_hyperparameters(
         self,
         trainer: TrainerFactory = WeightedTrainer,
-    ) -> FinetunePipeline:
+    ) -> Self:
         """Run automated hyperparameter optimization on the pretrained Hugging Face proxy model using Optuna.
 
         Parameters
@@ -230,7 +228,7 @@ class FinetunePipeline:
     def fine_tune_pretrained(
         self,
         trainer: TrainerFactory = WeightedTrainer,
-    ) -> FinetunePipeline:
+    ) -> Self:
         """Fine-tune a pretrained Hugging Face model for multi-label classification.
 
         Parameters
@@ -272,7 +270,7 @@ class FinetunePipeline:
         self.updated_trainer = trainer_instance
         return self
 
-    def tune_thresholds(self) -> FinetunePipeline:
+    def tune_thresholds(self) -> Self:
         """Tune decision threshold(s) on the validation split using the trained model.
 
         This step is post-training calibration: it does not update model weights.
@@ -305,7 +303,7 @@ class FinetunePipeline:
 
     def save_pretrained(
         self,
-    ) -> FinetunePipeline:
+    ) -> Self:
         """Save a fine-tuned Hugging Face model for multi-label classification.
 
         Returns:
