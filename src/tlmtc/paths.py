@@ -3,8 +3,6 @@
 Builds a `RunPaths` bundle that defines the standard on-disk layout for a single run.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Self

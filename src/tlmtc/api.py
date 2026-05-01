@@ -3,8 +3,6 @@
 Defines the user-facing library entrypoint for executing the tlmtc pipeline.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
