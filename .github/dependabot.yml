@@ -11,6 +11,7 @@ updates:
     cooldown:
       default-days: 14
     open-pull-requests-limit: 5
+    versioning-strategy: "increase-if-necessary"
     commit-message:
       prefix: "chore"
     labels:
