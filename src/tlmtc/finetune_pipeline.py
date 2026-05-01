@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from functools import partial
 from tempfile import TemporaryDirectory
-from typing import Any, Protocol, Union
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
@@ -104,7 +104,7 @@ class FinetunePipeline:
         self.pretrained_model: PreTrainedModel | None = None
         self.updated_trainer: Trainer | None = None
         self.num_labels: int | None = None
-        self.tuned_threshold: Union[float, np.ndarray] = 0.5
+        self.tuned_threshold: np.ndarray = np.array([0.5], dtype=float)
 
     def load_pretrained(
         self,
@@ -205,7 +205,7 @@ class FinetunePipeline:
                 hp_space=hp_space_fn,
                 n_trials=self.hpo.tuning_trials,
                 study_name=f"{self.model.target_name.replace(' ', '_')}_optuna_study",
-                storage=f"sqlite:///{self.paths.logs_dir.as_posix()}/optuna_trials.db",
+                storage=f"sqlite:///{self.paths.optuna_trials_path.as_posix()}",
                 compute_objective=compute_objective,
                 load_if_exists=True,
             )

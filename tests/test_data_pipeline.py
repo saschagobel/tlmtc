@@ -9,7 +9,7 @@ import torch
 from datasets import Dataset, DatasetDict
 
 from tlmtc.data_pipeline import DataPipeline
-from tlmtc.paths import RunPaths
+from tlmtc.paths import resolve_paths
 from tlmtc.settings import ModelSettings, SplitSettings
 
 
@@ -82,24 +82,11 @@ def pipeline_instance_factory(
     """Factory for DataPipeline instances using in-test RunPaths."""
 
     def _factory(*, raw_csv: Path, raw_test_csv: Path | None) -> DataPipeline:
-        run_id = "test-run"
-        run_dir = tmp_path / "tlmtc_outputs" / run_id
-        data_dir = run_dir / "data"
-        logs_dir = run_dir / "logs"
-        model_dir = run_dir / "model"
-
-        paths = RunPaths(
+        paths = resolve_paths(
+            raw_csv=raw_csv,
+            raw_test_csv=raw_test_csv,
             work_dir=tmp_path,
-            run_dir=run_dir,
-            run_id=run_id,
-            raw_data_path=raw_csv,
-            raw_test_data_path=raw_test_csv,
-            data_dir=data_dir,
-            logs_dir=logs_dir,
-            model_dir=model_dir,
-            train_data_path=data_dir / "train.parquet",
-            val_data_path=data_dir / "val.parquet",
-            test_data_path=data_dir / "test.parquet",
+            run_id="test-run",
         ).ensure_dirs()
 
         return DataPipeline(paths=paths, split=split_settings, model=model_settings)

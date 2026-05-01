@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tlmtc.paths import (
     DEFAULT_DATA_DIRNAME,
+    DEFAULT_EVAL_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
     DEFAULT_MODEL_DIRNAME,
     DEFAULT_OUTPUTS_DIRNAME,
@@ -34,12 +35,24 @@ class TestResolvePaths:
         assert paths.run_id == "run123"
         assert paths.run_dir == expected_run_dir
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
+        assert paths.eval_dir == expected_run_dir / DEFAULT_EVAL_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
         assert paths.model_dir == expected_run_dir / DEFAULT_MODEL_DIRNAME
 
         assert paths.train_data_path == paths.data_dir / "train.parquet"
         assert paths.val_data_path == paths.data_dir / "val.parquet"
         assert paths.test_data_path == paths.data_dir / "test.parquet"
+
+        assert paths.global_metrics_path == paths.eval_dir / "global_metrics.json"
+        assert paths.label_metrics_path == paths.eval_dir / "label_metrics.json"
+        assert paths.global_metrics_table_path == paths.eval_dir / "global_metrics_table.html"
+        assert paths.label_metrics_table_path == paths.eval_dir / "label_metrics_table.html"
+        assert paths.hyperparameters_table_path == paths.eval_dir / "hyperparameters_table.html"
+        assert paths.roc_plot_path == paths.eval_dir / "roc_plot.pdf"
+        assert paths.co_occurrence_plot_path == paths.eval_dir / "co_occurrence.pdf"
+        assert paths.loss_plot_path == paths.eval_dir / "loss_plot.pdf"
+        assert paths.objective_values_plot_path == paths.eval_dir / "objective_values_plot.pdf"
+        assert paths.optuna_trials_path == paths.logs_dir / "optuna_trials.db"
 
     def test_resolves_raw_inputs_independently_from_work_dir(self, tmp_path: Path, monkeypatch) -> None:
         """Ensure relative raw input paths are resolved from cwd, not from work_dir."""
@@ -127,6 +140,7 @@ class TestRunPaths:
         assert result is paths
         assert paths.run_dir.is_dir()
         assert paths.data_dir.is_dir()
+        assert paths.eval_dir.is_dir()
         assert paths.logs_dir.is_dir()
         assert paths.model_dir.is_dir()
 
@@ -143,4 +157,5 @@ class TestRunPaths:
         paths.ensure_dirs()
 
         assert paths.data_dir.is_dir()
+        assert paths.eval_dir.is_dir()
         assert not raw_csv.parent.exists()
