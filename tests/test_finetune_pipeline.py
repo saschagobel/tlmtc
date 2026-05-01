@@ -1,5 +1,6 @@
 """Tests for FinetunePipeline."""
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -12,7 +13,7 @@ from transformers import TrainingArguments
 
 from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.hpo import optuna_hp_space
-from tlmtc.paths import RunPaths
+from tlmtc.paths import resolve_paths
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
@@ -58,21 +59,14 @@ def pipeline_factory(tmp_path, base_search_space):
         model_checkpoint: str = "dummy",
         target_name: str = "dummy",
     ):
-        run_dir = tmp_path / "outputs" / "test-run"
-        paths = RunPaths(
+        paths = resolve_paths(
+            raw_csv=tmp_path / "raw.csv",
+            raw_test_csv=tmp_path / "raw_test.csv",
             work_dir=tmp_path,
-            run_dir=run_dir,
             run_id="test-run",
-            raw_data_path=tmp_path / "raw.csv",
-            raw_test_data_path=tmp_path / "raw_test.csv",
-            data_dir=run_dir / "data",
-            logs_dir=run_dir / "logs",
-            model_dir=run_dir / "model",
-            eval_dir=run_dir / "evaluation",
-            train_data_path=train_path,
-            val_data_path=run_dir / "data" / "val.parquet",
-            test_data_path=run_dir / "data" / "test.parquet",
-        ).ensure_dirs()
+        )
+
+        paths = replace(paths, train_data_path=train_path).ensure_dirs()
 
         model = ModelSettings(
             target_name=target_name,
@@ -411,7 +405,7 @@ class TestTuneHyperparameters:
         assert hp_search_kwargs["n_trials"] == pipeline.hpo.tuning_trials
         assert hp_search_kwargs["study_name"] == f"{pipeline.model.target_name.replace(' ', '_')}_optuna_study"
 
-        expected_storage = f"sqlite:///{pipeline.paths.logs_dir.as_posix()}/optuna_trials.db"
+        expected_storage = f"sqlite:///{pipeline.paths.optuna_trials_path.as_posix()}"
         assert hp_search_kwargs["storage"] == expected_storage
 
         assert callable(hp_search_kwargs["compute_objective"])
