@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from tlmtc.data_contracts import DataContractError
-from tlmtc.data_prep import df_preprocess, df_save, df_split
+from tlmtc.data_preparation import df_preprocess, df_save, df_split
 
 
 class TestDfPreprocess:
