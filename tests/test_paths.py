@@ -43,6 +43,17 @@ class TestResolvePaths:
         assert paths.val_data_path == paths.data_dir / "val.parquet"
         assert paths.test_data_path == paths.data_dir / "test.parquet"
 
+        assert paths.global_metrics_path == paths.eval_dir / "global_metrics.json"
+        assert paths.label_metrics_path == paths.eval_dir / "label_metrics.json"
+        assert paths.global_metrics_table_path == paths.eval_dir / "global_metrics_table.html"
+        assert paths.label_metrics_table_path == paths.eval_dir / "label_metrics_table.html"
+        assert paths.hyperparameters_table_path == paths.eval_dir / "hyperparameters_table.html"
+        assert paths.roc_plot_path == paths.eval_dir / "roc_plot.pdf"
+        assert paths.co_occurrence_plot_path == paths.eval_dir / "co_occurrence.pdf"
+        assert paths.loss_plot_path == paths.eval_dir / "loss_plot.pdf"
+        assert paths.objective_values_plot_path == paths.eval_dir / "objective_values_plot.pdf"
+        assert paths.optuna_trials_path == paths.logs_dir / "optuna_trials.db"
+
     def test_resolves_raw_inputs_independently_from_work_dir(self, tmp_path: Path, monkeypatch) -> None:
         """Ensure relative raw input paths are resolved from cwd, not from work_dir."""
         project_dir = tmp_path / "project"
