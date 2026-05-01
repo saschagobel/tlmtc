@@ -59,7 +59,7 @@ class EvaluationPipeline:
     def __init__(
         self,
         tokenized_dataset: DatasetDict,
-        updated_trainer: Trainer,
+        updated_trainer: Trainer | None,
         paths: RunPaths,
         model: ModelSettings,
         workflow: WorkflowSettings,
@@ -118,6 +118,9 @@ class EvaluationPipeline:
 
         if not self.workflow.transfer_learning:
             return self
+
+        if self.updated_trainer is None:
+            raise RuntimeError("Trained model not found. Run FinetunePipeline.fine_tune_pretrained() first.")
 
         self.label_names = [
             label.removeprefix("label_")
@@ -192,6 +195,9 @@ class EvaluationPipeline:
 
         if self.global_eval_metrics is None or self.label_eval_metrics is None or self.label_names is None:
             raise RuntimeError("Evaluation metrics not found. Run run_evaluation() first.")
+
+        if self.updated_trainer is None:
+            raise RuntimeError("Trained model not found. Run fine-tuning before rendering hyperparameter tables.")
 
         global_metrics_table = make_global_metrics_table(
             eval_metrics=self.global_eval_metrics,
