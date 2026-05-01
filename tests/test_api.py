@@ -1,9 +1,6 @@
 """Tests for the train_tlmtc library entrypoint."""
 
-from __future__ import annotations
-
 from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pandas as pd
@@ -11,18 +8,26 @@ import pytest
 
 import tlmtc.api as train_mod
 
-DATA_PIPELINE_FLUENT: tuple[str, ...] = (
+DATA_PIPELINE_METHODS: tuple[str, ...] = (
     "split_data",
     "get_multi_hot_vectors",
     "create_hf_dataset",
+    "tokenize_data",
 )
 
-FINETUNE_PIPELINE_FLUENT: tuple[str, ...] = (
+FINETUNE_PIPELINE_METHODS: tuple[str, ...] = (
     "load_pretrained",
     "tune_hyperparameters",
     "fine_tune_pretrained",
     "tune_thresholds",
     "save_pretrained",
+)
+
+EVALUATION_PIPELINE_METHODS: tuple[str, ...] = (
+    "run_evaluation",
+    "save_metrics",
+    "render_tables",
+    "render_figures",
 )
 
 
@@ -44,12 +49,46 @@ def raw_test_csv(tmp_path: Path) -> Path:
     return path
 
 
-def _chainable_mock(fluent_methods: tuple[str, ...]) -> MagicMock:
-    """Create a chainable mock where fluent methods return self."""
+def _chainable_mock(methods: tuple[str, ...]) -> MagicMock:
+    """Create a mock whose pipeline methods return self."""
     inst = MagicMock()
-    for meth in fluent_methods:
-        getattr(inst, meth).return_value = inst
+    for method in methods:
+        getattr(inst, method).return_value = inst
     return inst
+
+
+def _mock_successful_pipelines(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[MagicMock, MagicMock, MagicMock, object, object, object]:
+    """Mock successful data, fine-tuning, and evaluation pipelines."""
+    tokenized_dataset = object()
+    updated_trainer = object()
+    tuned_threshold = object()
+
+    data_pipeline = _chainable_mock(DATA_PIPELINE_METHODS)
+    data_pipeline.tokenized_dataset = tokenized_dataset
+    data_pipeline_cls = MagicMock(return_value=data_pipeline)
+
+    finetune_pipeline = _chainable_mock(FINETUNE_PIPELINE_METHODS)
+    finetune_pipeline.updated_trainer = updated_trainer
+    finetune_pipeline.tuned_threshold = tuned_threshold
+    finetune_pipeline_cls = MagicMock(return_value=finetune_pipeline)
+
+    evaluation_pipeline = _chainable_mock(EVALUATION_PIPELINE_METHODS)
+    evaluation_pipeline_cls = MagicMock(return_value=evaluation_pipeline)
+
+    monkeypatch.setattr(train_mod, "DataPipeline", data_pipeline_cls)
+    monkeypatch.setattr(train_mod, "FinetunePipeline", finetune_pipeline_cls)
+    monkeypatch.setattr(train_mod, "EvaluationPipeline", evaluation_pipeline_cls)
+
+    return (
+        data_pipeline_cls,
+        finetune_pipeline_cls,
+        evaluation_pipeline_cls,
+        tokenized_dataset,
+        updated_trainer,
+        tuned_threshold,
+    )
 
 
 def test_train_tlmtc_returns_train_result_and_creates_dirs(
@@ -57,35 +96,37 @@ def test_train_tlmtc_returns_train_result_and_creates_dirs(
     tmp_path: Path,
     raw_csv: Path,
 ) -> None:
-    tokenized = object()
-
-    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
-    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
-    dp_cls = MagicMock(return_value=dp_inst)
-
-    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
-    ft_cls = MagicMock(return_value=ft_inst)
-
-    monkeypatch.setattr(train_mod, "DataPipeline", dp_cls)
-    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
+    (
+        data_pipeline_cls,
+        finetune_pipeline_cls,
+        evaluation_pipeline_cls,
+        tokenized_dataset,
+        updated_trainer,
+        tuned_threshold,
+    ) = _mock_successful_pipelines(monkeypatch)
 
     result = train_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
 
     assert isinstance(result, train_mod.TrainResult)
     assert result.paths.run_id == "run_123"
 
-    # Observable side effects.
     assert result.paths.data_dir.exists()
     assert result.paths.logs_dir.exists()
     assert result.paths.model_dir.exists()
+    assert result.paths.eval_dir.exists()
 
-    # Minimal contract: tokenized dataset flows into finetuning + outputs are wired.
-    _, dp_kwargs = dp_cls.call_args
-    assert dp_kwargs["paths"] == result.paths
+    _, data_kwargs = data_pipeline_cls.call_args
+    assert data_kwargs["paths"] == result.paths
 
-    _, ft_kwargs = ft_cls.call_args
-    assert ft_kwargs["tokenized_dataset"] is tokenized
-    assert ft_kwargs["paths"] == result.paths
+    _, finetune_kwargs = finetune_pipeline_cls.call_args
+    assert finetune_kwargs["tokenized_dataset"] is tokenized_dataset
+    assert finetune_kwargs["paths"] == result.paths
+
+    _, evaluation_kwargs = evaluation_pipeline_cls.call_args
+    assert evaluation_kwargs["tokenized_dataset"] is tokenized_dataset
+    assert evaluation_kwargs["updated_trainer"] is updated_trainer
+    assert evaluation_kwargs["paths"] == result.paths
+    assert evaluation_kwargs["tuned_threshold"] is tuned_threshold
 
 
 def test_train_tlmtc_preserves_explicit_raw_test_path(
@@ -94,14 +135,7 @@ def test_train_tlmtc_preserves_explicit_raw_test_path(
     raw_csv: Path,
     raw_test_csv: Path,
 ) -> None:
-    tokenized = object()
-
-    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
-    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
-    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
-
-    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
-    monkeypatch.setattr(train_mod, "FinetunePipeline", MagicMock(return_value=ft_inst))
+    _mock_successful_pipelines(monkeypatch)
 
     result = train_mod.train_tlmtc(
         raw_csv,
@@ -118,14 +152,7 @@ def test_train_tlmtc_leaves_raw_test_path_absent_when_unset(
     tmp_path: Path,
     raw_csv: Path,
 ) -> None:
-    tokenized = object()
-
-    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
-    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
-    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
-
-    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
-    monkeypatch.setattr(train_mod, "FinetunePipeline", MagicMock(return_value=ft_inst))
+    _mock_successful_pipelines(monkeypatch)
 
     result = train_mod.train_tlmtc(
         raw_csv,
@@ -163,17 +190,7 @@ hpo:
         encoding="utf-8",
     )
 
-    tokenized = object()
-
-    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
-    dp_inst.tokenize_data.return_value = SimpleNamespace(tokenized_dataset=tokenized)
-    dp_cls = MagicMock(return_value=dp_inst)
-
-    ft_inst = _chainable_mock(FINETUNE_PIPELINE_FLUENT)
-    ft_cls = MagicMock(return_value=ft_inst)
-
-    monkeypatch.setattr(train_mod, "DataPipeline", dp_cls)
-    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
+    data_pipeline_cls, finetune_pipeline_cls, _, _, _, _ = _mock_successful_pipelines(monkeypatch)
 
     result = train_mod.train_tlmtc(
         raw_csv,
@@ -183,14 +200,14 @@ hpo:
 
     assert result.paths.run_id == "config_run"
 
-    _, dp_kwargs = dp_cls.call_args
-    assert dp_kwargs["model"].target_name == "Config Target"
-    assert dp_kwargs["model"].sequence_length == 64
-    assert dp_kwargs["split"].random_seed == 123
+    _, data_kwargs = data_pipeline_cls.call_args
+    assert data_kwargs["model"].target_name == "Config Target"
+    assert data_kwargs["model"].sequence_length == 64
+    assert data_kwargs["split"].random_seed == 123
 
-    _, ft_kwargs = ft_cls.call_args
-    assert ft_kwargs["workflow"].wrap_peft is False
-    assert ft_kwargs["hpo"].optuna_space.batch_sizes == [4, 8]
+    _, finetune_kwargs = finetune_pipeline_cls.call_args
+    assert finetune_kwargs["workflow"].wrap_peft is False
+    assert finetune_kwargs["hpo"].optuna_space.batch_sizes == [4, 8]
 
 
 def test_train_tlmtc_propagates_data_pipeline_failure(
@@ -199,14 +216,17 @@ def test_train_tlmtc_propagates_data_pipeline_failure(
     raw_csv: Path,
 ) -> None:
     """Ensure train_tlmtc propagates failures raised during data preparation."""
-    dp_inst = _chainable_mock(DATA_PIPELINE_FLUENT)
-    dp_inst.split_data.side_effect = ValueError("split failed")
-    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=dp_inst))
+    data_pipeline = _chainable_mock(DATA_PIPELINE_METHODS)
+    data_pipeline.split_data.side_effect = ValueError("split failed")
+    monkeypatch.setattr(train_mod, "DataPipeline", MagicMock(return_value=data_pipeline))
 
-    ft_cls = MagicMock()
-    monkeypatch.setattr(train_mod, "FinetunePipeline", ft_cls)
+    finetune_pipeline_cls = MagicMock()
+    evaluation_pipeline_cls = MagicMock()
+    monkeypatch.setattr(train_mod, "FinetunePipeline", finetune_pipeline_cls)
+    monkeypatch.setattr(train_mod, "EvaluationPipeline", evaluation_pipeline_cls)
 
     with pytest.raises(ValueError, match="split failed"):
         train_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_fail")
 
-    ft_cls.assert_not_called()
+    finetune_pipeline_cls.assert_not_called()
+    evaluation_pipeline_cls.assert_not_called()
