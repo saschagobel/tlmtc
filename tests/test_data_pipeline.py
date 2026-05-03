@@ -350,6 +350,29 @@ class TestGetMultiHot:
         with pytest.raises(RuntimeError, match="Train/val/test data not found"):
             dp.get_multi_hot_vectors()
 
+    def test_preserves_text_pair_column_for_paired_text_inputs(
+        self,
+        sample_paired_raw_csv: Path,
+        sample_paired_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure paired-text inputs keep text_pair when labels are converted to multi-hot vectors."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_paired_raw_csv,
+            raw_test_csv=sample_paired_raw_test_csv,
+        )
+
+        dp.split_data().get_multi_hot_vectors()
+
+        for split_attr in ("train_data", "val_data", "test_data"):
+            df = getattr(dp, split_attr)
+
+            assert list(df.columns) == ["text", TEXT_PAIR_COL, "labels"]
+
+            labels = df["labels"].iloc[0]
+            assert isinstance(labels, list)
+            assert len(labels) == 2
+
 
 class TestCreateHFDataset:
     """Test suite for the DataPipeline.create_hf_dataset method."""
@@ -377,8 +400,10 @@ class TestCreateHFDataset:
         assert isinstance(train_split, Dataset)
 
         assert "text" in train_split.features
+        assert TEXT_PAIR_COL not in train_split.features
         assert "labels" in train_split.features
 
+        assert train_split.features["text"].dtype == "string"
         labels_feature = train_split.features["labels"]
         assert labels_feature.feature.dtype == "int64"
 
@@ -413,6 +438,39 @@ class TestCreateHFDataset:
 
         with pytest.raises(RuntimeError, match="Missing 'labels'"):
             dp.create_hf_dataset()
+
+    def test_constructs_paired_text_dataset_schema_when_text_pair_is_present(
+        self,
+        sample_paired_raw_csv: Path,
+        sample_paired_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure create_hf_dataset includes text_pair in paired-text mode."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_paired_raw_csv,
+            raw_test_csv=sample_paired_raw_test_csv,
+        )
+
+        dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+
+        assert isinstance(dp.hf_dataset, DatasetDict)
+
+        train_split = dp.hf_dataset["train"]
+
+        assert "text" in train_split.features
+        assert TEXT_PAIR_COL in train_split.features
+        assert "labels" in train_split.features
+
+        assert train_split.features["text"].dtype == "string"
+        assert train_split.features[TEXT_PAIR_COL].dtype == "string"
+
+        labels_feature = train_split.features["labels"]
+        assert labels_feature.feature.dtype == "int64"
+
+        example = train_split[0]
+        assert isinstance(example["text"], str)
+        assert isinstance(example[TEXT_PAIR_COL], str)
+        assert isinstance(example["labels"], list)
 
 
 class TestTokenizeData:
