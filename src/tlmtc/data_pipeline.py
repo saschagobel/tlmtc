@@ -10,7 +10,14 @@ import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
-from tlmtc.data_contracts import TEXT_COL, DataContractError, InputMode, validate_multilabel_frame
+from tlmtc.data_contracts import (
+    LABEL_PREFIX,
+    TEXT_COL,
+    TEXT_PAIR_COL,
+    DataContractError,
+    InputMode,
+    validate_multilabel_frame,
+)
 from tlmtc.data_preparation import df_preprocess, df_save, df_split
 from tlmtc.paths import RunPaths
 from tlmtc.settings import ModelSettings, SplitSettings
@@ -120,20 +127,12 @@ class DataPipeline:
                 )
 
             self.train_data, self.val_data = df_split(
-                df=df,
-                X=X,
-                y=y,
-                test_size=self.split.validation_size,
-                random_seed=self.split.random_seed
+                df=df, X=X, y=y, test_size=self.split.validation_size, random_seed=self.split.random_seed
             )
             self.test_data = df_test.reset_index(drop=True)
         else:
             full_train_data, self.test_data = df_split(
-                df=df,
-                X=X,
-                y=y,
-                test_size=self.split.test_size,
-                random_seed=self.split.random_seed
+                df=df, X=X, y=y, test_size=self.split.test_size, random_seed=self.split.random_seed
             )
             self.train_data, self.val_data = df_split(
                 df=full_train_data,
@@ -149,46 +148,49 @@ class DataPipeline:
         return self
 
     def get_multi_hot_vectors(self) -> Self:
-        """Combine label_* columns into a single 'labels' array per row (multi-hot vector).
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Combine label_* columns into a single 'labels' array per row (multi-hot vector)."""
         if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/val/test data not found. Run split_data() first.")
 
-        label_cols = [col for col in self.train_data.columns if col.startswith("label_")]
-        splits = ["train_data", "val_data", "test_data"]
-        for attr in splits:
+        label_cols = [col for col in self.train_data.columns if col.startswith(LABEL_PREFIX)]
+        input_cols = [TEXT_COL]
+        if self.input_mode is InputMode.PAIRED_TEXT:
+            input_cols.append(TEXT_PAIR_COL)
+
+        for attr in ("train_data", "val_data", "test_data"):
             df = getattr(self, attr).copy()
             df["labels"] = df[label_cols].values.tolist()
-            df = df[["text", "labels"]]
+            df = df[[*input_cols, "labels"]]
             setattr(self, attr, df)
         return self
 
     def create_hf_dataset(self) -> Self:
-        """Assemble train and test data in a Hugging Face DatasetDict.
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Assemble train and test data in a Hugging Face DatasetDict."""
         if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/val/test data not found. Run split_data() first.")
+
         if "labels" not in self.train_data.columns:
             raise RuntimeError("Missing 'labels' column. Run get_multi_hot_vectors() first")
-        features = Features(
+
+        feature_spec = {
+            TEXT_COL: Value(dtype="string"),
+        }
+        if self.input_mode is InputMode.PAIRED_TEXT:
+            feature_spec[TEXT_PAIR_COL] = Value(dtype="string")
+        feature_spec["labels"] = Sequence(Value(dtype="int64"))
+        features = Features(feature_spec)
+
+        dataset_train = Dataset.from_pandas(self.train_data, features=features, preserve_index=False)
+        dataset_val = Dataset.from_pandas(self.val_data, features=features, preserve_index=False)
+        dataset_test = Dataset.from_pandas(self.test_data, features=features, preserve_index=False)
+
+        self.hf_dataset = DatasetDict(
             {
-                "text": Value(dtype="string"),
-                "labels": Sequence(Value(dtype="int64")),
+                "train": dataset_train,
+                "validation": dataset_val,
+                "test": dataset_test,
             }
         )
-        dataset_train = Dataset.from_pandas(self.train_data, features=features)
-        dataset_val = Dataset.from_pandas(self.val_data, features=features)
-        dataset_test = Dataset.from_pandas(self.test_data, features=features)
-        dataset_dict = DatasetDict({"train": dataset_train, "validation": dataset_val, "test": dataset_test})
-        self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
     def tokenize_data(self) -> Self:
