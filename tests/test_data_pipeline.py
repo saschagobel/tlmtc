@@ -8,6 +8,7 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 
+from tlmtc.data_contracts import TEXT_PAIR_COL, DataContractError, InputMode
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.paths import resolve_paths
 from tlmtc.settings import ModelSettings, SplitSettings
@@ -42,6 +43,48 @@ def sample_raw_csv(tmp_path: Path):
 
 
 @pytest.fixture
+def sample_paired_raw_csv(tmp_path: Path) -> Path:
+    """Create a small synthetic paired-text multi-label dataset and write it to raw.csv."""
+    df = pd.DataFrame(
+        {
+            "text": [
+                "query hello world",
+                "query foo bar",
+                "query hello",
+                "query bar world",
+                "query alpha beta",
+                "query gamma delta",
+                "query epsilon zeta",
+                "query eta theta",
+                "query iota kappa",
+                "query lambda mu",
+                "query nu xi",
+                "query omicron pi",
+            ],
+            TEXT_PAIR_COL: [
+                "answer hello world",
+                "answer foo bar",
+                "answer hello",
+                "answer bar world",
+                "answer alpha beta",
+                "answer gamma delta",
+                "answer epsilon zeta",
+                "answer eta theta",
+                "answer iota kappa",
+                "answer lambda mu",
+                "answer nu xi",
+                "answer omicron pi",
+            ],
+            "label_a": [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+            "label_b": [0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0],
+        }
+    )
+    csv_path = tmp_path / "paired_raw.csv"
+    df.to_csv(csv_path, index=False)
+    return csv_path
+
+
+@pytest.fixture
 def sample_raw_test_csv(tmp_path: Path):
     """Create a small synthetic multi-label test dataset and write it to raw_test.csv."""
     df = pd.DataFrame(
@@ -52,6 +95,22 @@ def sample_raw_test_csv(tmp_path: Path):
         }
     )
     csv_path = tmp_path / "raw_test.csv"
+    df.to_csv(csv_path, index=False)
+    return csv_path
+
+
+@pytest.fixture
+def sample_paired_raw_test_csv(tmp_path: Path) -> Path:
+    """Create a small synthetic paired-text multi-label test dataset and write it to raw_test.csv."""
+    df = pd.DataFrame(
+        {
+            "text": ["query ooqz world", "query foo hello", "query hello bar", "query bar baz"],
+            TEXT_PAIR_COL: ["answer ooqz world", "answer foo hello", "answer hello bar", "answer bar baz"],
+            "label_a": [1, 1, 0, 0],
+            "label_b": [1, 0, 1, 0],
+        }
+    )
+    csv_path = tmp_path / "paired_raw_test.csv"
     df.to_csv(csv_path, index=False)
     return csv_path
 
@@ -113,6 +172,7 @@ class TestSplitData:
 
         dp.split_data()
 
+        assert dp.input_mode is InputMode.SINGLE_TEXT
         assert dp.paths.train_data_path.exists()
         assert dp.paths.val_data_path.exists()
         assert dp.paths.test_data_path.exists()
@@ -163,8 +223,8 @@ class TestSplitData:
         tmp_path: Path,
         sample_raw_csv: Path,
         pipeline_instance_factory: Callable,
-    ):
-        """Ensure split_data raises ValueError when train and test label columns differ."""
+    ) -> None:
+        """Ensure split_data rejects train/test files with different label columns."""
         df_test = pd.DataFrame(
             {
                 "text": ["x", "y"],
@@ -180,8 +240,71 @@ class TestSplitData:
             raw_test_csv=mismatched_test_path,
         )
 
-        with pytest.raises(ValueError, match="Mismatch between train/test label columns"):
+        with pytest.raises(DataContractError, match="Label column mismatch between raw_csv and raw_test_csv"):
             dp.split_data()
+
+    def test_sets_paired_text_input_mode_when_text_pair_is_present(
+        self,
+        sample_paired_raw_csv: Path,
+        sample_paired_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure split_data records paired-text mode when text_pair is present."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_paired_raw_csv,
+            raw_test_csv=sample_paired_raw_test_csv,
+        )
+
+        dp.split_data()
+
+        assert dp.input_mode is InputMode.PAIRED_TEXT
+
+        train_df = pd.read_parquet(dp.paths.train_data_path)
+        val_df = pd.read_parquet(dp.paths.val_data_path)
+        test_df = pd.read_parquet(dp.paths.test_data_path)
+
+        assert TEXT_PAIR_COL in train_df.columns
+        assert TEXT_PAIR_COL in val_df.columns
+        assert TEXT_PAIR_COL in test_df.columns
+
+    def test_raises_error_on_mismatched_input_modes_between_raw_and_raw_test(
+        self,
+        sample_raw_csv: Path,
+        sample_paired_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure split_data rejects single-text train data with paired-text test data."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=sample_paired_raw_test_csv,
+        )
+
+        with pytest.raises(DataContractError, match="Input mode mismatch between raw_csv and raw_test_csv"):
+            dp.split_data()
+
+    def test_validates_persisted_split_input_modes_when_reusing_cached_splits(
+        self,
+        sample_raw_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure cached persisted splits are revalidated before reuse."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=None,
+        )
+        dp.split_data()
+
+        test_df = pd.read_parquet(dp.paths.test_data_path)
+        test_df[TEXT_PAIR_COL] = ["paired text"] * len(test_df)
+        test_df.to_parquet(dp.paths.test_data_path, index=False)
+
+        resumed_dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=None,
+        )
+
+        with pytest.raises(DataContractError, match="Input mode mismatch between persisted splits"):
+            resumed_dp.split_data()
 
 
 class TestGetMultiHot:

@@ -9,6 +9,7 @@ from tlmtc.data_contracts import (
     TEXT_COL,
     TEXT_PAIR_COL,
     DataContractError,
+    InputMode,
     validate_multilabel_frame,
 )
 
@@ -37,9 +38,10 @@ class TestValidateMultilabelFrame:
     def test_validates_minimal_multilabel_frame(self, valid_frame: FrameFactory) -> None:
         df = valid_frame()
 
-        validated, label_cols = validate_multilabel_frame(df)
+        validated, label_cols, input_mode = validate_multilabel_frame(df)
 
         assert label_cols == ["label_a", "label_b"]
+        assert input_mode is InputMode.SINGLE_TEXT
         pd.testing.assert_frame_equal(
             validated,
             pd.DataFrame(
@@ -54,9 +56,10 @@ class TestValidateMultilabelFrame:
     def test_keeps_optional_text_pair_column_when_present(self, valid_frame: FrameFactory) -> None:
         df = valid_frame(**{TEXT_PAIR_COL: ["first pair", "second pair"]})
 
-        validated, label_cols = validate_multilabel_frame(df)
+        validated, label_cols, input_mode = validate_multilabel_frame(df)
 
         assert label_cols == ["label_a", "label_b"]
+        assert input_mode is InputMode.PAIRED_TEXT
         pd.testing.assert_frame_equal(
             validated,
             pd.DataFrame(
@@ -72,8 +75,9 @@ class TestValidateMultilabelFrame:
     def test_projects_to_text_and_label_columns(self, valid_frame: FrameFactory) -> None:
         df = valid_frame(unused_metadata=["x", "y"])
 
-        validated, _ = validate_multilabel_frame(df)
+        validated, _, input_mode = validate_multilabel_frame(df)
 
+        assert input_mode is InputMode.SINGLE_TEXT
         assert list(validated.columns) == [TEXT_COL, "label_a", "label_b"]
 
     def test_preserves_label_column_order(self) -> None:
@@ -85,16 +89,18 @@ class TestValidateMultilabelFrame:
             }
         )
 
-        validated, label_cols = validate_multilabel_frame(df)
+        validated, label_cols, input_mode = validate_multilabel_frame(df)
 
         assert label_cols == ["label_b", "label_a"]
+        assert input_mode is InputMode.SINGLE_TEXT
         assert list(validated.columns) == [TEXT_COL, "label_b", "label_a"]
 
     def test_coerces_numeric_label_values_to_integer(self, valid_frame: FrameFactory) -> None:
         df = valid_frame(label_a=[1.0, 0.0], label_b=[0.0, 1.0])
 
-        validated, _ = validate_multilabel_frame(df)
+        validated, _, input_mode = validate_multilabel_frame(df)
 
+        assert input_mode is InputMode.SINGLE_TEXT
         pd.testing.assert_frame_equal(
             validated[["label_a", "label_b"]],
             pd.DataFrame({"label_a": [1, 0], "label_b": [0, 1]}, dtype="int64"),

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tlmtc.data_contracts import DataContractError
+from tlmtc.data_contracts import DataContractError, InputMode
 from tlmtc.data_preparation import df_preprocess, df_save, df_split
 
 
@@ -24,9 +24,10 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y = df_preprocess(csv_path)
+        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
 
         assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.SINGLE_TEXT
         pd.testing.assert_frame_equal(
             df,
             pd.DataFrame(
@@ -52,9 +53,10 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y = df_preprocess(csv_path)
+        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
 
         assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.PAIRED_TEXT
         pd.testing.assert_frame_equal(df, df_in)
         np.testing.assert_array_equal(X, np.array(["query a", "query b"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
