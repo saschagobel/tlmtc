@@ -10,6 +10,7 @@ import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
+from tlmtc.data_contracts import TEXT_COL, DataContractError, InputMode, validate_multilabel_frame
 from tlmtc.data_preparation import df_preprocess, df_save, df_split
 from tlmtc.paths import RunPaths
 from tlmtc.settings import ModelSettings, SplitSettings
@@ -22,6 +23,7 @@ class DataPipeline:
         paths: Resolved filesystem locations for raw inputs and persisted splits.
         split: Split configuration (validation/test fractions and random seed).
         model: Tokenization-related configuration (checkpoint and max sequence length).
+        input_mode: Input mode inferred from validated raw data or persisted splits.
         train_data: Training split dataframe
         val_data: Validation split dataframe
         test_data: Test split dataframe
@@ -45,6 +47,7 @@ class DataPipeline:
         self.paths = paths
         self.split = split
         self.model = model
+        self.input_mode: InputMode | None = None
         self.train_data: pd.DataFrame | None = None
         self.val_data: pd.DataFrame | None = None
         self.test_data: pd.DataFrame | None = None
@@ -67,33 +70,74 @@ class DataPipeline:
         val_data_exists = self.paths.val_data_path.exists()
 
         if train_data_exists and val_data_exists and test_data_exists:
-            self.train_data = pd.read_parquet(self.paths.train_data_path)
-            self.val_data = pd.read_parquet(self.paths.val_data_path)
-            self.test_data = pd.read_parquet(self.paths.test_data_path)
+            self.train_data, label_cols, self.input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.train_data_path)
+            )
+            self.val_data, val_label_cols, val_input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.val_data_path)
+            )
+            self.test_data, test_label_cols, test_input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.test_data_path)
+            )
+
+            if label_cols != val_label_cols or label_cols != test_label_cols:
+                raise DataContractError(
+                    "Label column mismatch between persisted splits: "
+                    f"train has {label_cols}, validation has {val_label_cols}, test has {test_label_cols}."
+                )
+
+            if self.input_mode is not val_input_mode or self.input_mode is not test_input_mode:
+                raise DataContractError(
+                    "Input mode mismatch between persisted splits: "
+                    f"train is '{self.input_mode.value}', "
+                    f"validation is '{val_input_mode.value}', "
+                    f"test is '{test_input_mode.value}'."
+                )
+
             return self
 
         if not self.paths.raw_data_path.exists():
             raise FileNotFoundError(f"Raw data not found at {self.paths.raw_data_path}.")
-        df, label_cols, X, y = df_preprocess(self.paths.raw_data_path)
+
+        df, label_cols, X, y, input_mode = df_preprocess(self.paths.raw_data_path)
+        self.input_mode = input_mode
 
         if self.paths.raw_test_data_path is not None:
             if not self.paths.raw_test_data_path.exists():
                 raise FileNotFoundError(f"Raw test data not found at {self.paths.raw_test_data_path}.")
 
-            df_test, label_cols_test, _, _ = df_preprocess(self.paths.raw_test_data_path)
+            df_test, label_cols_test, _, _, test_input_mode = df_preprocess(self.paths.raw_test_data_path)
             if label_cols != label_cols_test:
-                raise ValueError("Mismatch between train/test label columns")
+                raise DataContractError(
+                    "Label column mismatch between raw_csv and raw_test_csv: "
+                    f"raw_csv has {label_cols}, raw_test_csv has {label_cols_test}."
+                )
+
+            if self.input_mode is not test_input_mode:
+                raise DataContractError(
+                    "Input mode mismatch between raw_csv and raw_test_csv: "
+                    f"raw_csv is '{self.input_mode.value}', but raw_test_csv is '{test_input_mode.value}'."
+                )
+
             self.train_data, self.val_data = df_split(
-                df=df, X=X, y=y, test_size=self.split.validation_size, random_seed=self.split.random_seed
+                df=df,
+                X=X,
+                y=y,
+                test_size=self.split.validation_size,
+                random_seed=self.split.random_seed
             )
             self.test_data = df_test.reset_index(drop=True)
         else:
             full_train_data, self.test_data = df_split(
-                df=df, X=X, y=y, test_size=self.split.test_size, random_seed=self.split.random_seed
+                df=df,
+                X=X,
+                y=y,
+                test_size=self.split.test_size,
+                random_seed=self.split.random_seed
             )
             self.train_data, self.val_data = df_split(
                 df=full_train_data,
-                X=full_train_data["text"].values,
+                X=full_train_data[TEXT_COL].values,
                 y=full_train_data[label_cols].values,
                 test_size=self.split.validation_size,
                 random_seed=self.split.random_seed,
