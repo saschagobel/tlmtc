@@ -5,9 +5,25 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from typing import Any
 
-from tlmtc.data_contracts import DataContractError, InputMode
-from tlmtc.data_preparation import df_preprocess, df_save, df_split
+from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
+from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
+
+
+class RecordingTokenizer:
+    """Minimal tokenizer stand-in that records calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+        self.output = {
+            "input_ids": [[1, 2, 3]],
+            "attention_mask": [[1, 1, 1]],
+        }
+
+    def __call__(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append((args, kwargs))
+        return self.output
 
 
 class TestDfPreprocess:
@@ -198,3 +214,56 @@ class TestDfSave:
 
         assert out_path.exists()
         assert out_path.parent.exists()
+
+
+class TestTokenizeBatch:
+    """Test suite for the tokenize_batch utility function."""
+
+    def test_tokenizes_single_text_with_single_sequence_truncation(self) -> None:
+        tokenizer = RecordingTokenizer()
+        batch = {
+            TEXT_COL: ["first text", "second text"],
+        }
+
+        result = tokenize_batch(
+            batch=batch,
+            tokenizer=tokenizer,  # type: ignore[arg-type]
+            input_mode=InputMode.SINGLE_TEXT,
+            sequence_length=32,
+        )
+
+        assert result == tokenizer.output
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (batch[TEXT_COL],)
+        assert kwargs == {
+            "truncation": True,
+            "padding": "max_length",
+            "max_length": 32,
+        }
+
+    def test_tokenizes_paired_text_with_longest_first_truncation(self) -> None:
+        tokenizer = RecordingTokenizer()
+        batch = {
+            TEXT_COL: ["query a", "query b"],
+            TEXT_PAIR_COL: ["context a", "context b"],
+        }
+
+        result = tokenize_batch(
+            batch=batch,
+            tokenizer=tokenizer,  # type: ignore[arg-type]
+            input_mode=InputMode.PAIRED_TEXT,
+            sequence_length=64,
+        )
+
+        assert result == tokenizer.output
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (batch[TEXT_COL], batch[TEXT_PAIR_COL])
+        assert kwargs == {
+            "truncation": "longest_first",
+            "padding": "max_length",
+            "max_length": 64,
+        }
