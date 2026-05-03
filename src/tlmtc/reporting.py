@@ -9,6 +9,7 @@ import pandas as pd
 import seaborn as sns
 from great_tables import GT, loc, md, style
 from matplotlib import rc_context
+from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
 from matplotlib.layout_engine import ConstrainedLayoutEngine
@@ -29,6 +30,14 @@ FONT_CFG = {
         "Arial",
     ],
 }
+
+
+def set_non_degenerate_xlim(ax: Axes, xmin: float, xmax: float) -> None:
+    """Set x-axis limits while handling single-point plots."""
+    if xmin == xmax:
+        ax.set_xlim(xmin - 0.5, xmax + 0.5)
+    else:
+        ax.set_xlim(xmin, xmax)
 
 
 def make_global_metrics_table(
@@ -373,7 +382,11 @@ def make_loss_curves_plot(
         )
         ax.axvline(best_epoch, color="#E57383", linestyle="--", linewidth=1.5, alpha=0.6, label="Best Model")
 
-        ax.set_xlim(losses["epoch"].min(), losses["epoch"].max())
+        set_non_degenerate_xlim(
+            ax=ax,
+            xmin=float(losses["epoch"].min()),
+            xmax=float(losses["epoch"].max()),
+        )
         ax.xaxis.set_major_locator(MaxNLocator(nbins=7, integer=True))
         ticks = [tick for tick in ax.get_xticks() if 1 < tick < losses["epoch"].max()]
         ax.set_xticks(ticks)
@@ -440,7 +453,11 @@ def make_objective_values_plot(
             label="Best so far",
         )
 
-        ax.set_xlim(values["number"].min(), values["number"].max())
+        set_non_degenerate_xlim(
+            ax=ax,
+            xmin=float(values["number"].min()),
+            xmax=float(values["number"].max()),
+        )
         ax.set_ylim(0.0, 1.0)
         ax.xaxis.set_major_locator(MaxNLocator(nbins=7, integer=True))
         ticks = [tick for tick in ax.get_xticks() if 1 < tick < values["number"].max()]

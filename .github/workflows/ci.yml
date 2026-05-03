@@ -94,7 +94,7 @@ jobs:
         run: uv sync --group test --extra training --frozen
 
       - name: Run unit tests
-        run: uv run pytest -q
+        run: uv run pytest -q -m "not integration"
 
   build:
     name: Build package
