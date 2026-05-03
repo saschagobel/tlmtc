@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Callable
+from unittest.mock import Mock
 
 import pandas as pd
 import pytest
@@ -493,6 +494,24 @@ class TestTokenizeData:
         with pytest.raises(RuntimeError, match="Hugging Face DatasetDict not found"):
             dp.tokenize_data()
 
+    def test_raises_error_if_input_mode_is_missing(
+        self,
+        sample_raw_csv: Path,
+        sample_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure tokenize_data raises RuntimeError when input mode has not been inferred."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=sample_raw_test_csv,
+        )
+
+        dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+        dp.input_mode = None
+
+        with pytest.raises(RuntimeError, match="Input mode not found"):
+            dp.tokenize_data()
+
     def test_produces_correct_tokenized_structure_across_splits(
         self,
         sample_raw_csv: Path,
@@ -506,6 +525,7 @@ class TestTokenizeData:
         )
 
         dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+        assert dp.input_mode is InputMode.SINGLE_TEXT
         dp.tokenize_data()
 
         assert isinstance(dp.tokenized_dataset, DatasetDict)
@@ -543,3 +563,63 @@ class TestTokenizeData:
         new_counts = {k: len(v) for k, v in dp.tokenized_dataset.items()}
 
         assert original_counts == new_counts
+
+    def test_delegates_paired_text_tokenization_with_paired_input_mode(
+        self,
+        sample_paired_raw_csv: Path,
+        sample_paired_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Ensure paired-text tokenization delegates with text_pair and paired input mode."""
+
+        def fake_tokenize_batch(
+            *,
+            batch,
+            tokenizer,
+            input_mode,
+            sequence_length,
+        ):
+            return {
+                "input_ids": [[1] * sequence_length for _ in batch["text"]],
+                "attention_mask": [[1] * sequence_length for _ in batch["text"]],
+            }
+
+        tokenizer = object()
+        tokenize_batch_spy = Mock(side_effect=fake_tokenize_batch)
+
+        monkeypatch.setattr(
+            "tlmtc.data_pipeline.AutoTokenizer.from_pretrained",
+            lambda checkpoint: tokenizer,
+        )
+        monkeypatch.setattr(
+            "tlmtc.data_pipeline.tokenize_batch",
+            tokenize_batch_spy,
+        )
+
+        dp = pipeline_instance_factory(
+            raw_csv=sample_paired_raw_csv,
+            raw_test_csv=sample_paired_raw_test_csv,
+        )
+
+        dp.split_data().get_multi_hot_vectors().create_hf_dataset()
+        dp.tokenize_data()
+
+        assert tokenize_batch_spy.call_count > 0
+
+        for call in tokenize_batch_spy.call_args_list:
+            kwargs = call.kwargs
+
+            assert kwargs["tokenizer"] is tokenizer
+            assert kwargs["input_mode"] is InputMode.PAIRED_TEXT
+            assert kwargs["sequence_length"] == dp.model.sequence_length
+            assert TEXT_PAIR_COL in kwargs["batch"]
+
+        assert isinstance(dp.tokenized_dataset, DatasetDict)
+
+        example = dp.tokenized_dataset["train"][0]
+        assert "input_ids" in example
+        assert "attention_mask" in example
+        assert "labels" in example
+        assert isinstance(example["labels"], torch.Tensor)
+        assert example["labels"].dtype == torch.float32
