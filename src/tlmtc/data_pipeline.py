@@ -18,7 +18,7 @@ from tlmtc.data_contracts import (
     InputMode,
     validate_multilabel_frame,
 )
-from tlmtc.data_preparation import df_preprocess, df_save, df_split
+from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
 from tlmtc.paths import RunPaths
 from tlmtc.settings import ModelSettings, SplitSettings
 
@@ -194,23 +194,28 @@ class DataPipeline:
         return self
 
     def tokenize_data(self) -> Self:
-        """Tokenize text and convert multi-hot labels to float tensors.
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Tokenize text and convert multi-hot labels to float tensors."""
         if self.hf_dataset is None:
             raise RuntimeError("Hugging Face DatasetDict not found. Run create_hf_dataset() first.")
+
+        if self.input_mode is None:
+            raise RuntimeError("Input mode not found. Run split_data() first.")
+
         tokenizer = AutoTokenizer.from_pretrained(self.model.checkpoint)
+
         td = self.hf_dataset.map(
-            lambda batch: tokenizer(
-                batch["text"], truncation=True, padding="max_length", max_length=self.model.sequence_length
+            lambda batch: tokenize_batch(
+                batch=batch,
+                tokenizer=tokenizer,
+                input_mode=self.input_mode,
+                sequence_length=self.model.sequence_length,
             ),
             batched=True,
         )
+
         td.set_format("torch")
         self.tokenized_dataset = td.map(
-            lambda batch: {"float_labels": batch["labels"].to(torch.float)}, remove_columns=["labels"]
+            lambda batch: {"float_labels": batch["labels"].to(torch.float)},
+            remove_columns=["labels"],
         ).rename_column("float_labels", "labels")
         return self
