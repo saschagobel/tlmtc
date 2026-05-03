@@ -73,6 +73,11 @@ untyped_calls_exclude = [
 module = ["tlmtc.finetune_pipeline"]
 disable_error_code = ["unused-ignore"]
 
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that run the real tlmtc training pipeline end to end",
+]
+
 [tool.uv.sources]
 torch = { index = "pytorch-cpu" }
 
