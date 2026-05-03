@@ -4,12 +4,14 @@ Defines helpers used by the data pipeline for preprocessing, splitting, and savi
 """
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+from transformers import BatchEncoding, PreTrainedTokenizerBase
 
-from tlmtc.data_contracts import TEXT_COL, InputMode, validate_multilabel_frame
+from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, InputMode, validate_multilabel_frame
 
 
 def df_preprocess(
@@ -98,3 +100,37 @@ def df_save(
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
+
+
+def tokenize_batch(
+    batch: dict[str, Any],
+    tokenizer: PreTrainedTokenizerBase,
+    input_mode: InputMode,
+    sequence_length: int,
+) -> BatchEncoding:
+    """Tokenize a single-text or paired-text batch for sequence classification.
+
+    Args:
+        batch: Batched Hugging Face Dataset row dictionary.
+        tokenizer: Hugging Face tokenizer for the selected checkpoint.
+        input_mode: Validated input mode inferred from the data contract.
+        sequence_length: Maximum tokenized sequence length.
+
+    Returns:
+        Tokenized model inputs.
+    """
+    if input_mode is InputMode.PAIRED_TEXT:
+        return tokenizer(
+            batch[TEXT_COL],
+            batch[TEXT_PAIR_COL],
+            truncation="longest_first",
+            padding="max_length",
+            max_length=sequence_length,
+        )
+
+    return tokenizer(
+        batch[TEXT_COL],
+        truncation=True,
+        padding="max_length",
+        max_length=sequence_length,
+    )
