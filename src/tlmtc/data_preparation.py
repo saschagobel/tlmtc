@@ -9,29 +9,31 @@ import numpy as np
 import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
-from tlmtc.data_contracts import validate_multilabel_frame
+from tlmtc.data_contracts import TEXT_COL, InputMode, validate_multilabel_frame
 
 
 def df_preprocess(
-    df_path: str | Path,
-) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray]:
+    df_path: Path,
+) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray, InputMode]:
     """Import, validate, preprocess and extract labels from train/test data.
 
     Args:
-        df_path: Path to the CSV data file, with required columns "text", "label_*".
+        df_path: Path to the CSV data file, with required text and label columns,
+            and an optional paired-text column.
 
     Returns:
         df: Preprocessed DataFrame.
         label_cols: Label column names.
         X: Text samples as a NumPy array.
         y: Label matrix as a NumPy array.
+        input_mode: Input mode inferred from the validated dataframe columns.
     """
     df = pd.read_csv(df_path).dropna().reset_index(drop=True)
-    df, label_cols = validate_multilabel_frame(df)
+    df, label_cols, input_mode = validate_multilabel_frame(df)
 
-    X = df["text"].values
+    X = df[TEXT_COL].values
     y = df[label_cols].values
-    return df, label_cols, X, y
+    return df, label_cols, X, y, input_mode
 
 
 def df_split(
@@ -85,7 +87,7 @@ def df_split(
 
 def df_save(
     df: pd.DataFrame,
-    path: str | Path,
+    path: Path,
 ) -> None:
     """Save a DataFrame to disk as parquet file.
 
