@@ -10,7 +10,15 @@ import torch
 from datasets import Dataset, DatasetDict, Features, Sequence, Value
 from transformers import AutoTokenizer
 
-from tlmtc.data_preparation import df_preprocess, df_save, df_split
+from tlmtc.data_contracts import (
+    LABEL_PREFIX,
+    TEXT_COL,
+    TEXT_PAIR_COL,
+    DataContractError,
+    InputMode,
+    validate_multilabel_frame,
+)
+from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
 from tlmtc.paths import RunPaths
 from tlmtc.settings import ModelSettings, SplitSettings
 
@@ -22,6 +30,7 @@ class DataPipeline:
         paths: Resolved filesystem locations for raw inputs and persisted splits.
         split: Split configuration (validation/test fractions and random seed).
         model: Tokenization-related configuration (checkpoint and max sequence length).
+        input_mode: Input mode inferred from validated raw data or persisted splits.
         train_data: Training split dataframe
         val_data: Validation split dataframe
         test_data: Test split dataframe
@@ -45,6 +54,7 @@ class DataPipeline:
         self.paths = paths
         self.split = split
         self.model = model
+        self.input_mode: InputMode | None = None
         self.train_data: pd.DataFrame | None = None
         self.val_data: pd.DataFrame | None = None
         self.test_data: pd.DataFrame | None = None
@@ -67,22 +77,55 @@ class DataPipeline:
         val_data_exists = self.paths.val_data_path.exists()
 
         if train_data_exists and val_data_exists and test_data_exists:
-            self.train_data = pd.read_parquet(self.paths.train_data_path)
-            self.val_data = pd.read_parquet(self.paths.val_data_path)
-            self.test_data = pd.read_parquet(self.paths.test_data_path)
+            self.train_data, label_cols, self.input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.train_data_path)
+            )
+            self.val_data, val_label_cols, val_input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.val_data_path)
+            )
+            self.test_data, test_label_cols, test_input_mode = validate_multilabel_frame(
+                pd.read_parquet(self.paths.test_data_path)
+            )
+
+            if label_cols != val_label_cols or label_cols != test_label_cols:
+                raise DataContractError(
+                    "Label column mismatch between persisted splits: "
+                    f"train has {label_cols}, validation has {val_label_cols}, test has {test_label_cols}."
+                )
+
+            if self.input_mode is not val_input_mode or self.input_mode is not test_input_mode:
+                raise DataContractError(
+                    "Input mode mismatch between persisted splits: "
+                    f"train is '{self.input_mode.value}', "
+                    f"validation is '{val_input_mode.value}', "
+                    f"test is '{test_input_mode.value}'."
+                )
+
             return self
 
         if not self.paths.raw_data_path.exists():
             raise FileNotFoundError(f"Raw data not found at {self.paths.raw_data_path}.")
-        df, label_cols, X, y = df_preprocess(self.paths.raw_data_path)
+
+        df, label_cols, X, y, input_mode = df_preprocess(self.paths.raw_data_path)
+        self.input_mode = input_mode
 
         if self.paths.raw_test_data_path is not None:
             if not self.paths.raw_test_data_path.exists():
                 raise FileNotFoundError(f"Raw test data not found at {self.paths.raw_test_data_path}.")
 
-            df_test, label_cols_test, _, _ = df_preprocess(self.paths.raw_test_data_path)
+            df_test, label_cols_test, _, _, test_input_mode = df_preprocess(self.paths.raw_test_data_path)
             if label_cols != label_cols_test:
-                raise ValueError("Mismatch between train/test label columns")
+                raise DataContractError(
+                    "Label column mismatch between raw_csv and raw_test_csv: "
+                    f"raw_csv has {label_cols}, raw_test_csv has {label_cols_test}."
+                )
+
+            if self.input_mode is not test_input_mode:
+                raise DataContractError(
+                    "Input mode mismatch between raw_csv and raw_test_csv: "
+                    f"raw_csv is '{self.input_mode.value}', but raw_test_csv is '{test_input_mode.value}'."
+                )
+
             self.train_data, self.val_data = df_split(
                 df=df, X=X, y=y, test_size=self.split.validation_size, random_seed=self.split.random_seed
             )
@@ -93,7 +136,7 @@ class DataPipeline:
             )
             self.train_data, self.val_data = df_split(
                 df=full_train_data,
-                X=full_train_data["text"].values,
+                X=full_train_data[TEXT_COL].values,
                 y=full_train_data[label_cols].values,
                 test_size=self.split.validation_size,
                 random_seed=self.split.random_seed,
@@ -105,66 +148,74 @@ class DataPipeline:
         return self
 
     def get_multi_hot_vectors(self) -> Self:
-        """Combine label_* columns into a single 'labels' array per row (multi-hot vector).
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Combine label_* columns into a single 'labels' array per row (multi-hot vector)."""
         if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/val/test data not found. Run split_data() first.")
 
-        label_cols = [col for col in self.train_data.columns if col.startswith("label_")]
-        splits = ["train_data", "val_data", "test_data"]
-        for attr in splits:
+        label_cols = [col for col in self.train_data.columns if col.startswith(LABEL_PREFIX)]
+        input_cols = [TEXT_COL]
+        if self.input_mode is InputMode.PAIRED_TEXT:
+            input_cols.append(TEXT_PAIR_COL)
+
+        for attr in ("train_data", "val_data", "test_data"):
             df = getattr(self, attr).copy()
             df["labels"] = df[label_cols].values.tolist()
-            df = df[["text", "labels"]]
+            df = df[[*input_cols, "labels"]]
             setattr(self, attr, df)
         return self
 
     def create_hf_dataset(self) -> Self:
-        """Assemble train and test data in a Hugging Face DatasetDict.
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Assemble train and test data in a Hugging Face DatasetDict."""
         if self.train_data is None or self.test_data is None or self.val_data is None:
             raise RuntimeError("Train/val/test data not found. Run split_data() first.")
+
         if "labels" not in self.train_data.columns:
             raise RuntimeError("Missing 'labels' column. Run get_multi_hot_vectors() first")
-        features = Features(
+
+        feature_spec = {
+            TEXT_COL: Value(dtype="string"),
+        }
+        if self.input_mode is InputMode.PAIRED_TEXT:
+            feature_spec[TEXT_PAIR_COL] = Value(dtype="string")
+        feature_spec["labels"] = Sequence(Value(dtype="int64"))
+        features = Features(feature_spec)
+
+        dataset_train = Dataset.from_pandas(self.train_data, features=features, preserve_index=False)
+        dataset_val = Dataset.from_pandas(self.val_data, features=features, preserve_index=False)
+        dataset_test = Dataset.from_pandas(self.test_data, features=features, preserve_index=False)
+
+        self.hf_dataset = DatasetDict(
             {
-                "text": Value(dtype="string"),
-                "labels": Sequence(Value(dtype="int64")),
+                "train": dataset_train,
+                "validation": dataset_val,
+                "test": dataset_test,
             }
         )
-        dataset_train = Dataset.from_pandas(self.train_data, features=features)
-        dataset_val = Dataset.from_pandas(self.val_data, features=features)
-        dataset_test = Dataset.from_pandas(self.test_data, features=features)
-        dataset_dict = DatasetDict({"train": dataset_train, "validation": dataset_val, "test": dataset_test})
-        self.hf_dataset = DatasetDict(dataset_dict)
         return self
 
     def tokenize_data(self) -> Self:
-        """Tokenize text and convert multi-hot labels to float tensors.
-
-        Returns:
-        -------
-        DataPipeline
-        """
+        """Tokenize text and convert multi-hot labels to float tensors."""
         if self.hf_dataset is None:
             raise RuntimeError("Hugging Face DatasetDict not found. Run create_hf_dataset() first.")
+
+        if self.input_mode is None:
+            raise RuntimeError("Input mode not found. Run split_data() first.")
+
         tokenizer = AutoTokenizer.from_pretrained(self.model.checkpoint)
+
         td = self.hf_dataset.map(
-            lambda batch: tokenizer(
-                batch["text"], truncation=True, padding="max_length", max_length=self.model.sequence_length
+            lambda batch: tokenize_batch(
+                batch=batch,
+                tokenizer=tokenizer,
+                input_mode=self.input_mode,
+                sequence_length=self.model.sequence_length,
             ),
             batched=True,
         )
+
         td.set_format("torch")
         self.tokenized_dataset = td.map(
-            lambda batch: {"float_labels": batch["labels"].to(torch.float)}, remove_columns=["labels"]
+            lambda batch: {"float_labels": batch["labels"].to(torch.float)},
+            remove_columns=["labels"],
         ).rename_column("float_labels", "labels")
         return self

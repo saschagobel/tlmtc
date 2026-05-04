@@ -1,13 +1,29 @@
 """Tests for data preparation helpers."""
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from tlmtc.data_contracts import DataContractError
-from tlmtc.data_preparation import df_preprocess, df_save, df_split
+from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
+from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
+
+
+class RecordingTokenizer:
+    """Minimal tokenizer stand-in that records calls."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+        self.output = {
+            "input_ids": [[1, 2, 3]],
+            "attention_mask": [[1, 1, 1]],
+        }
+
+    def __call__(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+        self.calls.append((args, kwargs))
+        return self.output
 
 
 class TestDfPreprocess:
@@ -24,9 +40,10 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y = df_preprocess(csv_path)
+        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
 
         assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.SINGLE_TEXT
         pd.testing.assert_frame_equal(
             df,
             pd.DataFrame(
@@ -52,9 +69,10 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y = df_preprocess(csv_path)
+        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
 
         assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.PAIRED_TEXT
         pd.testing.assert_frame_equal(df, df_in)
         np.testing.assert_array_equal(X, np.array(["query a", "query b"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
@@ -196,3 +214,56 @@ class TestDfSave:
 
         assert out_path.exists()
         assert out_path.parent.exists()
+
+
+class TestTokenizeBatch:
+    """Test suite for the tokenize_batch utility function."""
+
+    def test_tokenizes_single_text_with_single_sequence_truncation(self) -> None:
+        tokenizer = RecordingTokenizer()
+        batch = {
+            TEXT_COL: ["first text", "second text"],
+        }
+
+        result = tokenize_batch(
+            batch=batch,
+            tokenizer=tokenizer,  # type: ignore[arg-type]
+            input_mode=InputMode.SINGLE_TEXT,
+            sequence_length=32,
+        )
+
+        assert result == tokenizer.output
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (batch[TEXT_COL],)
+        assert kwargs == {
+            "truncation": True,
+            "padding": "max_length",
+            "max_length": 32,
+        }
+
+    def test_tokenizes_paired_text_with_longest_first_truncation(self) -> None:
+        tokenizer = RecordingTokenizer()
+        batch = {
+            TEXT_COL: ["query a", "query b"],
+            TEXT_PAIR_COL: ["context a", "context b"],
+        }
+
+        result = tokenize_batch(
+            batch=batch,
+            tokenizer=tokenizer,  # type: ignore[arg-type]
+            input_mode=InputMode.PAIRED_TEXT,
+            sequence_length=64,
+        )
+
+        assert result == tokenizer.output
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (batch[TEXT_COL], batch[TEXT_PAIR_COL])
+        assert kwargs == {
+            "truncation": "longest_first",
+            "padding": "max_length",
+            "max_length": 64,
+        }

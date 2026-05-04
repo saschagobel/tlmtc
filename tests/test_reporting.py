@@ -185,6 +185,7 @@ class TestMakeGlobalMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Single text",
         )
 
         assert isinstance(table, GT)
@@ -204,6 +205,7 @@ class TestMakeGlobalMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Single text",
         )
 
         result = table._tbl_data
@@ -224,7 +226,7 @@ class TestMakeGlobalMetricsTable:
         reporting_paths: tuple[Path, Path],
         global_eval_metrics: dict[str, float],
     ) -> None:
-        """Global metrics table renders model and dataset metadata."""
+        """Global metrics table renders model, dataset, and input-mode metadata."""
         train_path, test_path = reporting_paths
 
         table = make_global_metrics_table(
@@ -234,6 +236,7 @@ class TestMakeGlobalMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Paired text",
         )
 
         html = table.as_raw_html()
@@ -241,6 +244,8 @@ class TestMakeGlobalMetricsTable:
         assert "Multi-label Classification" in html
         assert "Policy" in html
         assert "model-v1" in html
+        assert "Input mode" in html
+        assert "Paired text" in html
         assert "Labels" in html
         assert "Train examples" in html
         assert "Test examples" in html
@@ -262,6 +267,7 @@ class TestMakeGlobalMetricsTable:
                 checkpoint="user/model-v1",
                 train_data_path=train_path,
                 test_data_path=test_path,
+                input_mode="Single text",
             )
 
 
@@ -282,6 +288,7 @@ class TestMakeLabelMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Single text",
         )
 
         assert isinstance(table, GT)
@@ -300,6 +307,7 @@ class TestMakeLabelMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Single text",
         )
 
         result = table._tbl_data
@@ -332,7 +340,7 @@ class TestMakeLabelMetricsTable:
         reporting_paths: tuple[Path, Path],
         label_eval_metrics: dict[str, dict[str, float]],
     ) -> None:
-        """Label metrics table renders model and dataset metadata."""
+        """Label metrics table renders model, dataset, and input-mode metadata."""
         train_path, test_path = reporting_paths
 
         table = make_label_metrics_table(
@@ -341,6 +349,7 @@ class TestMakeLabelMetricsTable:
             checkpoint="user/model-v1",
             train_data_path=train_path,
             test_data_path=test_path,
+            input_mode="Single text",
         )
 
         html = table.as_raw_html()
@@ -348,6 +357,8 @@ class TestMakeLabelMetricsTable:
         assert "Multi-label Classification" in html
         assert "Policy" in html
         assert "model-v1" in html
+        assert "Input mode" in html
+        assert "Single text" in html
         assert "Train examples" in html
         assert "Test examples" in html
         assert "2" in html
@@ -367,6 +378,7 @@ class TestMakeHyperparametersTable:
             trainer=trainer_with_args,
             target_name="Policy",
             checkpoint="user/model-v1",
+            input_mode="Single text",
         )
 
         assert isinstance(table, GT)
@@ -381,6 +393,7 @@ class TestMakeHyperparametersTable:
             trainer=trainer_with_args,
             target_name="Policy",
             checkpoint="user/model-v1",
+            input_mode="Single text",
         )
 
         result = table._tbl_data
@@ -404,6 +417,7 @@ class TestMakeHyperparametersTable:
             trainer=trainer_with_args,
             target_name="Policy",
             checkpoint="user/model-v1",
+            input_mode="Single text",
         )
 
         result = table._tbl_data
@@ -417,12 +431,13 @@ class TestMakeHyperparametersTable:
         self,
         trainer_with_args: object,
     ) -> None:
-        """Hyperparameter table renders target and model metadata."""
+        """Hyperparameter table renders target, model, and input-mode metadata."""
         table = make_hyperparameters_table(
             threshold=np.array([0.42]),
             trainer=trainer_with_args,
             target_name="Policy",
             checkpoint="user/model-v1",
+            input_mode="Paired text",
         )
 
         html = table.as_raw_html()
@@ -431,6 +446,8 @@ class TestMakeHyperparametersTable:
         assert "Policy" in html
         assert "model-v1" in html
         assert "Hyperparameters" in html
+        assert "Input mode" in html
+        assert "Paired text" in html
 
 
 class TestMakeRocCurvesPlot:

@@ -201,6 +201,7 @@ def train_tlmtc(
         workflow=settings.workflow,
         training=settings.training,
         tuned_threshold=finetune_pipeline.tuned_threshold,
+        input_mode=data_pipeline.input_mode,
     )
     evaluation_pipeline.run_evaluation()
     evaluation_pipeline.save_metrics()
