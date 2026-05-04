@@ -11,6 +11,7 @@ from datasets import DatasetDict
 from matplotlib import pyplot as plt
 from transformers import Trainer
 
+from tlmtc.data_contracts import InputMode
 from tlmtc.evaluation import (
     get_best_epoch,
     get_co_occurrence,
@@ -43,6 +44,7 @@ class EvaluationPipeline:
         workflow: High-level workflow toggles (HPO, learning rate scaling, transfer learning, threshold optimization).
         training: Resolved training input settings.
         tuned_threshold: Tuned global or label-specific thresholds for multi-label classification
+        input_mode: Input mode inferred from the validated data contract.
         label_names: Human-readable label names without the ``label_`` prefix.
         probabilities: Test-set predicted probabilities.
         true_labels: Test-set ground-truth labels.
@@ -65,6 +67,7 @@ class EvaluationPipeline:
         workflow: WorkflowSettings,
         training: TrainingSettings,
         tuned_threshold: np.ndarray,
+        input_mode: InputMode | None,
     ) -> None:
         """Initialize the evaluation pipeline.
 
@@ -77,6 +80,7 @@ class EvaluationPipeline:
                 threshold optimization).
             training: Resolved training input settings.
             tuned_threshold: Tuned global or label-specific thresholds for multi-label classification
+            input_mode: Input mode inferred from the validated data contract.
         """
         self.tokenized_dataset = tokenized_dataset
         self.updated_trainer = updated_trainer
@@ -85,6 +89,7 @@ class EvaluationPipeline:
         self.workflow = workflow
         self.training = training
         self.tuned_threshold = tuned_threshold
+        self.input_mode = input_mode
         self.label_names: list[str] | None = None
         self.probabilities: np.ndarray | None = None
         self.true_labels: np.ndarray | None = None
@@ -199,6 +204,11 @@ class EvaluationPipeline:
         if self.updated_trainer is None:
             raise RuntimeError("Trained model not found. Run fine-tuning before rendering hyperparameter tables.")
 
+        if self.input_mode is None:
+            raise RuntimeError("Input mode not found. Run DataPipeline.split_data() before EvaluationPipeline.")
+
+        input_mode_label = "Paired text" if self.input_mode is InputMode.PAIRED_TEXT else "Single text"
+
         global_metrics_table = make_global_metrics_table(
             eval_metrics=self.global_eval_metrics,
             target_name=self.model.target_name,
@@ -206,6 +216,7 @@ class EvaluationPipeline:
             checkpoint=self.model.checkpoint,
             train_data_path=self.paths.train_data_path,
             test_data_path=self.paths.test_data_path,
+            input_mode=input_mode_label,
         )
         label_metrics_table = make_label_metrics_table(
             eval_metrics=self.label_eval_metrics,
@@ -213,12 +224,14 @@ class EvaluationPipeline:
             checkpoint=self.model.checkpoint,
             train_data_path=self.paths.train_data_path,
             test_data_path=self.paths.test_data_path,
+            input_mode=input_mode_label,
         )
         hyperparameters_table = make_hyperparameters_table(
             threshold=self.tuned_threshold,
             trainer=self.updated_trainer,
             target_name=self.model.target_name,
             checkpoint=self.model.checkpoint,
+            input_mode=input_mode_label,
         )
         global_metrics_table.write_raw_html(self.paths.global_metrics_table_path)
         label_metrics_table.write_raw_html(self.paths.label_metrics_table_path)
