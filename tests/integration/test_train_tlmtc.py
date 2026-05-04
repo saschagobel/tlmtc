@@ -10,6 +10,7 @@ from typer.testing import CliRunner
 
 from tlmtc.api import train_tlmtc
 from tlmtc.cli import app
+from tlmtc.data_contracts import TEXT_PAIR_COL
 from tlmtc.paths import RunPaths, resolve_paths
 
 pytestmark = pytest.mark.integration
@@ -41,6 +42,32 @@ def raw_multilabel_csv(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def raw_paired_multilabel_csv(tmp_path: Path) -> Path:
+    """Create a small valid paired-text multilabel CSV for end-to-end training."""
+    label_patterns = [
+        ("alpha policy query", "alpha evidence response", 1, 0),
+        ("beta policy query", "beta evidence response", 0, 1),
+        ("alpha beta policy query", "combined evidence response", 1, 1),
+        ("neutral policy query", "neutral background response", 0, 0),
+    ]
+
+    rows = [
+        {
+            "text": f"{query} {i}",
+            TEXT_PAIR_COL: f"{response} {i}",
+            "label_a": label_a,
+            "label_b": label_b,
+        }
+        for i in range(8)
+        for query, response, label_a, label_b in label_patterns
+    ]
+
+    raw_csv = tmp_path / "raw_paired_multilabel.csv"
+    pd.DataFrame(rows).to_csv(raw_csv, index=False)
+    return raw_csv
+
+
+@pytest.fixture
 def tiny_checkpoint_dir(tmp_path: Path) -> Path:
     """Create a tiny local Bert checkpoint with a compatible tokenizer."""
     checkpoint_dir = tmp_path / "tiny_bert_checkpoint"
@@ -57,6 +84,11 @@ def tiny_checkpoint_dir(tmp_path: Path) -> Path:
         "policy",
         "text",
         "neutral",
+        "query",
+        "evidence",
+        "response",
+        "combined",
+        "background",
         *[str(i) for i in range(8)],
     ]
     vocab_path = checkpoint_dir / "vocab.txt"
@@ -150,6 +182,21 @@ def assert_common_training_artifacts(paths: RunPaths) -> None:
     assert set(label_metrics) == {"a", "b"}
 
 
+def assert_paired_text_artifacts(paths: RunPaths) -> None:
+    """Assert that paired-text inputs were preserved and reported."""
+    for split_path in (paths.train_data_path, paths.val_data_path, paths.test_data_path):
+        split_df = pd.read_parquet(split_path)
+        assert TEXT_PAIR_COL in split_df.columns
+        assert split_df[TEXT_PAIR_COL].notna().all()
+
+    for table_path in (
+        paths.global_metrics_table_path,
+        paths.label_metrics_table_path,
+        paths.hyperparameters_table_path,
+    ):
+        assert "Paired text" in table_path.read_text(encoding="utf-8")
+
+
 def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
     raw_multilabel_csv: Path,
     tiny_checkpoint_dir: Path,
@@ -181,6 +228,40 @@ def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
 
     assert result.paths.run_id == "integration_smoke"
     assert_common_training_artifacts(result.paths)
+
+
+def test_train_tlmtc_runs_end_to_end_with_paired_text_input(
+    raw_paired_multilabel_csv: Path,
+    tiny_checkpoint_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run train_tlmtc end to end with paired-text sequence-classification input."""
+    monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+
+    result = train_tlmtc(
+        raw_csv=raw_paired_multilabel_csv,
+        work_dir=tmp_path,
+        run_id="integration_paired_text",
+        checkpoint=str(tiny_checkpoint_dir),
+        proxy_checkpoint=str(tiny_checkpoint_dir),
+        hyperparameter_tuning=False,
+        transfer_learning=True,
+        threshold_optimization=True,
+        wrap_peft=False,
+        train_epochs=1,
+        batch_size=4,
+        sequence_length=24,
+        validation_size=0.25,
+        test_size=0.25,
+        early_stopping_patience=1,
+        use_cpu=True,
+    )
+
+    assert result.paths.run_id == "integration_paired_text"
+    assert_common_training_artifacts(result.paths)
+    assert_paired_text_artifacts(result.paths)
 
 
 def test_train_tlmtc_runs_hpo_with_tiny_local_model(
