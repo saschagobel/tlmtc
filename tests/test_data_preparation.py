@@ -1,11 +1,11 @@
 """Tests for data preparation helpers."""
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import pytest
-from typing import Any
 
 from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
 from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
