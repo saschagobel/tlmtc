@@ -47,6 +47,7 @@ def make_global_metrics_table(
     checkpoint: str,
     train_data_path: Path,
     test_data_path: Path,
+    input_mode: str,
 ) -> GT:
     """Create a formatted summary table of global evaluation metrics."""
     name_map = {
@@ -86,6 +87,7 @@ def make_global_metrics_table(
         .fmt_number(columns="Value", decimals=2)
         .tab_source_note(
             source_note=md(
+                f"*Input mode*: {input_mode}<br>"
                 f"*Labels*: {len(label_names)}<br>"
                 f"*Train examples*: {train_examples}<br>"
                 f"*Test examples*: {test_examples}"
@@ -113,6 +115,7 @@ def make_label_metrics_table(
     checkpoint: str,
     train_data_path: Path,
     test_data_path: Path,
+    input_mode: str,
 ) -> GT:
     """Create a formatted summary table of label-specific evaluation metrics."""
     df = pd.DataFrame(eval_metrics).T.reset_index()
@@ -153,7 +156,11 @@ def make_label_metrics_table(
             ],
             decimals=2,
         )
-        .tab_source_note(source_note=md(f"*Train examples*: {train_examples}<br>*Test examples*: {test_examples}"))
+        .tab_source_note(
+            source_note=md(
+                f"*Input mode*: {input_mode}<br>*Train examples*: {train_examples}<br>*Test examples*: {test_examples}"
+            )
+        )
         .tab_style(
             style=style.text(weight=500),
             locations=loc.column_header(),
@@ -161,7 +168,13 @@ def make_label_metrics_table(
     )
 
 
-def make_hyperparameters_table(threshold: np.ndarray, trainer: Trainer, target_name: str, checkpoint: str) -> GT:
+def make_hyperparameters_table(
+    threshold: np.ndarray,
+    trainer: Trainer,
+    target_name: str,
+    checkpoint: str,
+    input_mode: str,
+) -> GT:
     """Create a formatted summary table of selected hyperparameters and tuned thresholds."""
     if threshold.size == 1:
         threshold_name = "Global threshold"
@@ -209,6 +222,7 @@ def make_hyperparameters_table(threshold: np.ndarray, trainer: Trainer, target_n
             locations=[loc.stubhead(), loc.column_header()],
         )
         .tab_style(style=style.text(whitespace="pre"), locations=loc.stub())
+        .tab_source_note(source_note=md(f"*Input mode*: {input_mode}"))
         .tab_options(stub_border_style="none")
     )
 
