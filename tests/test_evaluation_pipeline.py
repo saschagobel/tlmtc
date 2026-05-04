@@ -11,6 +11,7 @@ import pytest
 from datasets import Dataset, DatasetDict
 from matplotlib.figure import Figure
 
+from tlmtc.data_contracts import InputMode
 from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.paths import RunPaths, resolve_paths
 from tlmtc.settings import ModelSettings, TrainingSettings, WorkflowSettings
@@ -125,6 +126,7 @@ def pipeline_factory(
         transfer_learning: bool = True,
         hyperparameter_tuning: bool = False,
         tuned_threshold: np.ndarray | None = None,
+        input_mode: InputMode = InputMode.SINGLE_TEXT,
     ) -> EvaluationPipeline:
         workflow = WorkflowSettings(
             hyperparameter_tuning=hyperparameter_tuning,
@@ -141,6 +143,7 @@ def pipeline_factory(
             workflow=workflow,
             training=training_settings,
             tuned_threshold=np.array([0.5], dtype=float) if tuned_threshold is None else tuned_threshold,
+            input_mode=input_mode,
         )
 
     return _factory
@@ -302,17 +305,21 @@ class TestRenderTables:
 
     def test_writes_report_tables(self, pipeline_factory, paths, monkeypatch):
         """Ensure render_tables writes all expected HTML report tables."""
+        make_global_metrics_table_mock = MagicMock(return_value=FakeTable("global"))
+        make_label_metrics_table_mock = MagicMock(return_value=FakeTable("label"))
+        make_hyperparameters_table_mock = MagicMock(return_value=FakeTable("hyperparameters"))
+
         monkeypatch.setattr(
             "tlmtc.evaluation_pipeline.make_global_metrics_table",
-            MagicMock(return_value=FakeTable("global")),
+            make_global_metrics_table_mock,
         )
         monkeypatch.setattr(
             "tlmtc.evaluation_pipeline.make_label_metrics_table",
-            MagicMock(return_value=FakeTable("label")),
+            make_label_metrics_table_mock,
         )
         monkeypatch.setattr(
             "tlmtc.evaluation_pipeline.make_hyperparameters_table",
-            MagicMock(return_value=FakeTable("hyperparameters")),
+            make_hyperparameters_table_mock,
         )
 
         pipeline = pipeline_factory()
@@ -321,6 +328,36 @@ class TestRenderTables:
         assert paths.global_metrics_table_path.read_text(encoding="utf-8") == "global"
         assert paths.label_metrics_table_path.read_text(encoding="utf-8") == "label"
         assert paths.hyperparameters_table_path.read_text(encoding="utf-8") == "hyperparameters"
+
+        assert make_global_metrics_table_mock.call_args.kwargs["input_mode"] == "Single text"
+        assert make_label_metrics_table_mock.call_args.kwargs["input_mode"] == "Single text"
+        assert make_hyperparameters_table_mock.call_args.kwargs["input_mode"] == "Single text"
+
+    def test_passes_paired_input_mode_to_report_tables(self, pipeline_factory, monkeypatch):
+        """Ensure render_tables labels paired-text input mode in table metadata."""
+        make_global_metrics_table_mock = MagicMock(return_value=FakeTable("global"))
+        make_label_metrics_table_mock = MagicMock(return_value=FakeTable("label"))
+        make_hyperparameters_table_mock = MagicMock(return_value=FakeTable("hyperparameters"))
+
+        monkeypatch.setattr(
+            "tlmtc.evaluation_pipeline.make_global_metrics_table",
+            make_global_metrics_table_mock,
+        )
+        monkeypatch.setattr(
+            "tlmtc.evaluation_pipeline.make_label_metrics_table",
+            make_label_metrics_table_mock,
+        )
+        monkeypatch.setattr(
+            "tlmtc.evaluation_pipeline.make_hyperparameters_table",
+            make_hyperparameters_table_mock,
+        )
+
+        pipeline = pipeline_factory(input_mode=InputMode.PAIRED_TEXT)
+        pipeline.run_evaluation().render_tables()
+
+        assert make_global_metrics_table_mock.call_args.kwargs["input_mode"] == "Paired text"
+        assert make_label_metrics_table_mock.call_args.kwargs["input_mode"] == "Paired text"
+        assert make_hyperparameters_table_mock.call_args.kwargs["input_mode"] == "Paired text"
 
     def test_noop_when_transfer_learning_disabled(self, pipeline_factory, paths):
         """Ensure render_tables is a no-op when transfer learning is disabled."""
