@@ -13,6 +13,7 @@ import torch
 from datasets import DatasetDict
 from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
 
+from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.paths import RunPaths
@@ -120,7 +121,7 @@ class FinetunePipeline:
             raise RuntimeError("Train data not found. Run DataPipeline class first.")
 
         self.num_labels = sum(
-            1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith("label_")
+            1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
         )
         self.pretrained_model = AutoModelForSequenceClassification.from_pretrained(
             self.model.checkpoint, num_labels=self.num_labels, problem_type="multi_label_classification"
@@ -157,7 +158,7 @@ class FinetunePipeline:
             raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
         if self.num_labels is None:
             self.num_labels = sum(
-                1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith("label_")
+                1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
             )
 
         hp_space_fn = partial(
