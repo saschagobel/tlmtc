@@ -16,6 +16,7 @@ from torch import Tensor
 from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, TrainingArguments
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
+from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.settings import TrainingSettings
 
 SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE = (
@@ -147,7 +148,7 @@ def get_class_weights(
     """
     train_data = pd.read_parquet(train_data_path)
 
-    label_cols = [col for col in train_data.columns if col.startswith("label_")]
+    label_cols = [col for col in train_data.columns if col.startswith(LABEL_PREFIX)]
     labels_array = train_data[label_cols].to_numpy()
 
     positive_counts = labels_array.sum(axis=0)

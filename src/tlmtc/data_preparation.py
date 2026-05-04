@@ -11,7 +11,7 @@ import pandas as pd
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from transformers import BatchEncoding, PreTrainedTokenizerBase
 
-from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, InputMode, validate_multilabel_frame
+from tlmtc.data_contracts import LABEL_PREFIX, TEXT_COL, TEXT_PAIR_COL, InputMode, validate_multilabel_frame
 
 
 def df_preprocess(
@@ -59,7 +59,7 @@ def df_split(
         test_data: Test set.
     """
     max_split_attempts = 3
-    label_cols = [col for col in df.columns if col.startswith("label_")]
+    label_cols = [col for col in df.columns if col.startswith(LABEL_PREFIX)]
     missing_positive_labels: list[str] = []
 
     for attempt in range(max_split_attempts):

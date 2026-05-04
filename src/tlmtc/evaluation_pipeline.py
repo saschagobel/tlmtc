@@ -11,7 +11,7 @@ from datasets import DatasetDict
 from matplotlib import pyplot as plt
 from transformers import Trainer
 
-from tlmtc.data_contracts import InputMode
+from tlmtc.data_contracts import LABEL_PREFIX, InputMode
 from tlmtc.evaluation import (
     get_best_epoch,
     get_co_occurrence,
@@ -128,9 +128,9 @@ class EvaluationPipeline:
             raise RuntimeError("Trained model not found. Run FinetunePipeline.fine_tune_pretrained() first.")
 
         self.label_names = [
-            label.removeprefix("label_")
+            label.removeprefix(LABEL_PREFIX)
             for label in pd.read_parquet(self.paths.train_data_path).columns
-            if label.startswith("label_")
+            if label.startswith(LABEL_PREFIX)
         ]
 
         preds = self.updated_trainer.predict(self.tokenized_dataset["test"])
