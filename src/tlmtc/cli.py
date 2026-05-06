@@ -162,7 +162,10 @@ def train_command(
     best_model_metric: str | None = typer.Option(
         None,
         "--best-model-metric",
-        help='Metric used to select the best model checkpoint. Choices: "f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro".',
+        help=(
+            'Metric used to select the best model checkpoint. Choices: "f1_micro", '
+            '"f1_macro", "roc_auc_micro", "roc_auc_macro".'
+        ),
     ),
     batch_size: int | None = typer.Option(
         None,
