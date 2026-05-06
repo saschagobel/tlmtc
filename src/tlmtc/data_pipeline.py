@@ -130,7 +130,7 @@ class DataPipeline:
                 text_values=text_values,
                 label_matrix=label_matrix,
                 test_size=self.split.validation_size,
-                random_seed=self.split.random_seed
+                random_seed=self.split.random_seed,
             )
             self.test_data = df_test.reset_index(drop=True)
         else:
@@ -139,7 +139,7 @@ class DataPipeline:
                 text_values=text_values,
                 label_matrix=label_matrix,
                 test_size=self.split.test_size,
-                random_seed=self.split.random_seed
+                random_seed=self.split.random_seed,
             )
             self.train_data, self.val_data = df_split(
                 df=full_train_data,

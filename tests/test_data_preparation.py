@@ -111,7 +111,9 @@ class TestDfSplit:
         label_matrix = df[["label_a", "label_b"]].values
 
         test_size = 0.3
-        train, test = df_split(df=df, text_values=text_values, label_matrix=label_matrix, test_size=test_size, random_seed=42)
+        train, test = df_split(
+            df=df, text_values=text_values, label_matrix=label_matrix, test_size=test_size, random_seed=42
+        )
 
         assert len(train) + len(test) == len(df)
 
