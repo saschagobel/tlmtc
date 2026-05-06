@@ -1,7 +1,4 @@
-"""Internal helpers for hyperparameter tuning.
-
-Defines helpers for building Optuna search spaces and trial-scoped model setup.
-"""
+"""Optuna integration for Hugging Face hyperparameter tuning."""
 
 import math
 from typing import Any, Callable, Literal
@@ -17,14 +14,14 @@ def optuna_hp_space(
     trial: optuna.trial.Trial,
     space: OptunaSpaceSettings,
 ) -> dict[str, Any]:
-    """Define the hyperparameter search space for Optuna tuning.
+    """Sample Trainer hyperparameters from a resolved Optuna search space.
 
     Args:
-        trial: Current Optuna trial object.
-        space: Fully resolved Optuna hyperparameter search space settings.
+        trial: Optuna trial used to sample candidate values.
+        space: Resolved hyperparameter search-space settings.
 
     Returns:
-        Dictionary specifying the sampled hyperparameters and their values for the current trial.
+        Sampled hyperparameters for Hugging Face Trainer.
     """
     batch_size = trial.suggest_categorical(
         "per_device_train_batch_size",
@@ -67,29 +64,29 @@ def make_model_init(
     lora_dropout: float,
     lora_bias: Literal["none", "all", "lora_only"],
 ) -> Callable[[optuna.trial.Trial | None], PreTrainedModel]:
-    """Create a model initialization function for hyperparameter search.
+    """Create a Trainer-compatible model factory for hyperparameter search.
 
     Args:
-        checkpoint: Name of the pretrained model checkpoint on the Hugging Face Hub.
+        checkpoint: Pretrained model checkpoint identifier
         num_labels: Number of labels in the multi-label classification task.
-        wrap_peft: Flag whether to wrap model in parameter-efficient fine-tuning.
-        lora_r: Rank of the LoRA matrices. Controls adapter capacity.
-        lora_alpha: Scaling factor for the LoRA updates.
-        lora_dropout: Dropout probability for LoRA layers.
-        lora_bias: Whether to train bias terms, 'none', 'all', or 'lora_only'.
+        wrap_peft: Whether to wrap the model with PEFT/LoRA adapters.
+        lora_r: LoRA rank.
+        lora_alpha: LoRA scaling factor.
+        lora_dropout: LoRA dropout probability.
+        lora_bias: LoRA bias handling mode.
 
     Returns:
         model_init: A function that initializes and returns a model instance during each Optuna trial.
     """
 
     def model_init(trial: optuna.trial.Trial | None = None) -> PreTrainedModel:
-        """Initialize a new model instance for the current trial.
+        """Initialize a fresh sequence-classification model.
 
         Args:
-            trial: Current Optuna trial object.
+            trial: Optional Optuna trial accepted for Trainer compatibility.
 
         Returns:
-            model: Pretrained model ready for fine-tuning.
+            Pretrained model configured for multi-label classification.
         """
         model = AutoModelForSequenceClassification.from_pretrained(
             checkpoint, num_labels=num_labels, problem_type="multi_label_classification"
@@ -110,23 +107,23 @@ def make_model_init(
 def make_compute_objective(
     best_model_metric: str,
 ) -> Callable[[dict[str, Any]], float]:
-    """Create an objective function for Optuna hyperparameter search.
+    """Create an objective extractor for Trainer hyperparameter search.
 
     Args:
-        best_model_metric: Metric to monitor for selecting the best-performing model checkpoint.
+        best_model_metric: Model-selection metric name as configured in training settings.
 
     Returns:
-        compute_objective: A function that extracts and returns the target metric from the Trainer evaluation output.
+        Callable that extracts the objective value from Trainer evaluation metrics.
     """
 
     def compute_objective(metrics: dict[str, Any]) -> float:
-        """Extract the objective value for the current Optuna trial.
+        """Extract the configured objective value from evaluation metrics.
 
         Args:
-            metrics: Dictionary of evaluation results returned by the Trainer.
+            metrics: Evaluation metrics returned by Hugging Face Trainer.
 
         Returns:
-            Value of the target metric to be optimized.
+            Objective value used by Optuna.
         """
         return metrics["eval_" + best_model_metric]
 

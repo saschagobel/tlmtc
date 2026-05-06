@@ -1,7 +1,4 @@
-"""Evaluation and reporting helpers.
-
-Defines metrics, curves, and reporting helpers for multi-label evaluation.
-"""
+"""Evaluation metrics and diagnostics for multi-label text classification."""
 
 from typing import Any
 
@@ -24,15 +21,15 @@ def get_global_eval_metrics(
     y_pred: np.ndarray,
     y_prob: np.ndarray,
 ) -> dict[str, float]:
-    """Compute global evaluation metrics for multi-label classification.
+    """Compute aggregate metrics for multi-label classification.
 
     Args:
-        y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
-        y_pred: Predicted binary label matrix of the same shape as y_true.
-        y_prob: Predicted probabilities of the same shape as y_true.
+        y_true: Ground-truth binary label matrix with shape `(n_samples, n_labels)`.
+        y_pred: Predicted binary label matrix with the same shape as `y_true`.
+        y_prob: Predicted probability matrix with the same shape as `y_true`.
 
     Returns:
-        Dictionary containing global metrics.
+        Aggregate evaluation metrics.
     """
     metrics = {
         "f1_micro": float(f1_score(y_true, y_pred, average="micro")),
@@ -53,16 +50,16 @@ def get_label_eval_metrics(
     y_prob: np.ndarray,
     label_names: list[str],
 ) -> dict[str, dict[str, float]]:
-    """Compute label-specific evaluation metrics for multi-label classification.
+    """Compute per-label metrics for multi-label classification.
 
     Args:
-        y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
-        y_pred: Predicted binary label matrix of the same shape as y_true.
-        y_prob: Predicted probabilities of the same shape as y_true.
-        label_names: Names of the labels.
+        y_true: Ground-truth binary label matrix with shape `(n_samples, n_labels)`.
+        y_pred: Predicted binary label matrix with the same shape as `y_true`.
+        y_prob: Predicted probability matrix with the same shape as `y_true`.
+        label_names: Label names in the same order as the label matrix columns.
 
     Returns:
-        Dictionary containing label-specific metrics.
+        Per-label evaluation metrics keyed by label name.
     """
     label_f1 = f1_score(y_true, y_pred, average=None)
     label_precision = precision_score(y_true, y_pred, average=None, zero_division=0)
@@ -90,14 +87,14 @@ def round_metric_dict(
     metrics: dict[str, float],
     ndigits: int = 2,
 ) -> dict[str, float]:
-    """Round a dictionary of metric values for presentation.
+    """Round metric values for presentation.
 
     Args:
-        metrics: Dictionary containing label-specific metrics.
-        ndigits: Number of decimal places to round to.
+        metrics: Metric values keyed by metric name.
+        ndigits: Number of decimal places.
 
     Returns:
-        Input dictionary with values rounded to `ndigits` decimal places.
+        Metric values rounded to `ndigits` decimal places.
     """
     return {k: round(v, ndigits) for k, v in metrics.items()}
 
@@ -107,15 +104,16 @@ def get_roc_curves(
     y_prob: np.ndarray,
     label_names: list[str],
 ) -> dict[str, dict[int | str, Any]]:
-    """Compute ROC curve metrics for multi-label classification.
+    """Compute per-label, micro, and macro ROC curve data.
 
     Args:
-        y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
-        y_prob: Predicted probabilities of the same shape as y_true.
-        label_names: Names of the labels.
+        y_true: Ground-truth binary label matrix with shape `(n_samples, n_labels)`.
+        y_prob: Predicted probability matrix with the same shape as `y_true`.
+        label_names: Label names aligned with matrix columns.
 
     Returns:
-        Dictionary containing false positive rate, true positive rate, and AUC values.
+        False-positive rates, true-positive rates, and ROC-AUC values keyed by label index,
+        `micro`, and `macro`.
     """
     num_labels = len(label_names)
     fpr: dict[int | str, np.ndarray] = dict()
@@ -142,15 +140,16 @@ def get_pr_curves(
     y_prob: np.ndarray,
     label_names: list[str],
 ) -> dict[str, dict[int | str, Any]]:
-    """Compute PR curve metrics for multi-label classification.
+    """Compute per-label, micro, and macro precision-recall curve data.
 
     Args:
-        y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
-        y_prob: Predicted probabilities of the same shape as y_true.
-        label_names: Names of the labels.
+        y_true: Ground-truth binary label matrix with shape `(n_samples, n_labels)`.
+        y_prob: Predicted probability matrix with the same shape as `y_true`.
+        label_names: Label names aligned with matrix columns.
 
     Returns:
-        Dictionary containing precision, recall, and average precision values.
+        Precision values, recall values, and average precision values keyed by label index,
+        `micro`, and `macro`.
     """
     num_labels = len(label_names)
     precision: dict[int | str, np.ndarray] = dict()
@@ -176,14 +175,14 @@ def get_co_occurrence(
     y_true: np.ndarray,
     y_pred: np.ndarray,
 ) -> dict[str, np.ndarray]:
-    """Compute label co-occurrence for multi-label classification.
+    """Compute observed and predicted label co-occurrence matrices.
 
     Args:
-        y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
-        y_pred: Predicted binary label matrix of the same shape as y_true.
+        y_true: Ground-truth binary label matrix with shape `(n_samples, n_labels)`.
+        y_pred: Predicted binary label matrix with the same shape as `y_true`.
 
     Returns:
-        Dictionary containing absolute and relative label co-occurrence.
+        Absolute and normalized co-occurrence matrices for true and predicted labels.
     """
     results: dict[str, np.ndarray] = {}
 
@@ -209,13 +208,13 @@ def get_co_occurrence(
 def get_losses(
     log_history: list[dict[str, Any]],
 ) -> pd.DataFrame:
-    """Extract per-epoch training and evaluation losses from Trainer.state.log_history.
+    """Extract aligned training and evaluation losses from Trainer logs.
 
     Args:
-        log_history: The Trainer's state.log_history attribute.
+        log_history: Hugging Face Trainer log history.
 
     Returns:
-        A DataFrame with columns 'epoch', 'train_loss', 'eval_loss'.
+        DataFrame with `epoch`, `train_loss`, and `eval_loss` columns.
     """
     train_losses = pd.DataFrame([{"epoch": d["epoch"], "train_loss": d["loss"]} for d in log_history if "loss" in d])
     eval_losses = pd.DataFrame(
@@ -232,10 +231,10 @@ def get_best_epoch(
 
     Args:
         log_history: The Trainer's state.log_history attribute.
-        best_model_metric: Metric to monitor for selecting the best-performing model checkpoint.
+        best_model_metric: Model-selection metric name as configured in training settings.
 
     Returns:
-        Number of the best epoch.
+        Best epoch number.
     """
     eval_logs = [entry for entry in log_history if "eval_" + best_model_metric in entry]
     return int(max(eval_logs, key=lambda x: x["eval_" + best_model_metric])["epoch"])
@@ -247,7 +246,7 @@ def find_optimal_threshold(
     best_threshold_metric: str,
     threshold_type: str,
 ) -> np.ndarray:
-    """Compute the optimal global threshold for multi-label classification.
+    """Search global or per-label decision thresholds for multi-label predictions.
 
     Args:
         y_true: Ground-truth binary label matrix of shape (n_samples, n_labels).
@@ -256,7 +255,10 @@ def find_optimal_threshold(
         threshold_type: Type of threshold to compute, 'global' or 'label'.
 
     Returns:
-        best_threshold or best_thresholds: Optimal global threshold or label-specific threshold
+        One-element array for a global threshold, or one threshold per label for label-specific mode.
+
+    Raises:
+        ValueError: If `best_threshold_metric` or `threshold_type` is unsupported.
     """
     thresholds = np.linspace(0.0, 1.0, 101)
     num_labels = y_true.shape[1]

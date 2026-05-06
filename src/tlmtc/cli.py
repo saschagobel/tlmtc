@@ -1,8 +1,4 @@
-"""Run the tlmtc pipeline via the command line.
-
-Defines the Typer-based CLI entrypoint that maps command-line arguments to
-the public tlmtc API.
-"""
+"""Typer command-line interface for the tlmtc training pipeline."""
 
 import json
 from pathlib import Path
@@ -22,11 +18,16 @@ app = typer.Typer(
 def parse_optuna_space(
     value: str | None,
 ) -> dict[str, Any] | Unset:
-    """Parse an optional Optuna search-space override from JSON or a JSON file.
+    """Parse an optional Optuna search-space override from JSON or an @file path.
 
-    Omitted CLI values are converted to the UNSET sentinel.
-    Provided values must be JSON objects. Values prefixed with '@' are interpreted
-    as paths to JSON files.
+    Args:
+        value: JSON object string, @file path, or None when the CLI option is omitted.
+
+    Returns:
+        Parsed Optuna search-space override, or UNSET for omitted CLI values.
+
+    Raises:
+        typer.BadParameter: If the value cannot be read, decoded, or parsed as a JSON object.
     """
     if value is None:
         return UNSET
@@ -56,7 +57,7 @@ def main(
         is_eager=True,
     ),
 ) -> None:
-    """Run the tlmtc CLI."""
+    """Handle root CLI invocation, version output, and help display."""
     if version:
         typer.echo(__version__)
         raise typer.Exit(code=0)
@@ -237,7 +238,7 @@ def train_command(
         help="Force CPU execution.",
     ),
 ) -> None:
-    """Run the full tlmtc training pipeline end-to-end."""
+    """Run the tlmtc training pipeline from CLI options."""
     from tlmtc.api import train_tlmtc
 
     result = train_tlmtc(

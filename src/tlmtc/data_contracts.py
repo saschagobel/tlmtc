@@ -1,4 +1,4 @@
-"""Tabular data contracts."""
+"""Tabular input contracts for multi-label text classification."""
 
 from enum import StrEnum
 from typing import Final
@@ -15,11 +15,11 @@ MIN_LABEL_COLS: Final[int] = 2
 
 
 class DataContractError(ValueError):
-    """Raised when tabular data violates the data contract."""
+    """Raised when input data violates the multi-label tabular contract."""
 
 
 class InputMode(StrEnum):
-    """Input mode inferred from validated input columns."""
+    """Validated text-input layout inferred from tabular columns."""
 
     SINGLE_TEXT = "single_text"
     PAIRED_TEXT = "paired_text"
@@ -68,7 +68,18 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
 def validate_multilabel_frame(
     df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[str], InputMode]:
-    """Validate and normalize a multilabel dataframe."""
+    """Validate and normalize a multi-label input DataFrame.
+
+    Args:
+        df: Input DataFrame with a required text column, optional paired-text column,
+            and binary label columns.
+
+    Returns:
+        Normalized DataFrame, ordered label column names, and inferred input mode.
+
+    Raises:
+        DataContractError: If the input is not a DataFrame or violates the multi-label data contract.
+    """
     if not isinstance(df, pd.DataFrame):
         raise DataContractError(f"Expected a pandas DataFrame, got {type(df).__name__}.")
 

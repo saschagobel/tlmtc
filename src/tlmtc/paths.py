@@ -1,7 +1,4 @@
-"""Resolve and manage run directories.
-
-Builds a `RunPaths` bundle that defines the standard on-disk layout for a single run.
-"""
+"""Filesystem path layout for tlmtc training runs."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,35 +13,35 @@ DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 
 @dataclass(frozen=True, slots=True)
 class RunPaths:
-    """Resolved filesystem paths for a single tlmtc run.
+    """Resolved filesystem paths for a single tlmtc training run.
 
     Directory structure:
-      <work_dir>/
-        train_outputs/
-          <run_id>/
-            data/     (train/val/test splits)
-            logs/  (training/HPO logs)
-            model/    (exported model artifacts)
-            evaluation/  (metrics, tables, and plots)
+        <work_dir>/
+            train_outputs/
+                <run_id>/
+                    data/
+                    logs/
+                    model/
+                    evaluation/
 
     Attributes:
-        work_dir: Base directory used to resolve relative inputs and contain tlmtc outputs.
-        run_dir: Root directory for this run.
-        run_id: Identifier for the run.
+        work_dir: Base directory used to resolve inputs and contain training outputs.
+        run_dir: Root output directory for the training run.
+        run_id: Run identifier used to name the output directory.
         raw_data_path: Resolved path to the raw training CSV.
-        raw_test_data_path: Resolved path to the raw test CSV.
-        data_dir: Directory containing prepared dataset splits for this run.
-        logs_dir: Directory containing logs and HPO artifacts for this run.
-        model_dir: Directory containing exported model artifacts for this run.
-        eval_dir: Directory containing evaluation reporting artifacts for this run.
-        train_data_path: Path to the prepared training split artifact (`train.parquet`).
-        val_data_path: Path to the prepared validation split artifact (`val.parquet`).
-        test_data_path: Path to the prepared test split artifact (`test.parquet`).
-        optuna_trials_path: Path to the persisted Optuna study SQLite database.
-        global_metrics_path: Path to the global metrics JSON artifact.
-        label_metrics_path: Path to the label metrics JSON artifact.
-        global_metrics_table_path: Path to the global metrics HTML table.
-        label_metrics_table_path: Path to the label metrics HTML table.
+        raw_test_data_path: Resolved path to the optional raw test CSV.
+        data_dir: Directory for prepared dataset split artifacts.
+        logs_dir: Directory for training logs and HPO artifacts.
+        model_dir: Directory for saved model artifacts.
+        eval_dir: Directory for evaluation metrics, tables, and figures.
+        train_data_path: Path to the prepared training split.
+        val_data_path: Path to the prepared validation split.
+        test_data_path: Path to the prepared test split.
+        optuna_trials_path: Path to the persisted Optuna study database.
+        global_metrics_path: Path to the aggregate metrics JSON artifact.
+        label_metrics_path: Path to the per-label metrics JSON artifact.
+        global_metrics_table_path: Path to the aggregate metrics HTML table.
+        label_metrics_table_path: Path to the per-label metrics HTML table.
         hyperparameters_table_path: Path to the hyperparameters HTML table.
         roc_plot_path: Path to the ROC curve PDF.
         co_occurrence_plot_path: Path to the label co-occurrence PDF.
@@ -83,10 +80,10 @@ class RunPaths:
     def ensure_dirs(
         self,
     ) -> Self:
-        """Create the run directory structure.
+        """Create run artifact directories.
 
         Returns:
-            RunPaths
+            Updated path bundle.
         """
         for directory in (
             self.data_dir,
@@ -110,22 +107,21 @@ def resolve_paths(
     model_dirname: str = DEFAULT_MODEL_DIRNAME,
     eval_dirname: str = DEFAULT_EVAL_DIRNAME,
 ) -> RunPaths:
-    """Resolve all filesystem paths for a single tlmtc run.
+    """Resolve input and artifact paths for a tlmtc training run.
 
     Args:
         raw_csv: Path to the raw training CSV.
         raw_test_csv: Optional path to a raw test CSV.
-        work_dir: Optional base directory used to resolve relative inputs and contain outputs.
-            Defaults to the current working directory.
-        run_id: Identifier for the run.
+        work_dir: Base directory used to resolve inputs and contain run outputs.
+        run_id: Run identifier used to name the output directory.
         outputs_dirname: Name of the outputs root directory under `work_dir`.
-        data_dirname: Name of the data subdirectory under `run_dir`.
-        logs_dirname: Name of the logs subdirectory under `run_dir`.
-        model_dirname: Name of the model subdirectory under `run_dir`.
-        eval_dirname: Name of the evaluation subdirectory under `run_dir`.
+        data_dirname: Name of the prepared-data directory under `run_dir`.
+        logs_dirname: Name of the logs directory under `run_dir`.
+        model_dirname: Name of the model directory under `run_dir`.
+        eval_dirname: Name of the evaluation directory under `run_dir`.
 
     Returns:
-        RunPaths: Bundle containing absolute paths for inputs and run artifacts.
+        Resolved path bundle for inputs and run artifacts.
     """
     resolved_work_dir = work_dir.expanduser().resolve()
 

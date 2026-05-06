@@ -1,4 +1,4 @@
-"""Evaluation pipeline for trained multi-label classifiers."""
+"""Evaluation pipeline for trained multi-label text classifiers."""
 
 import json
 from typing import Any, Self
@@ -34,27 +34,27 @@ from tlmtc.settings import ModelSettings, TrainingSettings, WorkflowSettings
 
 
 class EvaluationPipeline:
-    """Evaluate a trained multi-label classifier and render persisted reports.
+    """Stateful evaluation pipeline for multi-label text classification.
 
     Attributes:
-        tokenized_dataset: Tokenized Hugging Face dataset ready for PyTorch
-        updated_trainer: The instantiated Trainer after fine-tuning.
-        paths: Resolved filesystem locations for persisted train and validation splits, logs, and model outputs.
-        model: Model configuration (proxy-checkpoint and checkpoint).
-        workflow: High-level workflow toggles (HPO, learning rate scaling, transfer learning, threshold optimization).
-        training: Resolved training input settings.
-        tuned_threshold: Tuned global or label-specific thresholds for multi-label classification
-        input_mode: Input mode inferred from the validated data contract.
-        label_names: Human-readable label names without the ``label_`` prefix.
+        tokenized_dataset: Tokenized Hugging Face dataset ready for Trainer prediction.
+        updated_trainer: Trainer instance after fine-tuning.
+        paths: Run-specific filesystem layout for reading inputs and writing evaluation artifacts.
+        model: Model configuration, including checkpoint identifiers and target name.
+        workflow: Workflow configuration controlling training, HPO, and evaluation behavior.
+        training: Training configuration used to interpret trainer logs.
+        tuned_threshold: Global or label-specific decision threshold for multi-label predictions.
+        input_mode:Text input mode inferred from the prepared data.
+        label_names: Human-readable label names without the `label_` prefix.
         probabilities: Test-set predicted probabilities.
-        true_labels: Test-set ground-truth labels.
-        pred_labels: Test-set thresholded predictions.
-        global_eval_metrics: Aggregated multi-label evaluation metrics.
-        label_eval_metrics: Label-specific evaluation metrics.
-        roc_curves: ROC curve data for global and label-specific plots.
-        co_occurrence: True/predicted label co-occurrence matrices.
-        losses: Per-epoch train/evaluation losses.
-        best_epoch: Best epoch according to ``training.best_model_metric``.
+        true_labels: Test-set ground-truth label matrix.
+        pred_labels: Test-set thresholded prediction matrix.
+        global_eval_metrics: Aggregate multi-label evaluation metrics.
+        label_eval_metrics: Per-label evaluation metrics.
+        roc_curves: ROC curve data for aggregate and per-label plots.
+        co_occurrence: True and predicted label co-occurrence matrices.
+        losses: Per-epoch training and evaluation losses.
+        best_epoch: Best epoch according to the configured model-selection metric.
         hp_objective_values: Optuna trial numbers and objective values.
     """
 
@@ -72,15 +72,14 @@ class EvaluationPipeline:
         """Initialize the evaluation pipeline.
 
         Args:
-            tokenized_dataset: Tokenized Hugging Face dataset ready for PyTorch
-            updated_trainer: The instantiated Trainer after fine-tuning.
-            paths: Resolved filesystem locations for persisted train and validation splits, logs, and model outputs.
-            model: Model configuration (proxy-checkpoint and checkpoint).
-            workflow: High-level workflow toggles (HPO, learning rate scaling, transfer learning,
-                threshold optimization).
-            training: Resolved training input settings.
-            tuned_threshold: Tuned global or label-specific thresholds for multi-label classification
-            input_mode: Input mode inferred from the validated data contract.
+            tokenized_dataset: Tokenized Hugging Face dataset ready for Trainer prediction.
+            updated_trainer: Trainer instance after fine-tuning.
+            paths: Run-specific filesystem layout for reading inputs and writing evaluation artifacts.
+            model: Model configuration, including checkpoint identifiers and target name.
+            workflow: Workflow configuration controlling training, HPO, and evaluation behavior.
+            training: Training configuration used to interpret trainer logs.
+            tuned_threshold: Global or label-specific decision threshold for multi-label predictions.
+            input_mode:Text input mode inferred from the prepared data.
         """
         self.tokenized_dataset = tokenized_dataset
         self.updated_trainer = updated_trainer
@@ -103,10 +102,13 @@ class EvaluationPipeline:
         self.hp_objective_values: pd.DataFrame | None = None
 
     def run_evaluation(self) -> Self:
-        """Compute test metrics and collect HPO diagnostics.
+        """Compute test-set metrics and collect HPO diagnostics.
 
         Returns:
-            EvaluationPipeline: The updated pipeline instance.
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If required HPO results or trained model state are missing.
         """
         if self.workflow.hyperparameter_tuning:
             if not self.paths.optuna_trials_path.exists():
@@ -168,10 +170,13 @@ class EvaluationPipeline:
         return self
 
     def save_metrics(self) -> Self:
-        """Save global and label-specific evaluation metrics as JSON.
+        """Save aggregate and per-label evaluation metrics as JSON artifacts.
 
         Returns:
-            EvaluationPipeline: The updated pipeline instance.
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If evaluation metrics have not been computed.
         """
         if not self.workflow.transfer_learning:
             return self
@@ -190,10 +195,13 @@ class EvaluationPipeline:
         return self
 
     def render_tables(self) -> Self:
-        """Render evaluation and hyperparameter summary tables as HTML.
+        """Render evaluation and hyperparameter summary tables as HTML artifacts.
 
         Returns:
-            EvaluationPipeline: The updated pipeline instance.
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If required metrics, trainer state, or input-mode metadata are missing.
         """
         if not self.workflow.transfer_learning:
             return self
@@ -239,10 +247,13 @@ class EvaluationPipeline:
         return self
 
     def render_figures(self) -> Self:
-        """Render HPO and test-set diagnostic figures as PDFs.
+        """Render HPO and test-set diagnostic figures as PDF artifacts.
 
         Returns:
-            EvaluationPipeline: The updated pipeline instance.
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If required HPO results, metric data, or trainer diagnostics are missing.
         """
         if self.workflow.hyperparameter_tuning:
             if self.hp_objective_values is None:

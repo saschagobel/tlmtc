@@ -1,7 +1,4 @@
-"""Run tlmtc as a module.
-
-Enables `python -m tlmtc` to execute the CLI entrypoint.
-"""
+"""Module execution entrypoint for the tlmtc CLI."""
 
 from tlmtc.cli import app
 

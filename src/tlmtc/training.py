@@ -1,7 +1,4 @@
-"""Internal helpers for model training and training-time metrics.
-
-Defines utilities for training, class weighting, and evaluation metrics used during training.
-"""
+"""Training components for Hugging Face multi-label text classification."""
 
 from pathlib import Path
 from typing import Any, Literal, Self
@@ -30,7 +27,15 @@ SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE = (
 
 
 class TrainingRuntimeState(BaseModel):
-    """Mutable effective training state for a concrete run."""
+    """Mutable effective training hyperparameters for a concrete run.
+
+    Attributes:
+        batch_size: Effective training and evaluation batch size.
+        train_epochs: Effective number of training epochs.
+        weight_decay: Effective weight decay.
+        learning_rate: Effective learning rate.
+        lr_scheduler: Effective learning-rate scheduler name.
+    """
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True)
 
@@ -45,7 +50,14 @@ class TrainingRuntimeState(BaseModel):
         cls,
         training: TrainingSettings,
     ) -> Self:
-        """Create a mutable runtime training state from resolved training settings."""
+        """Create runtime training state from resolved training settings.
+
+        Args:
+            training: Resolved immutable training settings.
+
+        Returns:
+            Mutable runtime training state.
+        """
         return cls(
             batch_size=training.batch_size,
             train_epochs=training.train_epochs,
@@ -65,20 +77,20 @@ def get_training_args(
     best_model_metric: str,
     use_cpu: bool,
 ) -> TrainingArguments:
-    """Initialize a TrainingArguments object with set hyperparameters.
+    """Create Hugging Face TrainingArguments from effective training parameters.
 
     Args:
-        logging_path: Path where intermediate checkpoints and logs will be saved.
-        batch_size: Batch size for training and evaluation.
+        logging_path: Directory for Trainer checkpoints and logs.
+        batch_size: Training and evaluation batch size.
         epochs: Maximum number of training epochs.
-        weight_decay: Strength of weight decay regularization applied to model parameters.
-        learning_rate: Initial learning rate for optimizer.
-        lr_scheduler: Type of learning rate scheduler to use.
-        best_model_metric: Metric to monitor for selecting the best-performing model checkpoint.
-        use_cpu: Flag whether to force training on CPU instead of GPU.
+        weight_decay: Weight decay applied during optimization.
+        learning_rate: Initial optimizer learning rate.
+        lr_scheduler: Learning-rate scheduler name.
+        best_model_metric: Model-selection metric name as configured in training settings.
+        use_cpu: Whether to force CPU execution.
 
     Returns:
-        Configured transformers.TrainingArguments instance for the Trainer class.
+        Configured TrainingArguments instance.
     """
     return TrainingArguments(
         output_dir=str(logging_path),
@@ -107,16 +119,16 @@ def get_scaled_lr(
     proxy_checkpoint: str,
     peft: bool,
 ) -> float:
-    """Conservatively transfer a proxy-tuned learning rate to a target checkpoint.
+    """Scale a proxy-tuned learning rate for a target checkpoint.
 
     Args:
-        learning_rate: Learning rate for optimizer.
-        checkpoint: Name of the pretrained model checkpoint on the Hugging Face Hub.
-        proxy_checkpoint: Name of the proxy pretrained model checkpoint on the Hugging Face Hub.
-        peft: Flag whether model uses parameter-efficient fine-tuning.
+        learning_rate: Proxy-tuned learning rate.
+        checkpoint: Target checkpoint identifier.
+        proxy_checkpoint: Proxy checkpoint identifier.
+        peft: Whether the target model uses PEFT/LoRA.
 
     Returns:
-        Transferred learning rate for the target checkpoint.
+        Conservative target-checkpoint learning rate.
     """
     full_finetune_exponent = 0.5
     peft_exponent = 0.25
@@ -138,13 +150,13 @@ def get_scaled_lr(
 def get_class_weights(
     train_data_path: str | Path,
 ) -> torch.Tensor:
-    """Compute label-specific positive-class weights for BCE loss.
+    """Compute positive-class weights for BCEWithLogitsLoss.
 
     Args:
-        train_data_path: Path to train split.
+        train_data_path: Path to the prepared training split.
 
     Returns:
-        torch.Tensor with one BCEWithLogitsLoss `pos_weight` value per label.
+        Tensor with one `pos_weight` value per label.
     """
     train_data = pd.read_parquet(train_data_path)
 
@@ -162,18 +174,14 @@ def multi_label_metrics(
     predictions: np.ndarray | torch.Tensor,
     labels: np.ndarray | torch.Tensor,
 ) -> dict[str, float]:
-    """Compute evaluation metrics for multi-label classification.
+    """Compute Trainer metrics from multi-label logits and labels.
 
     Args:
-        predictions: Model outputs (logits) for each sample and label.
-        labels: Binary labels.
+        predictions: Model logits with shape `(n_samples, n_labels)`.
+        labels: Ground-truth binary label matrix with the same shape as `predictions`.
 
     Returns:
-        Dictionary containing the following metrics:
-            - 'f1_micro': Micro-averaged F1 score.
-            - 'f1_macro': Macro-averaged F1 score.
-            - 'roc_auc_micro': Micro-averaged ROC-AUC score.
-            - 'roc_auc_macro': Macro-averaged ROC-AUC score.
+        F1 and ROC-AUC micro and macro metrics for Trainer evaluation.
     """
     probs = torch.sigmoid(torch.tensor(predictions)).numpy()
     y_true = np.array(labels)
@@ -194,15 +202,13 @@ def multi_label_metrics(
 def compute_metrics(
     p: EvalPrediction,
 ) -> dict[str, Any]:
-    """Wrap a Hugging Face `EvalPrediction` object to compute multi-label metrics.
+    """Compute multi-label metrics from a Hugging Face EvalPrediction.
 
     Args:
-        p: Evaluation prediction object from Hugging Face Trainer, with attributes:
-            - `predictions`: Model output logits.
-            - `label_ids`: Ground-truth labels.
+        p: Evaluation predictions produced by Hugging Face Trainer.
 
     Returns:
-        Dictionary of evaluation metrics as returned by `_multi_label_metrics`.
+        Multi-label evaluation metrics.
     """
     preds = p.predictions[0] if isinstance(p.predictions, tuple) else p.predictions
     labels = p.label_ids[0] if isinstance(p.label_ids, tuple) else p.label_ids
@@ -213,7 +219,14 @@ def compute_metrics(
 def infer_modules_to_save(
     model: PreTrainedModel,
 ) -> list[str]:
-    """Infer top-level sequence-classification modules to train and save with PEFT."""
+    """Infer sequence-classification head modules to keep trainable with PEFT.
+
+    Args:
+        model: Hugging Face sequence-classification model.
+
+    Returns:
+        Top-level module names that should be saved alongside LoRA adapters.
+    """
     top_level_modules = dict(model.named_children())
     return [name for name in SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE if name in top_level_modules]
 
@@ -225,17 +238,17 @@ def wrap_model_with_peft(
     lora_dropout: float,
     lora_bias: Literal["none", "all", "lora_only"],
 ) -> PreTrainedModel | PeftModel | PeftMixedModel:
-    """Wrap parameter-efficient fine-tuning (LoRA) around a pre-trained model.
+    """Wrap a sequence-classification model with PEFT/LoRA adapters.
 
     Args:
-        model: Pretrained model ready for fine-tuning.
-        lora_r: Rank of the LoRA matrices. Controls adapter capacity.
-        lora_alpha: Scaling factor for the LoRA updates.
-        lora_dropout: Dropout probability for LoRA layers.
-        lora_bias: Whether to train bias terms, 'none', 'all', or 'lora_only'.
+        model: Pretrained sequence-classification model.
+        lora_r: LoRA rank.
+        lora_alpha: LoRA scaling factor.
+        lora_dropout: LoRA dropout probability.
+        lora_bias: LoRA bias handling mode.
 
     Returns:
-        model: The model pretrained model wrapped with LoRA adapters, ready for fine-tuning.
+        Model wrapped for parameter-efficient fine-tuning.
     """
     peft_config = LoraConfig(
         task_type=TaskType.SEQ_CLS,
@@ -253,16 +266,15 @@ def wrap_model_with_peft(
 
 
 class WeightedTrainer(Trainer):
-    """Custom Hugging Face Trainer class-balanced loss weighting for multi-label classification.
+    """Trainer variant using class-weighted BCE loss for multi-label classification.
 
     Args:
-        *args: Positional arguments passed to the parent 'Trainer'.
-        class_weights: A 1D tensor of positive weights for each class. Used as 'pos_weight' in
-            'torch.nn.BCEWithLogitsLoss' to up- or down-weight positive examples depending on class imbalance.
-        **kwargs: Keyword arguments passed to the parent 'Trainer'.
+        *args: Positional arguments forwarded to Hugging Face Trainer.
+        class_weights: Optional positive-class weights passed as `pos_weight` to BCEWithLogitsLoss.
+        **kwargs: Keyword arguments forwarded to Hugging Face Trainer.
 
     Attributes:
-        loss_fct: torch.nn.BCEWithLogitsLoss function configured with optional class weights.
+        loss_fct: BCEWithLogitsLoss instance configured with optional positive-class weights.
     """
 
     def __init__(
@@ -271,7 +283,13 @@ class WeightedTrainer(Trainer):
         class_weights: Tensor | None = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize the trainer with optional class weights."""
+        """Initialize the trainer with optional positive-class weights.
+
+        Args:
+            *args: Positional arguments forwarded to Hugging Face Trainer.
+            class_weights: Optional positive-class weights for BCEWithLogitsLoss.
+            **kwargs: Keyword arguments forwarded to Hugging Face Trainer.
+        """
         super().__init__(*args, **kwargs)
 
         self.model_accepts_loss_kwargs = False
@@ -291,17 +309,16 @@ class WeightedTrainer(Trainer):
         return_outputs: bool = False,
         num_items_in_batch: Tensor | int | None = None,
     ) -> Tensor | tuple[Tensor, ModelOutput]:
-        """Compute the weighted BCE loss for multi-label classification with multi-GPU support.
+        """Compute class-weighted BCE loss for a multi-label batch.
 
         Args:
             model: Model being trained.
-            inputs: Input batch, including 'labels' and other model-specific input tensors.
-            return_outputs: If True, return a tuple (loss, outputs), default is False.
-            num_items_in_batch: Number of items in the current batch, default is None.
+            inputs: Input batch containing `labels` and model input tensors.
+            return_outputs: Whether to return model outputs together with the loss.
+            num_items_in_batch: Batch-size metadata accepted for Trainer compatibility.
 
         Returns:
-            loss: The computed loss value.
-            outputs: Returned only if 'return_outputs' is True, contains model outputs.
+            Loss tensor, optionally paired with model outputs.
         """
         labels = inputs.pop("labels")
         outputs = model(**inputs)

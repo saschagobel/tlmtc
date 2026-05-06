@@ -1,7 +1,4 @@
-"""Run the tlmtc pipeline end-to-end.
-
-Defines the user-facing library entrypoint for executing the tlmtc pipeline.
-"""
+"""Public Python API for running tlmtc training workflows."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -16,10 +13,10 @@ from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
 
 @dataclass(frozen=True, slots=True)
 class TrainResult:
-    """Train metadata returned by `train_tlmtc`.
+    """Result metadata for a completed tlmtc training run.
 
     Attributes:
-        paths: Resolved filesystem layout for this run.
+        paths: Resolved filesystem layout containing input paths and generated run artifacts.
     """
 
     paths: RunPaths
@@ -61,48 +58,108 @@ def train_tlmtc(
     early_stopping_patience: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
 ) -> TrainResult:
-    """Run the full tlmtc training pipeline end-to-end.
+    """Run the full multi-label text classification training workflow.
+
+    The workflow can perform data preparation, hyperparameter tuning, model fine-tuning,
+    threshold optimization, evaluation, and reporting end-to-end according to the selected
+    workflow flags.
 
     Args:
-        raw_csv: Path to the multilabel CSV.
-        raw_test_csv: Optional path to a test CSV. If omitted, a test split is created from
-            `raw_csv` according to `test_size`.
-        work_dir: Base directory for resolving relative inputs and creating the run directory.
-        config_path: Path to a YAML configuration file.
-        run_id: Optional run identifier used to name the run directory. If exists will resume.
-        target_name: Display name for the classification target/task (used in logs/outputs).
-        validation_size: Fraction of data used for validation split.
-        test_size: Fraction of data used for test split (only used when `raw_test_csv` is None).
-        random_seed: Random seed used for splitting/shuffling.
-        transfer_learning: Whether to fine-tune a pretrained checkpoint.
-        hyperparameter_tuning: Whether to run Optuna hyperparameter tuning.
-        threshold_optimization: Whether to tune decision threshold(s) post-training.
-        threshold_type: Threshold mode (e.g., global vs per-label).
-        scale_learning_rate: Whether to scale learning rate based on batch size / device.
-        wrap_peft: Whether to apply PEFT (LoRA) wrapping.
-        proxy_checkpoint: Optional proxy checkpoint. If unset assumes checkpoint
-        checkpoint: Base pretrained model checkpoint identifier.
-        sequence_length: Max sequence length for tokenization.
-        best_model_metric: Metric name used to select the best model checkpoint.
-        batch_size: Training batch size.
-        train_epochs: Number of training epochs.
-        learning_rate: Initial learning rate.
-        weight_decay: Weight decay.
-        lr_scheduler: Scheduler identifier/name.
-        best_threshold_metric: Metric name used to select optimal threshold(s).
-        tuning_trials: Number of Optuna trials.
-        optuna_space: Optional partial override for the Optuna search space. Values are merged into the
-            default space (base or PEFT, depending on `wrap_peft`). See `OptunaSpaceOverride`
-            for supported keys.
-        lora_r: LoRA rank.
-        lora_alpha: LoRA alpha.
-        lora_dropout: LoRA dropout.
-        lora_bias: LoRA bias handling (validated downstream).
-        early_stopping_patience: Early stopping patience (epochs without improvement).
-        use_cpu: Force CPU execution.
+        raw_csv: Path to the raw multi-label training CSV. The file must contain a `text` column,
+            at least two binary `label_*` columns, and optionally a `text_pair` column.
+        raw_test_csv: Path to a separate raw test CSV. If omitted, a test split is created
+            from `raw_csv` using `test_size`. Defaults to no separate test CSV.
+        work_dir: Base directory for resolving inputs and writing run artifacts. Defaults to the
+            current working directory.
+        config_path: Path to a YAML configuration file. Defaults to no configuration file.
+        run_id: Run identifier used to name the run directory. If omitted, a random
+            identifier is generated.
+        target_name: Display name for the classification target in logs and reports. Defaults to
+            `"Target"`.
+        validation_size: Fraction reserved for validation splitting. Defaults to `0.15`.
+        test_size: Fraction reserved for test splitting when `raw_test_csv` is omitted. Defaults to
+            `0.15`.
+        random_seed: Random seed used for reproducible splitting and shuffling. Defaults to `2469`.
+        transfer_learning: Whether to fine-tune the target checkpoint and produce model/evaluation
+            artifacts. If `False`, data preparation still runs; with `hyperparameter_tuning=True`,
+            tlmtc runs proxy-checkpoint hyperparameter tuning only. Defaults to `True`.
+        hyperparameter_tuning: Whether to evaluate candidate hyperparameter configurations with
+            Optuna before final fine-tuning. If `True` and `transfer_learning=False`, only the
+            proxy-checkpoint tuning stage is run after data preparation. If both are `False`,
+            the workflow stops after data preparation. Defaults to `True`.
+        threshold_optimization: Whether to tune decision thresholds on validation-set predictions
+            after fine-tuning. If `False`, evaluation uses the default threshold `0.5`. Ignored
+            when `transfer_learning=False`. Defaults to `True`.
+        threshold_type: Thresholding mode. Supported values are `"global"` and `"label"`. Defaults to
+            `"label"`.
+        scale_learning_rate: Whether to scale a proxy-tuned learning rate for the target checkpoint.
+            Defaults to `False`.
+        wrap_peft: Whether to use parameter-efficient fine-tuning with LoRA adapters. Defaults to `True`.
+        proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
+            hyperparameter tuning. Defaults to `"microsoft/deberta-v3-xsmall"`.
+        checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
+            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`.
+        sequence_length: Maximum tokenized sequence length. Defaults to `128`.
+        best_model_metric: Metric used to select the best model checkpoint. Supported values are
+            `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
+            `"roc_auc_macro"`.
+        batch_size: Initial training and evaluation batch size. Used directly when hyperparameter tuning is
+            disabled, otherwise replaced by the tuned value. Defaults to `16`.
+        train_epochs: Initial number of training epochs. Used directly when hyperparameter tuning is
+            disabled, otherwise replaced by the tuned value. Defaults to `20`.
+        learning_rate: Initial optimizer learning rate. Used directly when hyperparameter tuning is
+            disabled, otherwise replaced by the tuned value. Defaults to `2e-5`.
+        weight_decay: Initial weight decay for training. Used directly when hyperparameter tuning is
+            disabled, otherwise replaced by the tuned value. Defaults to `0.01`.
+        lr_scheduler: Initial learning-rate scheduler name. Used directly when hyperparameter tuning is
+            disabled, otherwise replaced by the tuned value. Defaults to `"linear"`.
+        best_threshold_metric: Metric used to select decision thresholds. Supported values are
+            `"f1_micro"` and `"f1_macro"`. Defaults to `"f1_macro"`.
+        tuning_trials: Number of hyperparameter configurations to evaluate during Optuna tuning. Higher
+            values may improve the selected configuration but increase runtime. Defaults to `10`.
+        optuna_space: Optional partial override for the hyperparameter tuning ranges and candidate
+            values. Supported keys are `lr_low`, `lr_high`, `batch_sizes`, `wd_low`, `wd_high`,
+            `schedulers`, `epoch_low`, `epoch_high`. Missing keys are filled from the default tuning space
+            selected by `wrap_peft`.
+
+            Defaults to the PEFT search space when `wrap_peft=True`:
+
+            {
+                "lr_low": 5e-5,
+                "lr_high": 4e-4,
+                "batch_sizes": [8, 16, 32],
+                "wd_low": 0.0,
+                "wd_high": 0.01,
+                "schedulers": ["linear", "cosine"],
+                "epoch_low": 5,
+                "epoch_high": 20,
+                "lr_reference_batch_size": 32,
+            }
+
+            Defaults to the full fine-tuning search space when `wrap_peft=False`:
+
+            {
+                "lr_low": 1e-5,
+                "lr_high": 8e-5,
+                "batch_sizes": [8, 16, 32],
+                "wd_low": 0.0,
+                "wd_high": 0.1,
+                "schedulers": ["linear", "cosine", "polynomial"],
+                "epoch_low": 5,
+                "epoch_high": 30,
+                "lr_reference_batch_size": 32,
+            }
+        lora_r: LoRA rank. Defaults to `8`.
+        lora_alpha: LoRA scaling factor. Defaults to `32`.
+        lora_dropout: LoRA dropout probability. Defaults to `0.1`.
+        lora_bias: LoRA bias handling mode. Supported values are `"none"`, `"all"`, and `"lora_only"`.
+            Defaults to `"none"`.
+        early_stopping_patience: Early stopping patience in epochs without improvement. Defaults to
+            `10`.
+        use_cpu: Whether to force CPU execution. Defaults to `False`.
 
     Returns:
-        RunResult: Metadata for this run.
+        Result metadata containing the resolved input and artifact paths.
     """
     settings = RunSettings.resolve(
         config=load_config_file(config_path) if isinstance(config_path, (str, Path)) else None,
