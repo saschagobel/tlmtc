@@ -322,8 +322,8 @@ class TestBundleSettings:
         settings = ModelSettings()
 
         assert settings.target_name == "Target"
-        assert settings.proxy_checkpoint == "microsoft/deberta-v3-xsmall"
-        assert settings.checkpoint == "microsoft/deberta-v3-base"
+        assert settings.proxy_checkpoint == "EuroBERT/EuroBERT-210m"
+        assert settings.checkpoint == "EuroBERT/EuroBERT-610m"
         assert settings.sequence_length == 128
 
     def test_split_settings_defaults(self) -> None:

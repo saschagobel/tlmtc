@@ -148,8 +148,8 @@ class ModelSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     target_name: str = "Target"
-    proxy_checkpoint: str = "microsoft/deberta-v3-xsmall"
-    checkpoint: str = "microsoft/deberta-v3-base"
+    proxy_checkpoint: str = "EuroBERT/EuroBERT-210m"
+    checkpoint: str = "EuroBERT/EuroBERT-610m"
     sequence_length: PositiveInt = 128
 
 
