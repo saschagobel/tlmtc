@@ -1,7 +1,4 @@
-"""Settings bundles and layered resolution.
-
-Shared infrastructure for resolving run settings from layered inputs + settings bundles.
-"""
+"""Settings models and layered configuration resolution for tlmtc runs."""
 
 from pathlib import Path
 from typing import Any, Final, Literal, Self
@@ -12,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
 
 class _UnsetType:
-    """Sentinel representing an omitted override value."""
+    """Sentinel type for omitted layered override values."""
 
     __slots__ = ()
 
@@ -31,14 +28,14 @@ def deep_merge(
     base: dict[str, Any],
     incoming: dict[str, Any],
 ) -> dict[str, Any]:
-    """Recursively merge a higher-precedence settings layer into a base dictionary.
+    """Merge a higher-precedence settings layer into a base dictionary.
 
     Args:
         base: Lower-precedence settings layer.
         incoming: Higher-precedence settings layer.
 
     Returns:
-        A new dictionary containing the merged settings.
+        New dictionary containing the merged settings.
     """
     merged: dict[str, Any] = dict(base)
 
@@ -56,13 +53,13 @@ def deep_merge(
 def prune_unset(
     value: Any,
 ) -> Any:
-    """Recursively remove values marked as UNSET from override data.
+    """Remove UNSET sentinel values from nested override data.
 
     Args:
-        value: Arbitrary nested structure.
+        value: Arbitrary nested override structure.
 
     Returns:
-        The same structure with all `UNSET` values removed.
+        Equivalent structure with UNSET values removed.
     """
     if isinstance(value, dict):
         return {key: prune_unset(item) for key, item in value.items() if not isinstance(item, _UnsetType)}
@@ -76,16 +73,16 @@ def prune_unset(
 def load_config_file(
     path: str | Path,
 ) -> dict[str, Any]:
-    """Load a YAML config file into a dictionary.
+    """Load a YAML configuration file.
 
     Args:
-        path: Path to the config file.
+        path: Path to the YAML configuration file.
 
     Returns:
-        Parsed config data.
+        Parsed configuration mapping.
 
     Raises:
-        FileNotFoundError: If the config file does not exist.
+        FileNotFoundError: If the configuration file does not exist.
         TypeError: If the YAML root is not a mapping.
     """
     config_path = Path(path).expanduser()
@@ -106,7 +103,7 @@ def load_config_file(
 
 
 class ResolvableSettings(BaseModel):
-    """Shared base model for resolving layered run settings."""
+    """Base model for resolving settings from layered configuration sources."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -120,18 +117,16 @@ class ResolvableSettings(BaseModel):
     ) -> Self:
         """Resolve settings from config, environment, and explicit overrides.
 
-        Precedence is low to high:
-            config < env < overrides
-
-        Override values marked as `UNSET` are removed before validation.
+        Later layers take precedence over earlier layers in the order `config < env < overrides`.
+        Override values marked as UNSET are removed before validation.
 
         Args:
-            config: Config-file settings layer.
+            config: Configuration-file settings layer.
             env: Environment-derived settings layer.
-            overrides: Explicit call-site overrides.
+            overrides: Explicit call-site override layer.
 
         Returns:
-            A validated settings instance.
+            Validated settings instance.
         """
         resolved: dict[str, Any] = {}
         resolved = deep_merge(resolved, config or {})
@@ -141,7 +136,14 @@ class ResolvableSettings(BaseModel):
 
 
 class ModelSettings(BaseModel):
-    """Model-related settings."""
+    """Model and tokenizer settings.
+
+    Attributes:
+        target_name: Display name for the classification target.
+        proxy_checkpoint: Proxy checkpoint used during hyperparameter optimization.
+        checkpoint: Target checkpoint used for final fine-tuning.
+        sequence_length: Maximum tokenized sequence length.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -152,7 +154,13 @@ class ModelSettings(BaseModel):
 
 
 class SplitSettings(BaseModel):
-    """Data splitting settings."""
+    """Data splitting settings.
+
+    Attributes:
+        validation_size: Fraction of training data reserved for validation.
+        test_size: Fraction of raw data reserved for testing when no raw test CSV is provided.
+        random_seed: Random seed used for reproducible splitting.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -162,7 +170,15 @@ class SplitSettings(BaseModel):
 
 
 class WorkflowSettings(BaseModel):
-    """Workflow toggle settings."""
+    """Workflow stage toggles.
+
+    Attributes:
+        hyperparameter_tuning: Whether to run Optuna hyperparameter tuning.
+        threshold_optimization: Whether to tune post-training decision thresholds.
+        transfer_learning: Whether to fine-tune a pretrained checkpoint.
+        scale_learning_rate: Whether to scale proxy-tuned learning rates for the target checkpoint.
+        wrap_peft: Whether to apply PEFT/LoRA wrapping.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -174,7 +190,17 @@ class WorkflowSettings(BaseModel):
 
 
 class TrainingSettings(BaseModel):
-    """Training settings."""
+    """Training hyperparameter settings.
+
+    Attributes:
+        batch_size: Training and evaluation batch size.
+        train_epochs: Number of training epochs.
+        weight_decay: Weight decay applied during optimization.
+        learning_rate: Initial optimizer learning rate.
+        lr_scheduler: Learning-rate scheduler name.
+        best_model_metric: Model-selection metric.
+        early_stopping_patience: Early stopping patience in epochs without improvement.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -188,7 +214,12 @@ class TrainingSettings(BaseModel):
 
 
 class ThresholdSettings(BaseModel):
-    """Threshold optimization settings."""
+    """Decision-threshold optimization settings.
+
+    Attributes:
+        threshold_type: Thresholding mode, either global or per-label.
+        best_threshold_metric: Metric used to select decision thresholds.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -197,7 +228,19 @@ class ThresholdSettings(BaseModel):
 
 
 class OptunaSpaceSettings(BaseModel):
-    """Validated Optuna hyperparameter search space specification."""
+    """Validated Optuna hyperparameter search space.
+
+    Attributes:
+        lr_low: Lower learning-rate bound.
+        lr_high: Upper learning-rate bound.
+        batch_sizes: Candidate batch sizes.
+        wd_low: Lower weight-decay bound.
+        wd_high: Upper weight-decay bound.
+        schedulers: Candidate learning-rate schedulers.
+        epoch_low: Lower epoch-count bound.
+        epoch_high: Upper epoch-count bound.
+        lr_reference_batch_size: Reference batch size used for learning-rate scaling.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -213,7 +256,14 @@ class OptunaSpaceSettings(BaseModel):
 
     @model_validator(mode="after")
     def validate_space(self) -> Self:
-        """Validate Optuna search-space bounds and categorical choices."""
+        """Validate Optuna search-space bounds and categorical choices.
+
+        Returns:
+            Validated Optuna search-space settings.
+
+        Raises:
+            ValueError: If numeric bounds are inconsistent or schedulers contain empty values.
+        """
         if self.lr_low >= self.lr_high:
             raise ValueError("optuna_space.lr_low must be strictly smaller than optuna_space.lr_high.")
 
@@ -227,13 +277,6 @@ class OptunaSpaceSettings(BaseModel):
             raise ValueError("optuna_space.schedulers must not contain empty strings.")
 
         return self
-
-    def __getitem__(
-        self,
-        key: str,
-    ) -> Any:
-        """Temporary compatibility shim for legacy dict-style consumers."""
-        return getattr(self, key)
 
 
 _DEFAULT_OPTUNA_SPACE_BASE: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
@@ -262,7 +305,12 @@ _DEFAULT_OPTUNA_SPACE_PEFT: Final[OptunaSpaceSettings] = OptunaSpaceSettings(
 
 
 class HpoSettings(BaseModel):
-    """Hyperparameter optimization settings."""
+    """Hyperparameter optimization settings.
+
+    Attributes:
+        tuning_trials: Number of Optuna trials.
+        optuna_space: Resolved Optuna hyperparameter search space.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -271,7 +319,14 @@ class HpoSettings(BaseModel):
 
 
 class PeftSettings(BaseModel):
-    """PEFT / LoRA settings."""
+    """PEFT/LoRA settings.
+
+    Attributes:
+        lora_r: LoRA rank.
+        lora_alpha: LoRA scaling factor.
+        lora_dropout: LoRA dropout probability.
+        lora_bias: LoRA bias handling mode.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -282,7 +337,11 @@ class PeftSettings(BaseModel):
 
 
 class HardwareSettings(BaseModel):
-    """Hardware settings."""
+    """Hardware execution settings.
+
+    Attributes:
+        use_cpu: Whether to force CPU execution.
+    """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -290,7 +349,22 @@ class HardwareSettings(BaseModel):
 
 
 class RunSettings(ResolvableSettings):
-    """Top-level resolved settings for a tlmtc run."""
+    """Resolved top-level settings for a tlmtc training run.
+
+    Attributes:
+        raw_csv: Path to the raw training CSV.
+        raw_test_csv: Optional path to a raw test CSV.
+        work_dir: Base directory for resolving inputs and writing run artifacts.
+        run_id: Run identifier used to name the output directory.
+        model: Model and tokenizer settings.
+        split: Data splitting settings.
+        workflow: Workflow stage toggles.
+        training: Training hyperparameter settings.
+        threshold: Decision-threshold optimization settings.
+        hpo: Hyperparameter optimization settings.
+        peft: PEFT/LoRA settings.
+        hardware: Hardware execution settings.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -311,7 +385,17 @@ class RunSettings(ResolvableSettings):
     @model_validator(mode="before")
     @classmethod
     def resolve_optuna_space(cls, value: Any) -> Any:
-        """Resolve the effective Optuna search space from workflow settings and layered user input."""
+        """Resolve the effective Optuna search space before settings validation.
+
+        Args:
+            value: Raw settings mapping passed to Pydantic validation.
+
+        Returns:
+            Settings mapping with defaults and user-provided Optuna search-space values merged.
+
+        Raises:
+            TypeError: If `hpo.optuna_space` is not a mapping.
+        """
         workflow = value.get("workflow") or {}
         hpo = value.get("hpo") or {}
 

@@ -1,4 +1,4 @@
-"""tlmtc package."""
+"""Public package interface and lazy-loaded API exports."""
 
 from typing import TYPE_CHECKING, Any
 

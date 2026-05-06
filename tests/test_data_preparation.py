@@ -107,11 +107,13 @@ class TestDfSplit:
 
     def test_produces_expected_train_and_test_shapes(self) -> None:
         df = self._balanced_split_frame(n=20)
-        X = df["text"].values
-        y = df[["label_a", "label_b"]].values
+        text_values = df["text"].values
+        label_matrix = df[["label_a", "label_b"]].values
 
         test_size = 0.3
-        train, test = df_split(df=df, X=X, y=y, test_size=test_size, random_seed=42)
+        train, test = df_split(
+            df=df, text_values=text_values, label_matrix=label_matrix, test_size=test_size, random_seed=42
+        )
 
         assert len(train) + len(test) == len(df)
 
@@ -170,11 +172,11 @@ class TestDfSplit:
                 "label_b": [1, 0, 0, 0, 0, 0, 0, 0],
             }
         )
-        X = df["text"].values
-        y = df[["label_a", "label_b"]].values
+        text_values = df["text"].values
+        label_matrix = df[["label_a", "label_b"]].values
 
         with pytest.raises(ValueError, match="Could not create a valid multilabel stratified split"):
-            df_split(df=df, X=X, y=y, test_size=0.25, random_seed=42)
+            df_split(df=df, text_values=text_values, label_matrix=label_matrix, test_size=0.25, random_seed=42)
 
 
 class TestDfSave:

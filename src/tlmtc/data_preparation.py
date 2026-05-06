@@ -1,7 +1,4 @@
-"""Internal helpers for data preparation and dataset persistence.
-
-Defines helpers used by the data pipeline for preprocessing, splitting, and saving intermediate datasets.
-"""
+"""Data-preparation operations for Hugging Face multi-label text classification."""
 
 from pathlib import Path
 from typing import Any
@@ -17,46 +14,44 @@ from tlmtc.data_contracts import LABEL_PREFIX, TEXT_COL, TEXT_PAIR_COL, InputMod
 def df_preprocess(
     df_path: Path,
 ) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray, InputMode]:
-    """Import, validate, preprocess and extract labels from train/test data.
+    """Load, clean, and validate a multi-label CSV for stratified splitting.
 
     Args:
-        df_path: Path to the CSV data file, with required text and label columns,
-            and an optional paired-text column.
+        df_path: Path to a CSV with a required text column, optional paired-text column,
+            and binary label columns.
 
     Returns:
-        df: Preprocessed DataFrame.
-        label_cols: Label column names.
-        X: Text samples as a NumPy array.
-        y: Label matrix as a NumPy array.
-        input_mode: Input mode inferred from the validated dataframe columns.
+        Preprocessed DataFrame, label column names, text_values, label matrix, and inferred input mode.
     """
     df = pd.read_csv(df_path).dropna().reset_index(drop=True)
     df, label_cols, input_mode = validate_multilabel_frame(df)
 
-    X = df[TEXT_COL].values
-    y = df[label_cols].values
-    return df, label_cols, X, y, input_mode
+    text_values = df[TEXT_COL].values
+    label_matrix = df[label_cols].values
+    return df, label_cols, text_values, label_matrix, input_mode
 
 
 def df_split(
     df: pd.DataFrame,
-    X: np.ndarray,
-    y: np.ndarray,
+    text_values: np.ndarray,
+    label_matrix: np.ndarray,
     test_size: float,
     random_seed: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Split preprocessed data into stratified train and test sets.
+    """Create a multilabel-stratified two-way data split.
 
     Args:
-        df: Preprocessed data.
-        X: Texts.
-        y: Label matrix.
-        test_size: Proportion of dataset to be used for testing.
-        random_seed: Random seed.
+        df: Preprocessed DataFrame to split.
+        text_values: Text values used as splitter inputs.
+        label_matrix: Multi-label target matrix used for stratification.
+        test_size: Fraction of rows assigned to the second split.
+        random_seed: Random seed for reproducible splitting.
 
     Returns:
-        train_data: Train set.
-        test_data: Test set.
+        Training partition and held-out partition.
+
+    Raises:
+        ValueError: If no valid split preserves positive examples for every label.
     """
     max_split_attempts = 3
     label_cols = [col for col in df.columns if col.startswith(LABEL_PREFIX)]
@@ -69,7 +64,7 @@ def df_split(
             random_state=random_seed + attempt,
         )
 
-        train_idx, test_idx = next(splitter.split(X, y))
+        train_idx, test_idx = next(splitter.split(text_values, label_matrix))
         train_data = df.iloc[train_idx].reset_index(drop=True)
         test_data = df.iloc[test_idx].reset_index(drop=True)
 
@@ -91,11 +86,11 @@ def df_save(
     df: pd.DataFrame,
     path: Path,
 ) -> None:
-    """Save a DataFrame to disk as parquet file.
+    """Save a DataFrame as a parquet artifact.
 
     Args:
-        df: DataFrame to save.
-        path: Path where the DataFrame will be saved.
+        df: DataFrame to persist.
+        path: Destination parquet path.
     """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -112,8 +107,8 @@ def tokenize_batch(
 
     Args:
         batch: Batched Hugging Face Dataset row dictionary.
-        tokenizer: Hugging Face tokenizer for the selected checkpoint.
-        input_mode: Validated input mode inferred from the data contract.
+        tokenizer: Tokenizer for the selected checkpoint.
+        input_mode: Text input mode used to choose single-text or paired-text tokenization.
         sequence_length: Maximum tokenized sequence length.
 
     Returns:

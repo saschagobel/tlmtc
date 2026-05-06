@@ -1,7 +1,4 @@
-"""Transfer Learning for Multi-Label Text Classification.
-
-Hyperparameter tuning and model fine-tuning.
-"""
+"""Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
 from functools import partial
 from tempfile import TemporaryDirectory
@@ -38,7 +35,7 @@ from tlmtc.training import (
 
 
 class TrainerFactory(Protocol):
-    """Factory for Trainer-compatible instances used by FinetunePipeline."""
+    """Factory protocol for Trainer-compatible instances."""
 
     def __call__(self, **kwargs: Any) -> Trainer:
         """Create a configured Trainer instance."""
@@ -46,23 +43,23 @@ class TrainerFactory(Protocol):
 
 
 class FinetunePipeline:
-    """Fine-tune a pretrained model and optionally run HPO and threshold optimization.
+    """Stateful fine-tuning pipeline for multi-label text classification.
 
     Attributes:
-        tokenized_dataset: Tokenized Hugging Face dataset ready for PyTorch
-        paths: Resolved filesystem locations for persisted train and validation splits, logs, and model outputs.
-        model: Model configuration (proxy-checkpoint and checkpoint).
-        workflow: High-level workflow toggles (HPO, learning rate scaling, transfer learning, threshold optimization).
+        tokenized_dataset: Tokenized Hugging Face dataset with train, validation, and test splits.
+        paths: Run-specific filesystem layout for data splits, logs, model outputs, and artifacts.
+        model: Model configuration, including checkpoint identifiers and classification target name.
+        workflow: Workflow configuration controlling HPO, learning-rate scaling, fine-tuning, and thresholds.
         peft: PEFT/LoRA configuration.
-        training: Resolved training input settings.
+        training: Resolved immutable training settings.
         runtime_training: Mutable effective training state used during HPO and fine-tuning.
-        hpo: Hyperparameter optimization settings, including the resolved Optuna space.
+        hpo: Hyperparameter optimization settings, including the resolved Optuna search space.
         threshold: Threshold optimization settings.
-        hardware: Hardware settings (forcing CPU execution).
-        pretrained_model: Loaded model instance ready for fine-tuning.
-        updated_trainer: The instantiated Trainer after fine-tuning.
+        hardware: Hardware settings controlling device selection.
+        pretrained_model: Loaded model instance before Trainer fine-tuning.
+        updated_trainer: Trainer instance after fine-tuning.
         num_labels: Number of labels in the multi-label classification task.
-        tuned_threshold: Tuned global or label-specific thresholds for multi-label classification
+        tuned_threshold: Global or per-label decision thresholds for multi-label prediction.
     """
 
     def __init__(
@@ -80,15 +77,15 @@ class FinetunePipeline:
         """Initialize the fine-tuning pipeline.
 
         Args:
-            tokenized_dataset: Tokenized dataset ready for PyTorch with "train"/"validation"/"test" splits.
-            paths: Run-specific filesystem layout for reading data splits and writing artifacts.
-            model: Model settings (checkpoints).
-            workflow: Workflow flags controlling which stages to run.
-            hpo: Hyperparameter tuning configuration, including the resolved Optuna search space.
-            training: Resolved training input settings.
-            peft: LoRA/PEFT settings.
+            tokenized_dataset: Tokenized Hugging Face dataset with train, validation, and test splits.
+            paths: Run-specific filesystem layout for data splits, logs, model outputs, and artifacts.
+            model: Model configuration, including checkpoint identifiers and classification target name.
+            workflow: Workflow configuration controlling HPO, learning-rate scaling, fine-tuning, and thresholds.
+            peft: PEFT/LoRA configuration.
+            training: Resolved immutable training settings.
+            hpo: Hyperparameter optimization settings, including the resolved Optuna search space.
             threshold: Threshold optimization settings.
-            hardware: Hardware settings (forcing CPU execution).
+            hardware: Hardware settings controlling device selection.
         """
         self.tokenized_dataset = tokenized_dataset
         self.paths = paths
@@ -108,11 +105,13 @@ class FinetunePipeline:
     def load_pretrained(
         self,
     ) -> Self:
-        """Load a pretrained Hugging Face model for multi-label classification and optionally wrap with peft.
+        """Load the target sequence-classification model and optionally apply PEFT/LoRA.
 
         Returns:
-        -------
-        FinetunePipeline
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If the prepared training split is missing.
         """
         if not self.workflow.transfer_learning:
             return self
@@ -141,16 +140,16 @@ class FinetunePipeline:
         self,
         trainer: TrainerFactory = WeightedTrainer,
     ) -> Self:
-        """Run automated hyperparameter optimization on the pretrained Hugging Face proxy model using Optuna.
+        """Run Optuna hyperparameter tuning on the proxy checkpoint.
 
-        Parameters
-        ----------
-        trainer: Type[transformers.Trainer], default=WeightedTrainer
-            Custom Hugging Face Trainer for handling class imbalances in multi-label classification
+        Args:
+            trainer: Trainer-compatible factory used for hyperparameter search.
 
         Returns:
-        -------
-        FinetunePipeline
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If tokenized data is missing or Optuna returns multiple best runs.
         """
         if not self.workflow.hyperparameter_tuning:
             return self
@@ -230,16 +229,16 @@ class FinetunePipeline:
         self,
         trainer: TrainerFactory = WeightedTrainer,
     ) -> Self:
-        """Fine-tune a pretrained Hugging Face model for multi-label classification.
+        """Fine-tune the loaded target model on the training split.
 
-        Parameters
-        ----------
-        trainer: Type[transformers.Trainer], default=WeightedTrainer
-            Custom Hugging Face Trainer for handling class imbalances in multi-label classification
+        Args:
+            trainer: Trainer-compatible factory used for fine-tuning.
 
         Returns:
-        -------
-        FinetunePipeline
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If tokenized data or the loaded pretrained model is missing.
         """
         if not self.workflow.transfer_learning:
             return self
@@ -272,14 +271,13 @@ class FinetunePipeline:
         return self
 
     def tune_thresholds(self) -> Self:
-        """Tune decision threshold(s) on the validation split using the trained model.
-
-        This step is post-training calibration: it does not update model weights.
-        The tuned threshold(s) are stored in `self.tuned_threshold`.
+        """Tune decision thresholds on validation-set predictions.
 
         Returns:
-        -------
-        FinetunePipeline
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If tokenized data or the fine-tuned trainer is missing.
         """
         if not self.workflow.threshold_optimization or not self.workflow.transfer_learning:
             return self
@@ -305,11 +303,13 @@ class FinetunePipeline:
     def save_pretrained(
         self,
     ) -> Self:
-        """Save a fine-tuned Hugging Face model for multi-label classification.
+        """Save the fine-tuned model artifacts.
 
         Returns:
-        -------
-        FinetunePipeline
+            Updated pipeline instance.
+
+        Raises:
+            RuntimeError: If the fine-tuned trainer is missing.
         """
         if not self.workflow.transfer_learning:
             return self

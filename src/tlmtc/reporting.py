@@ -1,4 +1,4 @@
-"""..."""
+"""Reporting tables and figures for multi-label text classification evaluation."""
 
 from pathlib import Path
 
@@ -33,7 +33,13 @@ FONT_CFG = {
 
 
 def set_non_degenerate_xlim(ax: Axes, xmin: float, xmax: float) -> None:
-    """Set x-axis limits while handling single-point plots."""
+    """Set robust x-axis limits for possibly single-point plots.
+
+    Args:
+        ax: Matplotlib axes to update.
+        xmin: Requested lower x-axis limit.
+        xmax: Requested upper x-axis limit.
+    """
     if xmin == xmax:
         ax.set_xlim(xmin - 0.5, xmax + 0.5)
     else:
@@ -49,7 +55,20 @@ def make_global_metrics_table(
     test_data_path: Path,
     input_mode: str,
 ) -> GT:
-    """Create a formatted summary table of global evaluation metrics."""
+    """Create a formatted table of aggregate evaluation metrics.
+
+    Args:
+        eval_metrics: Aggregate evaluation metrics keyed by metric name.
+        target_name: Display name for the classification target.
+        label_names: Label names included in the evaluation.
+        checkpoint: Model checkpoint identifier.
+        train_data_path: Path to the prepared training split.
+        test_data_path: Path to the prepared test split.
+        input_mode: Human-readable text input mode.
+
+    Returns:
+        Renderable table object.
+    """
     name_map = {
         "f1_micro": ("F1", "    micro"),
         "f1_macro": ("F1", "    macro"),
@@ -117,7 +136,19 @@ def make_label_metrics_table(
     test_data_path: Path,
     input_mode: str,
 ) -> GT:
-    """Create a formatted summary table of label-specific evaluation metrics."""
+    """Create a formatted table of per-label evaluation metrics.
+
+    Args:
+        eval_metrics: Per-label evaluation metrics keyed by label name.
+        target_name: Display name for the classification target.
+        checkpoint: Model checkpoint identifier.
+        train_data_path: Path to the prepared training split.
+        test_data_path: Path to the prepared test split.
+        input_mode: Human-readable text input mode.
+
+    Returns:
+        Renderable table object.
+    """
     df = pd.DataFrame(eval_metrics).T.reset_index()
     df = df.rename(
         columns={
@@ -175,7 +206,18 @@ def make_hyperparameters_table(
     checkpoint: str,
     input_mode: str,
 ) -> GT:
-    """Create a formatted summary table of selected hyperparameters and tuned thresholds."""
+    """Create a formatted table of selected hyperparameters and thresholds.
+
+    Args:
+        threshold: Global or per-label decision threshold values.
+        trainer: Trainer instance containing the final training arguments.
+        target_name: Display name for the classification target.
+        checkpoint: Model checkpoint identifier.
+        input_mode: Human-readable text input mode.
+
+    Returns:
+        Renderable table object.
+    """
     if threshold.size == 1:
         threshold_name = "Global threshold"
         threshold_value = f"{threshold.item():.2f}"
@@ -233,7 +275,17 @@ def make_roc_curves_plot(
     checkpoint: str,
     label_names: list[str],
 ) -> Figure:
-    """Create a figure of global and label-specific ROC curves."""
+    """Create a ROC-curve figure for aggregate and per-label performance.
+
+    Args:
+        roc_curves: ROC curve data returned by evaluation metrics.
+        target_name: Display name for the classification target.
+        checkpoint: Model checkpoint identifier.
+        label_names: Label names in the same order as the label matrix columns.
+
+    Returns:
+        Matplotlib figure.
+    """
     fpr = roc_curves["fpr"]
     tpr = roc_curves["tpr"]
     roc_auc = roc_curves["roc_auc"]
@@ -299,7 +351,17 @@ def make_roc_curves_plot(
 def make_cooccurrence_heatmaps_plot(
     co_occurrence: dict[str, np.ndarray], target_name: str, checkpoint: str, label_names: list[str]
 ) -> Figure:
-    """Create heatmaps of true and predicted label co-occurrence."""
+    """Create heatmaps of observed and predicted label co-occurrence.
+
+    Args:
+        co_occurrence: Absolute and normalized co-occurrence matrices for true and predicted labels.
+        target_name: Display name for the classification target.
+        checkpoint: Model checkpoint identifier.
+        label_names: Label names in the same order as the label matrix columns.
+
+    Returns:
+        Matplotlib figure.
+    """
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
     with rc_context(rc=FONT_CFG):
@@ -374,7 +436,17 @@ def make_loss_curves_plot(
     checkpoint: str,
     best_epoch: int,
 ) -> Figure:
-    """Create a figure of training and evaluation loss curves across epochs."""
+    """Create a loss-curve figure from training and evaluation logs.
+
+    Args:
+        losses: DataFrame with epoch-level training and evaluation losses.
+        target_name: Display name for the classification target.
+        checkpoint: Model checkpoint identifier.
+        best_epoch: Epoch selected by the configured model-selection metric.
+
+    Returns:
+        Matplotlib figure.
+    """
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
     with rc_context(rc=FONT_CFG):
@@ -435,7 +507,16 @@ def make_objective_values_plot(
     target_name: str,
     checkpoint: str,
 ) -> Figure:
-    """Create a figure of objective values across hyperparameter optimization trials."""
+    """Create an Optuna objective-values figure across tuning trials.
+
+    Args:
+        objective_values: DataFrame with Optuna trial numbers and objective values.
+        target_name: Display name for the classification target.
+        checkpoint: Proxy model checkpoint identifier.
+
+    Returns:
+        Matplotlib figure.
+    """
     values = (
         objective_values.sort_values("number")
         .assign(number=lambda df: df["number"] + 1)
