@@ -1,4 +1,4 @@
-"""Typer command-line interface for the tlmtc training pipeline."""
+"""Typer command-line interface for tlmtc."""
 
 import json
 from pathlib import Path
@@ -72,139 +72,139 @@ def train_command(
     raw_csv: str = typer.Option(
         ...,
         "--raw-csv",
-        help="Path to the multilabel CSV.",
+        help="Path to the raw multi-label CSV with text, label_* columns, and optional text_pair.",
     ),
     raw_test_csv: str | None = typer.Option(
         None,
         "--raw-test-csv",
-        help="Optional path to a test CSV. If omitted, a test split is created from --raw-csv.",
+        help="Path to a separate raw test CSV. If omitted, a test split is created from --raw-csv.",
     ),
     work_dir: str | None = typer.Option(
         None,
         "--work-dir",
-        help="Base directory for resolving relative inputs and creating the run directory.",
+        help="Base directory for resolving inputs and writing run artifacts.",
     ),
     config_path: str | None = typer.Option(
         None,
         "--config-path",
-        help="Optional path to a YAML configuration file.",
+        help="Path to a YAML configuration file. CLI options override config values.",
     ),
     run_id: str | None = typer.Option(
         None,
         "--run-id",
-        help="Optional run identifier used to name the run directory. If it exists, the run may resume.",
+        help="Run identifier used to name the run directory. If omitted, a random identifier is generated.",
     ),
     target_name: str | None = typer.Option(
         None,
         "--target-name",
-        help="Display name for the classification target/task.",
+        help="Display name for the classification target in logs and reports.",
     ),
     validation_size: float | None = typer.Option(
         None,
         "--validation-size",
-        help="Fraction of data used for validation split.",
+        help="Fraction reserved for validation splitting.",
     ),
     test_size: float | None = typer.Option(
         None,
         "--test-size",
-        help="Fraction of data used for test split when --raw-test-csv is omitted.",
+        help="Fraction reserved for test splitting when --raw-test-csv is omitted.",
     ),
     random_seed: int | None = typer.Option(
         None,
         "--random-seed",
-        help="Random seed used for splitting/shuffling.",
+        help="Random seed used for reproducible data splitting and shuffling.",
     ),
     transfer_learning: bool | None = typer.Option(
         None,
         "--transfer-learning/--no-transfer-learning",
-        help="Whether to fine-tune a pretrained checkpoint.",
+        help="Fine-tune the target checkpoint and produce model/evaluation artifacts.",
     ),
     hyperparameter_tuning: bool | None = typer.Option(
         None,
         "--hyperparameter-tuning/--no-hyperparameter-tuning",
-        help="Whether to run Optuna hyperparameter tuning.",
+        help="Evaluate candidate hyperparameter configurations before final fine-tuning.",
     ),
     threshold_optimization: bool | None = typer.Option(
         None,
         "--threshold-optimization/--no-threshold-optimization",
-        help="Whether to tune decision threshold(s) post-training.",
+        help="Tune validation-set decision thresholds after fine-tuning; otherwise use 0.5.",
     ),
     threshold_type: str | None = typer.Option(
         None,
         "--threshold-type",
-        help="Threshold mode.",
+        help='Thresholding mode. Supported values: "global", "label".',
     ),
     scale_learning_rate: bool | None = typer.Option(
         None,
         "--scale-learning-rate/--no-scale-learning-rate",
-        help="Whether to scale learning rate based on proxy/full checkpoint size.",
+        help="Scale a proxy-tuned learning rate for the target checkpoint.",
     ),
     wrap_peft: bool | None = typer.Option(
         None,
         "--wrap-peft/--no-wrap-peft",
-        help="Whether to apply PEFT/LoRA wrapping.",
+        help="Use parameter-efficient fine-tuning with LoRA adapters.",
     ),
     proxy_checkpoint: str | None = typer.Option(
         None,
         "--proxy-checkpoint",
-        help="Proxy pretrained model checkpoint used for HPO.",
+        help="Compatible encoder-only Hugging Face checkpoint used during hyperparameter tuning.",
     ),
     checkpoint: str | None = typer.Option(
         None,
         "--checkpoint",
-        help="Base pretrained model checkpoint identifier.",
+        help="Compatible encoder-only Hugging Face checkpoint used for final fine-tuning.",
     ),
     sequence_length: int | None = typer.Option(
         None,
         "--sequence-length",
-        help="Max sequence length for tokenization.",
+        help="Maximum tokenized sequence length.",
     ),
     best_model_metric: str | None = typer.Option(
         None,
         "--best-model-metric",
-        help="Metric used to select the best model checkpoint.",
+        help='Metric used to select the best model checkpoint. Choices: "f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro".',
     ),
     batch_size: int | None = typer.Option(
         None,
         "--batch-size",
-        help="Training batch size.",
+        help="Initial training/evaluation batch size; replaced by tuned value when tuning is enabled.",
     ),
     train_epochs: int | None = typer.Option(
         None,
         "--train-epochs",
-        help="Number of training epochs.",
+        help="Initial number of training epochs; replaced by tuned value when tuning is enabled.",
     ),
     learning_rate: float | None = typer.Option(
         None,
         "--learning-rate",
-        help="Initial learning rate.",
+        help="Initial optimizer learning rate; replaced by tuned value when tuning is enabled.",
     ),
     weight_decay: float | None = typer.Option(
         None,
         "--weight-decay",
-        help="Weight decay.",
+        help="Initial weight decay; replaced by tuned value when tuning is enabled.",
     ),
     lr_scheduler: str | None = typer.Option(
         None,
         "--lr-scheduler",
-        help="Learning rate scheduler identifier/name.",
+        help="Initial learning-rate scheduler; replaced by tuned value when tuning is enabled.",
     ),
     best_threshold_metric: str | None = typer.Option(
         None,
         "--best-threshold-metric",
-        help="Metric used to select optimal decision threshold(s).",
+        help='Metric used to select decision thresholds. Choices: "f1_micro", "f1_macro".',
     ),
     tuning_trials: int | None = typer.Option(
         None,
         "--tuning-trials",
-        help="Number of Optuna trials.",
+        help="Number of hyperparameter configurations to evaluate; higher values increase runtime.",
     ),
     optuna_space: str | None = typer.Option(
         None,
         "--optuna-space",
         help=(
-            "Optional partial override for the Optuna search space as JSON or @file.json. "
-            "Values are merged into the default space."
+            "Partial tuning-space override as JSON or @file.json. Supported keys: "
+            "lr_low, lr_high, batch_sizes, wd_low, wd_high, schedulers, epoch_low, epoch_high."
         ),
     ),
     lora_r: int | None = typer.Option(
@@ -215,17 +215,17 @@ def train_command(
     lora_alpha: int | None = typer.Option(
         None,
         "--lora-alpha",
-        help="LoRA alpha.",
+        help="LoRA scaling factor.",
     ),
     lora_dropout: float | None = typer.Option(
         None,
         "--lora-dropout",
-        help="LoRA dropout.",
+        help="LoRA dropout probability.",
     ),
     lora_bias: str | None = typer.Option(
         None,
         "--lora-bias",
-        help="LoRA bias handling.",
+        help='LoRA bias handling mode. Supported values: "none", "all", "lora_only".',
     ),
     early_stopping_patience: int | None = typer.Option(
         None,
@@ -238,7 +238,7 @@ def train_command(
         help="Force CPU execution.",
     ),
 ) -> None:
-    """Run the tlmtc training pipeline from CLI options."""
+    """Run the full multi-label text classification training workflow."""
     from tlmtc.api import train_tlmtc
 
     result = train_tlmtc(
