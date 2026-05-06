@@ -96,9 +96,9 @@ def train_tlmtc(
             Defaults to `False`.
         wrap_peft: Whether to use parameter-efficient fine-tuning with LoRA adapters. Defaults to `True`.
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
-            hyperparameter tuning. Defaults to `"microsoft/deberta-v3-xsmall"`.
+            hyperparameter tuning. Defaults to `"EuroBERT/EuroBERT-210m"`.
         checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
-            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`.
+            final fine-tuning. Defaults to `"EuroBERT/EuroBERT-610m"`
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
         best_model_metric: Metric used to select the best model checkpoint. Supported values are
             `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
