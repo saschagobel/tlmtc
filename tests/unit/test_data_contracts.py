@@ -11,6 +11,7 @@ from tlmtc.data_contracts import (
     DataContractError,
     InputMode,
     validate_multilabel_frame,
+    validate_prediction_frame,
 )
 
 FrameFactory = Callable[..., pd.DataFrame]
@@ -148,3 +149,133 @@ class TestValidateMultilabelFrame:
 
         with pytest.raises(DataContractError, match="multilabel data contract"):
             validate_multilabel_frame(df)
+
+
+class TestValidatePredictionFrame:
+    """Tests for validating unlabeled prediction dataframe contracts."""
+
+    def test_validates_single_text_prediction_frame_and_preserves_extra_columns(self) -> None:
+        df = pd.DataFrame(
+            {
+                "record_id": ["a", "b"],
+                TEXT_COL: ["first text", "second text"],
+                "source": ["crm", "email"],
+            }
+        )
+
+        validated = validate_prediction_frame(
+            df,
+            expected_input_mode=InputMode.SINGLE_TEXT,
+        )
+
+        pd.testing.assert_frame_equal(validated, df)
+
+    def test_validates_paired_text_prediction_frame_and_preserves_extra_columns(self) -> None:
+        df = pd.DataFrame(
+            {
+                "record_id": ["a", "b"],
+                TEXT_COL: ["first text", "second text"],
+                TEXT_PAIR_COL: ["first pair", "second pair"],
+                "source": ["crm", "email"],
+            }
+        )
+
+        validated = validate_prediction_frame(
+            df,
+            expected_input_mode=InputMode.PAIRED_TEXT,
+        )
+
+        pd.testing.assert_frame_equal(validated, df)
+
+    def test_allows_text_pair_for_single_text_prediction_frame(self) -> None:
+        df = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text"],
+                TEXT_PAIR_COL: ["first pair", "second pair"],
+            }
+        )
+
+        validated = validate_prediction_frame(
+            df,
+            expected_input_mode=InputMode.SINGLE_TEXT,
+        )
+
+        pd.testing.assert_frame_equal(validated, df)
+
+    def test_rejects_non_dataframe_prediction_input(self) -> None:
+        with pytest.raises(DataContractError, match="Expected a pandas DataFrame"):
+            validate_prediction_frame(
+                "not a dataframe",  # type: ignore[arg-type]
+                expected_input_mode=InputMode.SINGLE_TEXT,
+            )
+
+    @pytest.mark.parametrize(
+        "bad_df",
+        [
+            pd.DataFrame({TEXT_COL: []}),
+            pd.DataFrame({"body": ["first text", "second text"]}),
+        ],
+    )
+    def test_rejects_structurally_invalid_prediction_frames(self, bad_df: pd.DataFrame) -> None:
+        with pytest.raises(DataContractError, match="prediction data contract"):
+            validate_prediction_frame(
+                bad_df,
+                expected_input_mode=InputMode.SINGLE_TEXT,
+            )
+
+    @pytest.mark.parametrize(
+        "bad_text",
+        ["", "   ", None],
+    )
+    def test_rejects_missing_or_blank_prediction_text(self, bad_text: str | None) -> None:
+        df = pd.DataFrame({TEXT_COL: ["valid text", bad_text]})
+
+        with pytest.raises(DataContractError, match="prediction data contract"):
+            validate_prediction_frame(
+                df,
+                expected_input_mode=InputMode.SINGLE_TEXT,
+            )
+
+    def test_rejects_missing_text_pair_when_paired_text_expected(self) -> None:
+        df = pd.DataFrame({TEXT_COL: ["first text", "second text"]})
+
+        with pytest.raises(DataContractError, match=f"missing required column '{TEXT_PAIR_COL}'"):
+            validate_prediction_frame(
+                df,
+                expected_input_mode=InputMode.PAIRED_TEXT,
+            )
+
+    @pytest.mark.parametrize(
+        "bad_text_pair",
+        ["", "   ", None],
+    )
+    def test_rejects_missing_or_blank_prediction_text_pair_when_present(
+        self,
+        bad_text_pair: str | None,
+    ) -> None:
+        df = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text"],
+                TEXT_PAIR_COL: ["valid pair", bad_text_pair],
+            }
+        )
+
+        with pytest.raises(DataContractError, match="prediction data contract"):
+            validate_prediction_frame(
+                df,
+                expected_input_mode=InputMode.PAIRED_TEXT,
+            )
+
+    def test_rejects_label_columns_in_prediction_frame(self) -> None:
+        df = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text"],
+                "label_a": [1, 0],
+            }
+        )
+
+        with pytest.raises(DataContractError, match="Prediction input must be unlabeled"):
+            validate_prediction_frame(
+                df,
+                expected_input_mode=InputMode.SINGLE_TEXT,
+            )
