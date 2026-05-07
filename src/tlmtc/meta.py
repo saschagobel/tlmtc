@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
@@ -43,8 +43,8 @@ class TrainRunMeta(BaseModel):
     proxy_checkpoint: str
     sequence_length: PositiveInt
 
-    input_mode: InputMode
-    label_names: list[str]
+    input_mode: InputMode | None
+    label_names: list[str] | None
 
     threshold_type: Literal["global", "label"]
     thresholds: list[float]
@@ -54,43 +54,6 @@ class TrainRunMeta(BaseModel):
     threshold_optimization: bool
     scale_learning_rate: bool
     wrap_peft: bool
-
-    @classmethod
-    def from_training_run(
-        cls,
-        *,
-        run_id: str,
-        target_name: str,
-        checkpoint: str,
-        proxy_checkpoint: str,
-        sequence_length: int,
-        input_mode: InputMode,
-        label_names: list[str],
-        threshold_type: Literal["global", "label"],
-        thresholds: list[float],
-        transfer_learning: bool,
-        hyperparameter_tuning: bool,
-        threshold_optimization: bool,
-        scale_learning_rate: bool,
-        wrap_peft: bool,
-    ) -> Self:
-        """Create metadata from the resolved state of a completed training run."""
-        return cls(
-            run_id=run_id,
-            target_name=target_name,
-            checkpoint=checkpoint,
-            proxy_checkpoint=proxy_checkpoint,
-            sequence_length=sequence_length,
-            input_mode=input_mode,
-            label_names=label_names,
-            threshold_type=threshold_type,
-            thresholds=thresholds,
-            transfer_learning=transfer_learning,
-            hyperparameter_tuning=hyperparameter_tuning,
-            threshold_optimization=threshold_optimization,
-            scale_learning_rate=scale_learning_rate,
-            wrap_peft=wrap_peft,
-        )
 
 
 def write_run_meta(
