@@ -300,8 +300,7 @@ def resolve_prediction_paths(
     train_outputs_dir = resolved_work_dir / train_outputs_dirname
     if not train_outputs_dir.is_dir():
         raise FileNotFoundError(
-            "No tlmtc training outputs found. "
-            f"Expected an existing training outputs directory at {train_outputs_dir}."
+            f"No tlmtc training outputs found. Expected an existing training outputs directory at {train_outputs_dir}."
         )
 
     resolved_run_id = run_id if run_id is not None else find_latest_train_run_id(train_outputs_dir)
@@ -309,28 +308,24 @@ def resolve_prediction_paths(
     train_run_dir = train_outputs_dir / resolved_run_id
     if not train_run_dir.is_dir():
         raise FileNotFoundError(
-            "Requested tlmtc training run not found. "
-            f"Expected training run directory at {train_run_dir}."
+            f"Requested tlmtc training run not found. Expected training run directory at {train_run_dir}."
         )
 
     train_run_meta_path = train_run_dir / TRAIN_RUN_META_FILENAME
     if not train_run_meta_path.is_file():
         raise FileNotFoundError(
-            "Training run metadata not found. "
-            f"Expected {TRAIN_RUN_META_FILENAME} at {train_run_meta_path}. "
+            f"Training run metadata not found. Expected {TRAIN_RUN_META_FILENAME} at {train_run_meta_path}. "
         )
 
     train_run_model_dir = train_run_dir / model_dirname
     if not train_run_model_dir.is_dir():
         raise FileNotFoundError(
-            "Training model directory not found. "
-            f"Expected model artifacts under {train_run_model_dir}."
+            f"Training model directory not found. Expected model artifacts under {train_run_model_dir}."
         )
 
     if not any(train_run_model_dir.iterdir()):
         raise FileNotFoundError(
-            "Training model directory is empty. "
-            f"Expected saved model or adapter artifacts under {train_run_model_dir}."
+            f"Training model directory is empty. Expected saved model or adapter artifacts under {train_run_model_dir}."
         )
 
     prediction_outputs_dir = resolved_work_dir / prediction_outputs_dirname
