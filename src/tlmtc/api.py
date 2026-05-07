@@ -7,6 +7,7 @@ from typing import Any
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
+from tlmtc.meta import TrainRunMeta, write_run_meta
 from tlmtc.paths import RunPaths, resolve_paths
 from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
 
@@ -264,5 +265,25 @@ def train_tlmtc(
     evaluation_pipeline.save_metrics()
     evaluation_pipeline.render_tables()
     evaluation_pipeline.render_figures()
+
+    write_run_meta(
+        meta=TrainRunMeta(
+            run_id=settings.run_id,
+            target_name=settings.model.target_name,
+            checkpoint=settings.model.checkpoint,
+            proxy_checkpoint=settings.model.proxy_checkpoint,
+            sequence_length=settings.model.sequence_length,
+            input_mode=data_pipeline.input_mode,
+            label_names=evaluation_pipeline.label_names,
+            threshold_type=settings.threshold.threshold_type,
+            thresholds=finetune_pipeline.tuned_threshold.tolist(),
+            transfer_learning=settings.workflow.transfer_learning,
+            hyperparameter_tuning=settings.workflow.hyperparameter_tuning,
+            threshold_optimization=settings.workflow.threshold_optimization,
+            scale_learning_rate=settings.workflow.scale_learning_rate,
+            wrap_peft=settings.workflow.wrap_peft,
+        ),
+        path=paths.train_run_meta_path,
+    )
 
     return TrainResult(paths=paths)

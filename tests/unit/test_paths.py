@@ -34,6 +34,7 @@ class TestResolvePaths:
         assert paths.work_dir == expected_work_dir
         assert paths.run_id == "run123"
         assert paths.run_dir == expected_run_dir
+        assert paths.train_run_meta_path == expected_run_dir / "train_run_meta.json"
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
         assert paths.eval_dir == expected_run_dir / DEFAULT_EVAL_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME

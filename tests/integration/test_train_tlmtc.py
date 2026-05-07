@@ -10,7 +10,8 @@ from typer.testing import CliRunner
 
 from tlmtc.api import train_tlmtc
 from tlmtc.cli import app
-from tlmtc.data_contracts import TEXT_PAIR_COL
+from tlmtc.data_contracts import TEXT_PAIR_COL, InputMode
+from tlmtc.meta import read_run_meta
 from tlmtc.paths import RunPaths, resolve_paths
 
 pytestmark = pytest.mark.integration
@@ -181,6 +182,18 @@ def assert_common_training_artifacts(paths: RunPaths) -> None:
     assert GLOBAL_METRIC_KEYS.issubset(global_metrics)
     assert set(label_metrics) == {"a", "b"}
 
+    train_meta = read_run_meta(paths.train_run_meta_path)
+
+    assert train_meta.run_id == paths.run_id
+    assert train_meta.target_name == "Target"
+    assert train_meta.checkpoint
+    assert train_meta.proxy_checkpoint
+    assert train_meta.label_names == ["a", "b"]
+    assert train_meta.threshold_type == "label"
+    assert len(train_meta.thresholds) == 2
+    assert train_meta.transfer_learning is True
+    assert train_meta.threshold_optimization is True
+
 
 def assert_paired_text_artifacts(paths: RunPaths) -> None:
     """Assert that paired-text inputs were preserved and reported."""
@@ -195,6 +208,9 @@ def assert_paired_text_artifacts(paths: RunPaths) -> None:
         paths.hyperparameters_table_path,
     ):
         assert "Paired text" in table_path.read_text(encoding="utf-8")
+
+    train_meta = read_run_meta(paths.train_run_meta_path)
+    assert train_meta.input_mode is InputMode.PAIRED_TEXT
 
 
 def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
@@ -228,6 +244,12 @@ def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
 
     assert result.paths.run_id == "integration_smoke"
     assert_common_training_artifacts(result.paths)
+
+    train_meta = read_run_meta(result.paths.train_run_meta_path)
+    assert train_meta.input_mode is InputMode.SINGLE_TEXT
+    assert train_meta.sequence_length == 16
+    assert train_meta.hyperparameter_tuning is False
+    assert train_meta.wrap_peft is False
 
 
 def test_train_tlmtc_runs_end_to_end_with_paired_text_input(
@@ -311,6 +333,10 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
     assert result.paths.optuna_trials_path.exists()
     assert result.paths.objective_values_plot_path.exists()
 
+    train_meta = read_run_meta(result.paths.train_run_meta_path)
+    assert train_meta.hyperparameter_tuning is True
+    assert train_meta.wrap_peft is False
+
 
 def test_train_tlmtc_runs_peft_with_tiny_local_model(
     raw_multilabel_csv: Path,
@@ -348,6 +374,9 @@ def test_train_tlmtc_runs_peft_with_tiny_local_model(
     assert result.paths.run_id == "integration_peft"
     assert_common_training_artifacts(result.paths)
     assert_peft_adapter_exists(result.paths.model_dir)
+
+    train_meta = read_run_meta(result.paths.train_run_meta_path)
+    assert train_meta.wrap_peft is True
 
 
 def test_tlmtc_train_cli_runs_end_to_end_with_tiny_local_model(
@@ -405,3 +434,8 @@ def test_tlmtc_train_cli_runs_end_to_end_with_tiny_local_model(
     assert result.exit_code == 0, result.output
     assert f"Run completed: {paths.run_dir}" in result.output
     assert_common_training_artifacts(paths)
+
+    train_meta = read_run_meta(paths.train_run_meta_path)
+    assert train_meta.run_id == "integration_cli"
+    assert train_meta.sequence_length == 16
+    assert train_meta.wrap_peft is False

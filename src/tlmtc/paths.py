@@ -19,6 +19,7 @@ class RunPaths:
         <work_dir>/
             train_outputs/
                 <run_id>/
+                    train_run_meta.json
                     data/
                     logs/
                     model/
@@ -28,6 +29,7 @@ class RunPaths:
         work_dir: Base directory used to resolve inputs and contain training outputs.
         run_dir: Root output directory for the training run.
         run_id: Run identifier used to name the output directory.
+        train_run_meta_path: Path to the persisted training-run metadata sidecar.
         raw_data_path: Resolved path to the raw training CSV.
         raw_test_data_path: Resolved path to the optional raw test CSV.
         data_dir: Directory for prepared dataset split artifacts.
@@ -52,6 +54,8 @@ class RunPaths:
     work_dir: Path
     run_dir: Path
     run_id: str
+
+    train_run_meta_path: Path
 
     raw_data_path: Path
     raw_test_data_path: Path | None
@@ -138,6 +142,7 @@ def resolve_paths(
         work_dir=resolved_work_dir,
         run_dir=run_dir,
         run_id=run_id,
+        train_run_meta_path=run_dir / "train_run_meta.json",
         raw_data_path=raw_data_path,
         raw_test_data_path=raw_test_data_path,
         data_dir=data_dir,
