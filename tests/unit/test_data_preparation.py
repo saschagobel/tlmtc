@@ -6,9 +6,17 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+from datasets import Dataset
 
 from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
-from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
+from tlmtc.data_preparation import (
+    df_preprocess,
+    df_save,
+    df_split,
+    read_prediction_csv,
+    tokenize_batch,
+    tokenize_prediction_dataset,
+)
 
 
 class RecordingTokenizer:
@@ -90,6 +98,45 @@ class TestDfPreprocess:
 
         with pytest.raises(DataContractError, match="multilabel data contract"):
             df_preprocess(csv_path)
+
+
+class TestReadPredictionCsv:
+    """Test suite for reading unlabeled prediction CSV inputs."""
+
+    def test_reads_csv_and_validates_prediction_frame(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        csv_path = tmp_path / "prediction.csv"
+        df_in = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text"],
+                "external_id": ["a", "b"],
+            }
+        )
+        df_validated = df_in.assign(validated=True)
+        df_in.to_csv(csv_path, index=False)
+
+        def validate_frame(
+            df: pd.DataFrame,
+            expected_input_mode: InputMode,
+        ) -> pd.DataFrame:
+            pd.testing.assert_frame_equal(df, df_in)
+            assert expected_input_mode is InputMode.SINGLE_TEXT
+            return df_validated
+
+        monkeypatch.setattr(
+            "tlmtc.data_preparation.validate_prediction_frame",
+            validate_frame,
+        )
+
+        result = read_prediction_csv(
+            df_path=csv_path,
+            expected_input_mode=InputMode.SINGLE_TEXT,
+        )
+
+        pd.testing.assert_frame_equal(result, df_validated)
 
 
 class TestDfSplit:
@@ -269,3 +316,88 @@ class TestTokenizeBatch:
             "padding": "max_length",
             "max_length": 64,
         }
+
+
+class TestTokenizePredictionDataset:
+    """Test suite for tokenizing unlabeled prediction datasets."""
+
+    def test_loads_checkpoint_tokenizer_and_tokenizes_single_text_dataset(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tokenizer = RecordingTokenizer()
+
+        def from_pretrained(checkpoint: str) -> RecordingTokenizer:
+            assert checkpoint == "test-checkpoint"
+            return tokenizer
+
+        monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
+
+        dataset = Dataset.from_dict(
+            {
+                TEXT_COL: ["first text"],
+            }
+        )
+
+        tokenized = tokenize_prediction_dataset(
+            dataset=dataset,
+            checkpoint="test-checkpoint",
+            input_mode=InputMode.SINGLE_TEXT,
+            sequence_length=32,
+        )
+
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (["first text"],)
+        assert kwargs == {
+            "truncation": True,
+            "padding": "max_length",
+            "max_length": 32,
+        }
+
+        assert "input_ids" in tokenized.column_names
+        assert "attention_mask" in tokenized.column_names
+        assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]
+        assert tokenized[0]["attention_mask"].tolist() == [1, 1, 1]
+
+    def test_loads_checkpoint_tokenizer_and_tokenizes_paired_text_dataset(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tokenizer = RecordingTokenizer()
+
+        def from_pretrained(checkpoint: str) -> RecordingTokenizer:
+            assert checkpoint == "test-checkpoint"
+            return tokenizer
+
+        monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
+
+        dataset = Dataset.from_dict(
+            {
+                TEXT_COL: ["query a"],
+                TEXT_PAIR_COL: ["context a"],
+            }
+        )
+
+        tokenized = tokenize_prediction_dataset(
+            dataset=dataset,
+            checkpoint="test-checkpoint",
+            input_mode=InputMode.PAIRED_TEXT,
+            sequence_length=64,
+        )
+
+        assert len(tokenizer.calls) == 1
+
+        args, kwargs = tokenizer.calls[0]
+        assert args == (["query a"], ["context a"])
+        assert kwargs == {
+            "truncation": "longest_first",
+            "padding": "max_length",
+            "max_length": 64,
+        }
+
+        assert "input_ids" in tokenized.column_names
+        assert "attention_mask" in tokenized.column_names
+        assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]
+        assert tokenized[0]["attention_mask"].tolist() == [1, 1, 1]

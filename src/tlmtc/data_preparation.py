@@ -1,14 +1,22 @@
-"""Data-preparation operations for Hugging Face multi-label text classification."""
+"""Data-preparation operations for Hugging Face multi-label text classification training and prediction."""
 
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from datasets import Dataset, Features, Value
 from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
-from transformers import BatchEncoding, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, BatchEncoding, PreTrainedTokenizerBase
 
-from tlmtc.data_contracts import LABEL_PREFIX, TEXT_COL, TEXT_PAIR_COL, InputMode, validate_multilabel_frame
+from tlmtc.data_contracts import (
+    LABEL_PREFIX,
+    TEXT_COL,
+    TEXT_PAIR_COL,
+    InputMode,
+    validate_multilabel_frame,
+    validate_prediction_frame,
+)
 
 
 def df_preprocess(
@@ -29,6 +37,23 @@ def df_preprocess(
     text_values = df[TEXT_COL].values
     label_matrix = df[label_cols].values
     return df, label_cols, text_values, label_matrix, input_mode
+
+
+def read_prediction_csv(
+    df_path: Path,
+    expected_input_mode: InputMode,
+) -> pd.DataFrame:
+    """Load and validate an unlabeled prediction CSV.
+
+    Args:
+        df_path: Path to an unlabeled CSV with the text columns required by the trained model.
+        expected_input_mode: Input mode persisted by the training run.
+
+    Returns:
+        Validated prediction DataFrame with original columns preserved.
+    """
+    df = pd.read_csv(df_path)
+    return validate_prediction_frame(df=df, expected_input_mode=expected_input_mode)
 
 
 def df_split(
@@ -97,6 +122,35 @@ def df_save(
     df.to_parquet(path, index=False)
 
 
+def create_prediction_dataset(
+    df: pd.DataFrame,
+    input_mode: InputMode,
+) -> Dataset:
+    """Create an unlabeled Hugging Face dataset for prediction.
+
+    Args:
+        df: Validated prediction DataFrame.
+        input_mode: Input mode persisted by the training run.
+
+    Returns:
+        Hugging Face dataset containing prediction text inputs.
+    """
+    feature_spec = {
+        TEXT_COL: Value(dtype="string"),
+    }
+    input_cols = [TEXT_COL]
+
+    if input_mode is InputMode.PAIRED_TEXT:
+        feature_spec[TEXT_PAIR_COL] = Value(dtype="string")
+        input_cols.append(TEXT_PAIR_COL)
+
+    return Dataset.from_pandas(
+        df[input_cols],
+        features=Features(feature_spec),
+        preserve_index=False,
+    )
+
+
 def tokenize_batch(
     batch: dict[str, Any],
     tokenizer: PreTrainedTokenizerBase,
@@ -129,3 +183,35 @@ def tokenize_batch(
         padding="max_length",
         max_length=sequence_length,
     )
+
+
+def tokenize_prediction_dataset(
+    dataset: Dataset,
+    checkpoint: str,
+    input_mode: InputMode,
+    sequence_length: int,
+) -> Dataset:
+    """Tokenize prediction inputs.
+
+    Args:
+        dataset: Unlabeled Hugging Face prediction dataset.
+        checkpoint: Checkpoint used to load the tokenizer.
+        input_mode: Input mode persisted by the training run.
+        sequence_length: Maximum tokenized sequence length.
+
+    Returns:
+        Tokenized prediction dataset.
+    """
+    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+
+    tokenized_dataset = dataset.map(
+        lambda batch: tokenize_batch(
+            batch=batch,
+            tokenizer=tokenizer,
+            input_mode=input_mode,
+            sequence_length=sequence_length,
+        ),
+        batched=True,
+    )
+    tokenized_dataset.set_format("torch")
+    return tokenized_dataset
