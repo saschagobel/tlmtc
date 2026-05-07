@@ -1,15 +1,69 @@
 """Tests for tlmtc.paths."""
 
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
+from tlmtc.data_contracts import InputMode
+from tlmtc.meta import TrainRunMeta, write_run_meta
 from tlmtc.paths import (
     DEFAULT_DATA_DIRNAME,
     DEFAULT_EVAL_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
     DEFAULT_MODEL_DIRNAME,
-    DEFAULT_OUTPUTS_DIRNAME,
+    DEFAULT_PREDICTION_OUTPUTS_DIRNAME,
+    DEFAULT_TRAIN_OUTPUTS_DIRNAME,
+    TRAIN_RUN_META_FILENAME,
+    find_latest_train_run_id,
     resolve_paths,
+    resolve_prediction_paths,
 )
+
+
+def _write_train_run_meta(
+    run_dir: Path,
+    *,
+    run_id: str,
+    created_at: datetime,
+) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    write_run_meta(
+        meta=TrainRunMeta(
+            run_id=run_id,
+            created_at=created_at,
+            target_name="Target",
+            checkpoint="checkpoint",
+            proxy_checkpoint="proxy-checkpoint",
+            sequence_length=128,
+            input_mode=InputMode.SINGLE_TEXT,
+            label_names=["a", "b"],
+            threshold_type="label",
+            thresholds=[0.5, 0.5],
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+            threshold_optimization=False,
+            scale_learning_rate=False,
+            wrap_peft=False,
+        ),
+        path=run_dir / TRAIN_RUN_META_FILENAME,
+    )
+
+
+def _make_prediction_source_run(
+    work_dir: Path,
+    *,
+    run_id: str,
+    created_at: datetime,
+) -> Path:
+    run_dir = work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME / run_id
+    _write_train_run_meta(run_dir, run_id=run_id, created_at=created_at)
+
+    model_dir = run_dir / DEFAULT_MODEL_DIRNAME
+    model_dir.mkdir(parents=True, exist_ok=True)
+    (model_dir / "artifact.txt").write_text("model artifact", encoding="utf-8")
+
+    return run_dir
 
 
 class TestResolvePaths:
@@ -29,12 +83,12 @@ class TestResolvePaths:
         )
 
         expected_work_dir = work_dir.resolve()
-        expected_run_dir = expected_work_dir / DEFAULT_OUTPUTS_DIRNAME / "run123"
+        expected_run_dir = expected_work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
 
         assert paths.work_dir == expected_work_dir
         assert paths.run_id == "run123"
         assert paths.run_dir == expected_run_dir
-        assert paths.train_run_meta_path == expected_run_dir / "train_run_meta.json"
+        assert paths.train_run_meta_path == expected_run_dir / TRAIN_RUN_META_FILENAME
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
         assert paths.eval_dir == expected_run_dir / DEFAULT_EVAL_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
@@ -102,7 +156,7 @@ class TestResolvePaths:
         )
 
         assert paths.work_dir == (tmp_path / "workspace").resolve()
-        assert paths.run_dir == (tmp_path / "workspace" / DEFAULT_OUTPUTS_DIRNAME / "run123").resolve()
+        assert paths.run_dir == (tmp_path / "workspace" / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123").resolve()
         assert paths.raw_data_path == (tmp_path / "raw.csv").resolve()
 
     def test_accepts_absolute_raw_inputs_outside_work_dir(self, tmp_path: Path) -> None:
@@ -121,7 +175,7 @@ class TestResolvePaths:
 
         assert paths.raw_data_path == raw_csv.resolve()
         assert paths.raw_test_data_path == raw_test_csv.resolve()
-        assert paths.run_dir == work_dir.resolve() / DEFAULT_OUTPUTS_DIRNAME / "run123"
+        assert paths.run_dir == work_dir.resolve() / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
 
 
 class TestRunPaths:
@@ -160,3 +214,260 @@ class TestRunPaths:
         assert paths.data_dir.is_dir()
         assert paths.eval_dir.is_dir()
         assert not raw_csv.parent.exists()
+
+
+class TestFindLatestTrainRunId:
+    """Test suite for find_latest_train_run_id."""
+
+    def test_returns_run_id_with_latest_metadata_timestamp(self, tmp_path: Path) -> None:
+        """Ensure latest-run selection uses persisted metadata timestamps."""
+        train_outputs_dir = tmp_path / DEFAULT_TRAIN_OUTPUTS_DIRNAME
+        now = datetime.now(UTC)
+
+        _write_train_run_meta(
+            train_outputs_dir / "older",
+            run_id="older",
+            created_at=now - timedelta(days=1),
+        )
+        _write_train_run_meta(
+            train_outputs_dir / "newer",
+            run_id="newer",
+            created_at=now,
+        )
+
+        assert find_latest_train_run_id(train_outputs_dir) == "newer"
+
+    def test_ignores_directories_without_training_metadata(self, tmp_path: Path) -> None:
+        """Ensure directories without train_run_meta.json are not treated as completed runs."""
+        train_outputs_dir = tmp_path / DEFAULT_TRAIN_OUTPUTS_DIRNAME
+        train_outputs_dir.mkdir()
+        (train_outputs_dir / "incomplete").mkdir()
+
+        with pytest.raises(FileNotFoundError, match="No completed tlmtc training runs found"):
+            find_latest_train_run_id(train_outputs_dir)
+
+
+class TestResolvePredictionPaths:
+    """Test suite for resolve_prediction_paths."""
+
+    def test_resolves_prediction_layout_for_explicit_run_id(self, tmp_path: Path) -> None:
+        """Ensure prediction paths are resolved from an existing training run."""
+        work_dir = tmp_path / "workspace"
+        input_csv = tmp_path / "inputs" / "predict.csv"
+        input_csv.parent.mkdir()
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        run_dir = _make_prediction_source_run(
+            work_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+
+        paths = resolve_prediction_paths(
+            input_csv=input_csv,
+            work_dir=work_dir,
+            run_id="run123",
+        )
+
+        expected_work_dir = work_dir.resolve()
+        expected_prediction_run_dir = expected_work_dir / DEFAULT_PREDICTION_OUTPUTS_DIRNAME / "run123"
+
+        assert paths.work_dir == expected_work_dir
+        assert paths.run_id == "run123"
+        assert paths.input_data_path == input_csv.resolve()
+        assert paths.train_outputs_dir == expected_work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME
+        assert paths.train_run_dir == run_dir.resolve()
+        assert paths.train_run_meta_path == run_dir.resolve() / TRAIN_RUN_META_FILENAME
+        assert paths.train_run_model_dir == run_dir.resolve() / DEFAULT_MODEL_DIRNAME
+        assert paths.prediction_outputs_dir == expected_work_dir / DEFAULT_PREDICTION_OUTPUTS_DIRNAME
+        assert paths.prediction_run_dir == expected_prediction_run_dir
+        assert paths.predictions_path == expected_prediction_run_dir / "predictions.csv"
+        assert paths.prediction_meta_path == expected_prediction_run_dir / "prediction_meta.json"
+
+    def test_resolves_latest_run_id_when_run_id_is_none(self, tmp_path: Path) -> None:
+        """Ensure omitted run_id selects the latest completed training run."""
+        work_dir = tmp_path / "workspace"
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+        now = datetime.now(UTC)
+
+        _make_prediction_source_run(
+            work_dir,
+            run_id="older",
+            created_at=now - timedelta(days=1),
+        )
+        _make_prediction_source_run(
+            work_dir,
+            run_id="newer",
+            created_at=now,
+        )
+
+        paths = resolve_prediction_paths(
+            input_csv=input_csv,
+            work_dir=work_dir,
+            run_id=None,
+        )
+
+        assert paths.run_id == "newer"
+        assert paths.prediction_run_dir == work_dir.resolve() / DEFAULT_PREDICTION_OUTPUTS_DIRNAME / "newer"
+
+    def test_does_not_create_prediction_output_dirs_during_resolution(self, tmp_path: Path) -> None:
+        """Ensure path resolution does not create prediction artifact directories."""
+        work_dir = tmp_path / "workspace"
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        _make_prediction_source_run(
+            work_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+
+        paths = resolve_prediction_paths(
+            input_csv=input_csv,
+            work_dir=work_dir,
+            run_id="run123",
+        )
+
+        assert not paths.prediction_run_dir.exists()
+
+    def test_fails_when_work_dir_does_not_exist(self, tmp_path: Path) -> None:
+        """Ensure prediction never creates a missing work_dir."""
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="`work_dir` does not exist"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=tmp_path / "missing-workspace",
+                run_id="run123",
+            )
+
+    def test_fails_when_prediction_input_csv_does_not_exist(self, tmp_path: Path) -> None:
+        """Ensure missing prediction input fails before path construction succeeds."""
+        work_dir = tmp_path / "workspace"
+        work_dir.mkdir()
+
+        with pytest.raises(FileNotFoundError, match="Unlabeled prediction input CSV does not exist"):
+            resolve_prediction_paths(
+                input_csv=tmp_path / "missing.csv",
+                work_dir=work_dir,
+                run_id="run123",
+            )
+
+    def test_fails_when_train_outputs_dir_does_not_exist(self, tmp_path: Path) -> None:
+        """Ensure prediction requires existing training outputs."""
+        work_dir = tmp_path / "workspace"
+        work_dir.mkdir()
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="No tlmtc training outputs found"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="run123",
+            )
+
+    def test_fails_when_explicit_run_id_does_not_exist(self, tmp_path: Path) -> None:
+        """Ensure explicit run_id must point to an existing training run."""
+        work_dir = tmp_path / "workspace"
+        (work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME).mkdir(parents=True)
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="Requested tlmtc training run not found"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="missing-run",
+            )
+
+    def test_fails_when_training_metadata_is_missing(self, tmp_path: Path) -> None:
+        """Ensure explicit training runs must contain train_run_meta.json."""
+        work_dir = tmp_path / "workspace"
+        run_dir = work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
+        model_dir = run_dir / DEFAULT_MODEL_DIRNAME
+        model_dir.mkdir(parents=True)
+        (model_dir / "artifact.txt").write_text("model artifact", encoding="utf-8")
+
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="Training run metadata not found"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="run123",
+            )
+
+    def test_fails_when_training_model_dir_is_missing(self, tmp_path: Path) -> None:
+        """Ensure selected training runs must contain a model directory."""
+        work_dir = tmp_path / "workspace"
+        run_dir = work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
+        _write_train_run_meta(
+            run_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="Training model directory not found"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="run123",
+            )
+
+    def test_fails_when_training_model_dir_is_empty(self, tmp_path: Path) -> None:
+        """Ensure selected training runs must contain non-empty model artifacts."""
+        work_dir = tmp_path / "workspace"
+        run_dir = work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
+        _write_train_run_meta(
+            run_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+        (run_dir / DEFAULT_MODEL_DIRNAME).mkdir()
+
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match="Training model directory is empty"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="run123",
+            )
+
+
+class TestPredictionPaths:
+    """Test suite for PredictionPaths."""
+
+    def test_ensure_dirs_creates_prediction_run_dir_and_returns_self(self, tmp_path: Path) -> None:
+        """Ensure ensure_dirs creates the prediction artifact directory and returns self."""
+        work_dir = tmp_path / "workspace"
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        _make_prediction_source_run(
+            work_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+
+        paths = resolve_prediction_paths(
+            input_csv=input_csv,
+            work_dir=work_dir,
+            run_id="run123",
+        )
+
+        result = paths.ensure_dirs()
+
+        assert result is paths
+        assert paths.prediction_outputs_dir.is_dir()
+        assert paths.prediction_run_dir.is_dir()
+        assert not paths.predictions_path.exists()
+        assert not paths.prediction_meta_path.exists()

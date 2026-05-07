@@ -1,7 +1,7 @@
 """Filesystem path layout for tlmtc training runs."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Final, Self
 
@@ -243,8 +243,6 @@ def find_latest_train_run_id(
     Raises:
         FileNotFoundError: If no training-run metadata files exist.
     """
-    from tlmtc.meta import read_run_meta
-
     completed_runs: list[tuple[datetime, str]] = []
 
     for meta_path in train_outputs_dir.glob(f"*/{TRAIN_RUN_META_FILENAME}"):
