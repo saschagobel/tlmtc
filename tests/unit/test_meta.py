@@ -14,7 +14,7 @@ from tlmtc.meta import TrainRunMeta, read_run_meta, write_run_meta
 @pytest.fixture
 def train_meta() -> TrainRunMeta:
     """Create representative training-run metadata."""
-    return TrainRunMeta.from_training_run(
+    return TrainRunMeta(
         run_id="run123",
         target_name="Issue Type",
         checkpoint="EuroBERT/EuroBERT-610m",
@@ -35,9 +35,9 @@ def train_meta() -> TrainRunMeta:
 class TestTrainRunMeta:
     """Test suite for TrainRunMeta."""
 
-    def test_from_training_run_creates_expected_metadata(self) -> None:
-        """Ensure the factory preserves resolved training-run state."""
-        meta = TrainRunMeta.from_training_run(
+    def test_creates_expected_metadata(self) -> None:
+        """Ensure metadata preserves resolved training-run state."""
+        meta = TrainRunMeta(
             run_id="run123",
             target_name="Issue Type",
             checkpoint="EuroBERT/EuroBERT-610m",
@@ -68,6 +68,15 @@ class TestTrainRunMeta:
         assert meta.threshold_optimization is False
         assert meta.scale_learning_rate is True
         assert meta.wrap_peft is False
+
+    def test_accepts_missing_label_names(self, train_meta: TrainRunMeta) -> None:
+        """Ensure metadata supports training runs without evaluation-derived labels."""
+        data = train_meta.model_dump(mode="python")
+        data["label_names"] = None
+
+        meta = TrainRunMeta.model_validate(data)
+
+        assert meta.label_names is None
 
     def test_created_at_defaults_to_timezone_aware_utc_datetime(self, train_meta: TrainRunMeta) -> None:
         """Ensure metadata timestamps are timezone-aware UTC datetimes."""
@@ -105,7 +114,7 @@ class TestTrainRunMeta:
             train_meta.run_id = "other"  # type: ignore[misc]
 
 
-class TestRunMetaIO:
+class TestTrainRunMetaIO:
     """Test suite for training metadata JSON IO."""
 
     def test_write_and_read_run_meta_roundtrips_metadata(self, tmp_path: Path, train_meta: TrainRunMeta) -> None:

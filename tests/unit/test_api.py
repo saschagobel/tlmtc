@@ -3,10 +3,13 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import numpy as np
 import pandas as pd
 import pytest
 
 import tlmtc.api as train_mod
+from tlmtc.data_contracts import InputMode
+from tlmtc.meta import read_run_meta
 
 DATA_PIPELINE_METHODS: tuple[str, ...] = (
     "split_data",
@@ -63,10 +66,11 @@ def _mock_successful_pipelines(
     """Mock successful data, fine-tuning, and evaluation pipelines."""
     tokenized_dataset = object()
     updated_trainer = object()
-    tuned_threshold = object()
+    tuned_threshold = np.array([0.42, 0.61], dtype=float)
 
     data_pipeline = _chainable_mock(DATA_PIPELINE_METHODS)
     data_pipeline.tokenized_dataset = tokenized_dataset
+    data_pipeline.input_mode = InputMode.SINGLE_TEXT
     data_pipeline_cls = MagicMock(return_value=data_pipeline)
 
     finetune_pipeline = _chainable_mock(FINETUNE_PIPELINE_METHODS)
@@ -75,6 +79,7 @@ def _mock_successful_pipelines(
     finetune_pipeline_cls = MagicMock(return_value=finetune_pipeline)
 
     evaluation_pipeline = _chainable_mock(EVALUATION_PIPELINE_METHODS)
+    evaluation_pipeline.label_names = ["a", "b"]
     evaluation_pipeline_cls = MagicMock(return_value=evaluation_pipeline)
 
     monkeypatch.setattr(train_mod, "DataPipeline", data_pipeline_cls)
@@ -114,6 +119,7 @@ def test_train_tlmtc_returns_train_result_and_creates_dirs(
     assert result.paths.logs_dir.exists()
     assert result.paths.model_dir.exists()
     assert result.paths.eval_dir.exists()
+    assert result.paths.train_run_meta_path.exists()
 
     _, data_kwargs = data_pipeline_cls.call_args
     assert data_kwargs["paths"] == result.paths
@@ -127,6 +133,19 @@ def test_train_tlmtc_returns_train_result_and_creates_dirs(
     assert evaluation_kwargs["updated_trainer"] is updated_trainer
     assert evaluation_kwargs["paths"] == result.paths
     assert evaluation_kwargs["tuned_threshold"] is tuned_threshold
+
+    run_meta = read_run_meta(result.paths.train_run_meta_path)
+    assert run_meta.run_id == "run_123"
+    assert run_meta.target_name == "Target"
+    assert run_meta.input_mode is InputMode.SINGLE_TEXT
+    assert run_meta.label_names == ["a", "b"]
+    assert run_meta.threshold_type == "label"
+    assert run_meta.thresholds == [0.42, 0.61]
+    assert run_meta.transfer_learning is True
+    assert run_meta.hyperparameter_tuning is True
+    assert run_meta.threshold_optimization is True
+    assert run_meta.scale_learning_rate is False
+    assert run_meta.wrap_peft is True
 
 
 def test_train_tlmtc_preserves_explicit_raw_test_path(
