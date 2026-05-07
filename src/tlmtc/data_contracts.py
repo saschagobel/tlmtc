@@ -65,6 +65,30 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
 )
 
 
+PREDICTION_SCHEMA = pa.DataFrameSchema(
+    {
+        TEXT_COL: pa.Column(
+            str,
+            nullable=False,
+            required=True,
+            checks=pa.Check(lambda series: series.str.strip().ne(""), error="must not contain blank strings"),
+        ),
+        TEXT_PAIR_COL: pa.Column(
+            str,
+            nullable=False,
+            required=False,
+            checks=pa.Check(lambda series: series.str.strip().ne(""), error="must not contain blank strings"),
+        ),
+    },
+    checks=[
+        pa.Check(lambda df: len(df) > 0, error="dataframe must contain at least one row"),
+    ],
+    strict=False,
+    ordered=False,
+    coerce=False,
+)
+
+
 def validate_multilabel_frame(
     df: pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[str], InputMode]:
@@ -95,3 +119,42 @@ def validate_multilabel_frame(
         text_cols.append(TEXT_PAIR_COL)
 
     return validated[[*text_cols, *label_cols]], label_cols, input_mode
+
+
+def validate_prediction_frame(
+    df: pd.DataFrame,
+    expected_input_mode: InputMode,
+) -> pd.DataFrame:
+    """Validate an unlabeled prediction input DataFrame.
+
+    Args:
+        df: Input DataFrame with a required text column and, for paired-text models,
+            a required text_pair column.
+        expected_input_mode: Text-input layout persisted by the training run.
+
+    Returns:
+        Validated prediction DataFrame with all original columns preserved.
+
+    Raises:
+        DataContractError: If the input is not a DataFrame, contains label columns,
+            omits required text columns, or violates the prediction data contract.
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise DataContractError(f"Expected a pandas DataFrame, got {type(df).__name__}.")
+
+    try:
+        validated = PREDICTION_SCHEMA.validate(df, lazy=True)
+    except (SchemaError, SchemaErrors) as exc:
+        raise DataContractError("Input dataframe violates the prediction data contract.") from exc
+
+    forbidden_label_cols = [col for col in validated.columns if col.startswith(LABEL_PREFIX)]
+    if forbidden_label_cols:
+        raise DataContractError(f"Prediction input must be unlabeled, but found label columns: {forbidden_label_cols}.")
+
+    if expected_input_mode is InputMode.PAIRED_TEXT and TEXT_PAIR_COL not in validated.columns:
+        raise DataContractError(
+            f"Prediction input is missing required column '{TEXT_PAIR_COL}' "
+            "for a model trained with paired-text inputs."
+        )
+
+    return validated
