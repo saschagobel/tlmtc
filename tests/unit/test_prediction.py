@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import Mock
 
 import numpy as np
