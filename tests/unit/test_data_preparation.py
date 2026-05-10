@@ -356,6 +356,7 @@ class TestTokenizePredictionDataset:
             "max_length": 32,
         }
 
+        assert TEXT_COL not in tokenized.column_names
         assert "input_ids" in tokenized.column_names
         assert "attention_mask" in tokenized.column_names
         assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]
@@ -397,6 +398,8 @@ class TestTokenizePredictionDataset:
             "max_length": 64,
         }
 
+        assert TEXT_COL not in tokenized.column_names
+        assert TEXT_PAIR_COL not in tokenized.column_names
         assert "input_ids" in tokenized.column_names
         assert "attention_mask" in tokenized.column_names
         assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]

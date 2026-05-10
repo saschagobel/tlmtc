@@ -281,6 +281,7 @@ class TestResolvePredictionPaths:
         assert paths.train_run_model_dir == run_dir.resolve() / DEFAULT_MODEL_DIRNAME
         assert paths.prediction_outputs_dir == expected_work_dir / DEFAULT_PREDICTION_OUTPUTS_DIRNAME
         assert paths.prediction_run_dir == expected_prediction_run_dir
+        assert paths.probabilities_path == expected_prediction_run_dir / "probabilities.csv"
         assert paths.predictions_path == expected_prediction_run_dir / "predictions.csv"
         assert paths.prediction_meta_path == expected_prediction_run_dir / "prediction_meta.json"
 
@@ -469,5 +470,6 @@ class TestPredictionPaths:
         assert result is paths
         assert paths.prediction_outputs_dir.is_dir()
         assert paths.prediction_run_dir.is_dir()
+        assert not paths.probabilities_path.exists()
         assert not paths.predictions_path.exists()
         assert not paths.prediction_meta_path.exists()
