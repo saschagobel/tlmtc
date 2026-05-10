@@ -2325,7 +2325,8 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-training = [
+full = [
+    { name = "accelerate" },
     { name = "peft" },
     { name = "torch", version = "2.11.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version < '3.15' and sys_platform == 'darwin'" },
     { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version >= '3.15' or sys_platform != 'darwin'" },
@@ -2345,6 +2346,7 @@ type = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", marker = "extra == 'full'", specifier = ">=1.13,<2.0" },
     { name = "datasets", specifier = ">=4.4,<5.0" },
     { name = "great-tables", specifier = ">=0.20,<1.0" },
     { name = "iterative-stratification", specifier = ">=0.1,<1.0" },
@@ -2353,17 +2355,17 @@ requires-dist = [
     { name = "optuna", specifier = ">=4.6,<5.0" },
     { name = "pandas", specifier = ">=2.2,<4.0" },
     { name = "pandera", extras = ["pandas"], specifier = ">=0.31,<1.0" },
-    { name = "peft", marker = "extra == 'training'", specifier = ">=0.18,<1.0" },
+    { name = "peft", marker = "extra == 'full'", specifier = ">=0.18,<1.0" },
     { name = "pyarrow", specifier = ">=22.0,<24.0" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
     { name = "scikit-learn", specifier = ">=1.7,<2.0" },
     { name = "seaborn", specifier = ">=0.13,<1.0" },
-    { name = "torch", marker = "extra == 'training'", specifier = ">=2.9,<3.0", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "torch", marker = "extra == 'full'", specifier = ">=2.9,<3.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", specifier = ">=4.57,<6.0" },
     { name = "typer", specifier = ">=0.12,<1" },
 ]
-provides-extras = ["training"]
+provides-extras = ["full"]
 
 [package.metadata.requires-dev]
 lint = [{ name = "ruff", specifier = ">=0.14,<1.0" }]
