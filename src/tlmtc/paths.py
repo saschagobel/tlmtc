@@ -214,6 +214,7 @@ class PredictionPaths:
 
     prediction_outputs_dir: Path
     prediction_run_dir: Path
+    probabilities_path: Path
     predictions_path: Path
     prediction_meta_path: Path
 
@@ -341,6 +342,7 @@ def resolve_prediction_paths(
         train_run_model_dir=train_run_model_dir,
         prediction_outputs_dir=prediction_outputs_dir,
         prediction_run_dir=prediction_run_dir,
+        probabilities_path=prediction_run_dir / "probabilities.csv",
         predictions_path=prediction_run_dir / "predictions.csv",
         prediction_meta_path=prediction_run_dir / "prediction_meta.json",
     )
