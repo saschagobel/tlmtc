@@ -212,6 +212,7 @@ def tokenize_prediction_dataset(
             sequence_length=sequence_length,
         ),
         batched=True,
+        remove_columns=dataset.column_names,
     )
     tokenized_dataset.set_format("torch")
     return tokenized_dataset
