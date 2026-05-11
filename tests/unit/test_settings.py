@@ -654,6 +654,8 @@ class TestPredictionSettings:
         settings = PredictionSettings(prediction_csv="predict.csv")
 
         assert settings.prediction_csv == Path("predict.csv")
+        assert settings.work_dir == Path.cwd()
+        assert settings.run_id is None
         assert settings.batch_size == 32
         assert isinstance(settings.hardware, HardwareSettings)
         assert settings.hardware.use_cpu is False
@@ -662,11 +664,15 @@ class TestPredictionSettings:
         """PredictionSettings should preserve explicit prediction runtime values."""
         settings = PredictionSettings(
             prediction_csv=tmp_path / "predict.csv",
+            work_dir=tmp_path / "workspace",
+            run_id="manual-run",
             batch_size=64,
             hardware={"use_cpu": True},
         )
 
         assert settings.prediction_csv == tmp_path / "predict.csv"
+        assert settings.work_dir == tmp_path / "workspace"
+        assert settings.run_id == "manual-run"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
 
@@ -675,10 +681,13 @@ class TestPredictionSettings:
         settings = PredictionSettings.resolve(
             config={
                 "prediction_csv": "from-config.csv",
+                "work_dir": "from-config-workdir",
+                "run_id": "from-config-run",
                 "batch_size": 16,
             },
             overrides={
                 "prediction_csv": "from-override.csv",
+                "run_id": None,
                 "hardware": {
                     "use_cpu": True,
                 },
@@ -686,6 +695,8 @@ class TestPredictionSettings:
         )
 
         assert settings.prediction_csv == Path("from-override.csv")
+        assert settings.work_dir == Path("from-config-workdir")
+        assert settings.run_id is None
         assert settings.batch_size == 16
         assert settings.hardware.use_cpu is True
 
@@ -694,12 +705,16 @@ class TestPredictionSettings:
         settings = PredictionSettings.resolve(
             config={
                 "prediction_csv": "predict.csv",
+                "work_dir": "configured-workdir",
+                "run_id": "configured-run",
                 "batch_size": 64,
                 "hardware": {
                     "use_cpu": True,
                 },
             },
             overrides={
+                "work_dir": UNSET,
+                "run_id": UNSET,
                 "batch_size": UNSET,
                 "hardware": {
                     "use_cpu": UNSET,
@@ -708,6 +723,8 @@ class TestPredictionSettings:
         )
 
         assert settings.prediction_csv == Path("predict.csv")
+        assert settings.work_dir == Path("configured-workdir")
+        assert settings.run_id == "configured-run"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
 
