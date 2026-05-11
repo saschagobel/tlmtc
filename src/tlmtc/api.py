@@ -1,15 +1,22 @@
-"""Public Python API for running tlmtc training workflows."""
+"""Public Python API for running tlmtc training and prediction workflows."""
 
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from tlmtc.data_pipeline import DataPipeline
+from tlmtc.data_preparation import create_prediction_dataset, read_prediction_csv, tokenize_prediction_dataset
 from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
-from tlmtc.meta import TrainRunMeta, write_run_meta
-from tlmtc.paths import RunPaths, resolve_paths
-from tlmtc.settings import UNSET, RunSettings, Unset, load_config_file
+from tlmtc.meta import TrainRunMeta, read_run_meta, write_run_meta
+from tlmtc.paths import PredictionPaths, RunPaths, resolve_paths, resolve_prediction_paths
+from tlmtc.prediction import (
+    apply_thresholds,
+    load_prediction_model,
+    make_prediction_frame,
+    predict_probabilities,
+)
+from tlmtc.settings import UNSET, PredictionSettings, RunSettings, Unset, load_config_file
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +28,17 @@ class TrainResult:
     """
 
     paths: RunPaths
+
+
+@dataclass(frozen=True, slots=True)
+class PredictResult:
+    """Result metadata for a completed tlmtc prediction run.
+
+    Attributes:
+        paths: Resolved filesystem layout containing prediction inputs and generated artifacts.
+    """
+
+    paths: PredictionPaths
 
 
 def train_tlmtc(
@@ -287,3 +305,112 @@ def train_tlmtc(
     )
 
     return TrainResult(paths=paths)
+
+
+def predict_tlmtc(
+    prediction_csv: str | Path,
+    *,
+    work_dir: str | Path | Unset = UNSET,
+    config_path: str | Path | Unset = UNSET,
+    run_id: str | None | Unset = UNSET,
+    batch_size: int | Unset = UNSET,
+    use_cpu: bool | Unset = UNSET,
+) -> PredictResult:
+    """Run the multi-label text classification prediction workflow.
+
+    Prediction consumes persisted metadata and model artifacts from a completed
+    training run, applies the persisted decision thresholds, and writes probability
+    and binary prediction artifacts.
+
+    Args:
+        prediction_csv: Path to the unlabeled prediction CSV. The file must contain a `text`
+            column and, for models trained with paired-text inputs, a `text_pair` column.
+        work_dir: Base directory for resolving inputs, reading training artifacts, and writing
+            prediction artifacts. Defaults to the current working directory.
+        config_path: Path to a YAML configuration file. Defaults to no configuration file.
+        run_id: Run identifier used to select the completed training run. If omitted, the latest
+            completed training run is selected from persisted training metadata.
+        batch_size: Prediction batch size used for batched inference. Defaults to `32`.
+        use_cpu: Whether to force CPU execution. Defaults to `False`.
+
+    Returns:
+        Result metadata containing the resolved input and artifact paths.
+    """
+    settings = PredictionSettings.resolve(
+        config=load_config_file(config_path) if isinstance(config_path, (str, Path)) else None,
+        env=None,
+        overrides={
+            "prediction_csv": prediction_csv,
+            "work_dir": work_dir,
+            "run_id": run_id,
+            "batch_size": batch_size,
+            "hardware": {
+                "use_cpu": use_cpu,
+            },
+        },
+    )
+    paths = resolve_prediction_paths(
+        input_csv=settings.prediction_csv,
+        work_dir=settings.work_dir,
+        run_id=settings.run_id,
+    ).ensure_dirs()
+
+    meta = read_run_meta(paths.train_run_meta_path)
+
+    if not meta.transfer_learning:
+        raise RuntimeError(
+            "Prediction requires a training run with transfer_learning=True. "
+            f"Run '{meta.run_id}' did not persist a fine-tuned prediction model."
+        )
+
+    input_mode = meta.input_mode
+    label_names = meta.label_names
+
+    assert input_mode is not None
+    assert label_names is not None
+
+    input_df = read_prediction_csv(
+        df_path=paths.input_data_path,
+        expected_input_mode=input_mode,
+    )
+    prediction_dataset = create_prediction_dataset(
+        df=input_df,
+        input_mode=input_mode,
+    )
+    tokenized_dataset = tokenize_prediction_dataset(
+        dataset=prediction_dataset,
+        checkpoint=meta.checkpoint,
+        input_mode=input_mode,
+        sequence_length=meta.sequence_length,
+    )
+    model = load_prediction_model(
+        model_dir=paths.train_run_model_dir,
+        checkpoint=meta.checkpoint,
+        num_labels=len(label_names),
+        wrap_peft=meta.wrap_peft,
+    )
+    probabilities = predict_probabilities(
+        model=model,
+        dataset=tokenized_dataset,
+        batch_size=settings.batch_size,
+        use_cpu=settings.hardware.use_cpu,
+    )
+    probability_df = make_prediction_frame(
+        input_df=input_df,
+        values=probabilities,
+        label_names=label_names,
+    )
+    predictions = apply_thresholds(
+        probabilities=probabilities,
+        thresholds=meta.thresholds,
+    )
+    prediction_df = make_prediction_frame(
+        input_df=input_df,
+        values=predictions,
+        label_names=label_names,
+    )
+
+    probability_df.to_csv(paths.probabilities_path, index=False)
+    prediction_df.to_csv(paths.predictions_path, index=False)
+
+    return PredictResult(paths=paths)
