@@ -409,3 +409,19 @@ class RunSettings(ResolvableSettings):
 
         value["hpo"] = hpo
         return value
+
+
+class PredictionSettings(ResolvableSettings):
+    """Resolved top-level settings for a tlmtc prediction run.
+
+    Attributes:
+        prediction_csv: Path to the unlabeled prediction CSV.
+        batch_size: Prediction batch size used for batched inference.
+        use_cpu: Whether to force CPU execution.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    prediction_csv: Path
+    batch_size: PositiveInt = 32
+    hardware: HardwareSettings = Field(default_factory=HardwareSettings)
