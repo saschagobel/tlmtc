@@ -16,6 +16,7 @@ from tlmtc.settings import (
     ModelSettings,
     OptunaSpaceSettings,
     PeftSettings,
+    PredictionSettings,
     ResolvableSettings,
     RunSettings,
     SplitSettings,
@@ -643,3 +644,110 @@ class TestRunSettings:
                 raw_csv="train.csv",
                 hpo={"optuna_space": "boom"},
             )
+
+
+class TestPredictionSettings:
+    """Tests for top-level prediction settings construction and layered overrides."""
+
+    def test_prediction_settings_minimal_construction_uses_defaults(self) -> None:
+        """PredictionSettings should construct from the required prediction CSV and apply defaults."""
+        settings = PredictionSettings(prediction_csv="predict.csv")
+
+        assert settings.prediction_csv == Path("predict.csv")
+        assert settings.batch_size == 32
+        assert isinstance(settings.hardware, HardwareSettings)
+        assert settings.hardware.use_cpu is False
+
+    def test_prediction_settings_accepts_explicit_values(self, tmp_path: Path) -> None:
+        """PredictionSettings should preserve explicit prediction runtime values."""
+        settings = PredictionSettings(
+            prediction_csv=tmp_path / "predict.csv",
+            batch_size=64,
+            hardware={"use_cpu": True},
+        )
+
+        assert settings.prediction_csv == tmp_path / "predict.csv"
+        assert settings.batch_size == 64
+        assert settings.hardware.use_cpu is True
+
+    def test_prediction_settings_resolve_applies_overrides_and_preserves_defaults(self) -> None:
+        """PredictionSettings.resolve should merge prediction overrides while preserving defaults."""
+        settings = PredictionSettings.resolve(
+            config={
+                "prediction_csv": "from-config.csv",
+                "batch_size": 16,
+            },
+            overrides={
+                "prediction_csv": "from-override.csv",
+                "hardware": {
+                    "use_cpu": True,
+                },
+            },
+        )
+
+        assert settings.prediction_csv == Path("from-override.csv")
+        assert settings.batch_size == 16
+        assert settings.hardware.use_cpu is True
+
+    def test_prediction_settings_resolve_prunes_unset_values(self) -> None:
+        """PredictionSettings.resolve should ignore override values explicitly marked as UNSET."""
+        settings = PredictionSettings.resolve(
+            config={
+                "prediction_csv": "predict.csv",
+                "batch_size": 64,
+                "hardware": {
+                    "use_cpu": True,
+                },
+            },
+            overrides={
+                "batch_size": UNSET,
+                "hardware": {
+                    "use_cpu": UNSET,
+                },
+            },
+        )
+
+        assert settings.prediction_csv == Path("predict.csv")
+        assert settings.batch_size == 64
+        assert settings.hardware.use_cpu is True
+
+    def test_prediction_settings_requires_prediction_csv(self) -> None:
+        """PredictionSettings should require prediction_csv."""
+        with pytest.raises(ValidationError):
+            PredictionSettings()
+
+    def test_prediction_settings_rejects_invalid_batch_size(self) -> None:
+        """PredictionSettings should reject non-positive prediction batch sizes."""
+        with pytest.raises(ValidationError, match="batch_size"):
+            PredictionSettings(
+                prediction_csv="predict.csv",
+                batch_size=0,
+            )
+
+    @pytest.mark.parametrize(
+        ("payload", "pattern"),
+        [
+            (
+                {
+                    "prediction_csv": "predict.csv",
+                    "unknown": "boom",
+                },
+                "unknown",
+            ),
+            (
+                {
+                    "prediction_csv": "predict.csv",
+                    "hardware": {"unknown": "boom"},
+                },
+                "unknown",
+            ),
+        ],
+    )
+    def test_prediction_settings_rejects_extra_keys(
+        self,
+        payload: dict[str, object],
+        pattern: str,
+    ) -> None:
+        """PredictionSettings should enforce extra='forbid' at both root and nested levels."""
+        with pytest.raises(ValidationError, match=pattern):
+            PredictionSettings(**payload)
