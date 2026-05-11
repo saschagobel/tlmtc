@@ -1,73 +1,155 @@
 """Tests for the tlmtc public API surface."""
 
-import builtins
+import importlib
 import re
 import sys
 from types import ModuleType
 
 import pytest
 
+PUBLIC_ENTRYPOINTS: tuple[str, ...] = (
+    "predict_tlmtc",
+    "train_tlmtc",
+)
+
+OPTIONAL_DEPENDENCIES: tuple[str, ...] = (
+    "torch",
+    "peft",
+    "accelerate",
+)
+
+
+def _reset_public_api_import_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear cached lazy public API imports."""
+    import tlmtc
+
+    monkeypatch.delitem(sys.modules, "tlmtc.api", raising=False)
+    monkeypatch.delitem(tlmtc.__dict__, "api", raising=False)
+
+    for name in PUBLIC_ENTRYPOINTS:
+        monkeypatch.delitem(tlmtc.__dict__, name, raising=False)
+
 
 def _install_dummy_api_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a lightweight `tlmtc.api` module so API tests don't import heavy ML deps."""
+    """Install a lightweight `tlmtc.api` module so API tests do not import heavy ML deps."""
     mod = ModuleType("tlmtc.api")
 
-    def train_tlmtc(*_args: object, **_kwargs: object) -> str:
-        return "ok"
+    def predict_tlmtc(*_args: object, **_kwargs: object) -> str:
+        return "predict-ok"
 
-    setattr(mod, "train_tlmtc", train_tlmtc)
+    def train_tlmtc(*_args: object, **_kwargs: object) -> str:
+        return "train-ok"
+
+    mod.predict_tlmtc = predict_tlmtc  # type: ignore[attr-defined]
+    mod.train_tlmtc = train_tlmtc  # type: ignore[attr-defined]
+
     monkeypatch.setitem(sys.modules, "tlmtc.api", mod)
 
 
 def test_public_api_exports_version() -> None:
-    """Tests that the package exposes a non-empty version string."""
+    """Test that the package exposes a non-empty version string."""
     import tlmtc
 
     assert isinstance(tlmtc.__version__, str)
     assert tlmtc.__version__
 
 
-def test_public_api_lazy_exports_train_tlmtc(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests that train_tlmtc is resolved lazily via the public API."""
+def test_public_api_declares_expected_exports() -> None:
+    """Test that the package declares the expected public API symbols."""
+    import tlmtc
+
+    assert set(tlmtc.__all__) == {
+        "__version__",
+        "predict_tlmtc",
+        "train_tlmtc",
+    }
+
+
+def test_public_api_dir_lists_declared_exports() -> None:
+    """Test that dir(tlmtc) exposes the declared public API symbols."""
+    import tlmtc
+
+    assert dir(tlmtc) == sorted(tlmtc.__all__)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("predict_tlmtc", "predict-ok"),
+        ("train_tlmtc", "train-ok"),
+    ],
+)
+def test_public_api_lazy_exports_entrypoints(
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    expected: str,
+) -> None:
+    """Test that public entrypoints are resolved lazily via the package API."""
+    _reset_public_api_import_state(monkeypatch)
     _install_dummy_api_module(monkeypatch)
 
     import tlmtc
 
-    assert tlmtc.train_tlmtc() == "ok"
+    entrypoint = getattr(tlmtc, name)
+
+    assert entrypoint() == expected
+    assert tlmtc.__dict__[name] is entrypoint
 
 
 def test_public_api_rejects_unknown_attribute() -> None:
-    """Ensures that unknown public API attributes raise AttributeError."""
+    """Ensure that unknown public API attributes raise AttributeError."""
     import tlmtc
 
     with pytest.raises(AttributeError):
         _ = tlmtc.not_a_real_symbol  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("missing", ["torch", "peft"])
+@pytest.mark.parametrize("name", PUBLIC_ENTRYPOINTS)
+@pytest.mark.parametrize("missing", OPTIONAL_DEPENDENCIES)
 def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
     monkeypatch: pytest.MonkeyPatch,
+    name: str,
     missing: str,
 ) -> None:
-    """Ensures that a helpful ImportError is raised when training dependencies are missing."""
+    """Ensure lazy entrypoints raise a helpful ImportError when optional deps are missing."""
+    _reset_public_api_import_state(monkeypatch)
+
     import tlmtc
 
-    sys.modules.pop("tlmtc.api", None)
-
     expected_msg = (
-        "`torch` and `peft` are required for `tlmtc.train_tlmtc`. Install them with: `pip install 'tlmtc[training]'`."
+        f"`torch`, `peft`, and `accelerate` are required for `tlmtc.{name}`. "
+        "Install them with: `pip install 'tlmtc[full]'`."
     )
 
-    real_import = builtins.__import__
+    real_import_module = importlib.import_module
 
-    def fake_import(name, globals=None, locals=None, fromlist=(), level=0):  # noqa: A002
-        # The public API imports *tlmtc.api*, not torch/peft directly.
-        if name == "tlmtc.api":
-            raise ModuleNotFoundError(missing, name=missing)
-        return real_import(name, globals, locals, fromlist, level)
+    def fake_import_module(module_path: str, package: str | None = None) -> ModuleType:
+        if module_path == "tlmtc.api":
+            raise ModuleNotFoundError(f"No module named {missing!r}", name=missing)
+        return real_import_module(module_path, package)
 
-    with monkeypatch.context() as m:
-        m.setattr(builtins, "__import__", fake_import)
+    monkeypatch.setattr(tlmtc.importlib, "import_module", fake_import_module)
 
-        with pytest.raises(ImportError, match=re.escape(expected_msg)):
-            _ = tlmtc.train_tlmtc
+    with pytest.raises(ImportError, match=re.escape(expected_msg)):
+        _ = getattr(tlmtc, name)
+
+
+def test_public_api_reraises_unexpected_missing_module(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ensure unexpected missing modules are not rewritten as optional-dependency errors."""
+    _reset_public_api_import_state(monkeypatch)
+
+    import tlmtc
+
+    real_import_module = importlib.import_module
+
+    def fake_import_module(module_path: str, package: str | None = None) -> ModuleType:
+        if module_path == "tlmtc.api":
+            raise ModuleNotFoundError("No module named 'some_other_dependency'", name="some_other_dependency")
+        return real_import_module(module_path, package)
+
+    monkeypatch.setattr(tlmtc.importlib, "import_module", fake_import_module)
+
+    with pytest.raises(ModuleNotFoundError, match="some_other_dependency"):
+        _ = tlmtc.train_tlmtc
