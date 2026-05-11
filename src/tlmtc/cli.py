@@ -11,7 +11,7 @@ from tlmtc.settings import UNSET, Unset
 
 app = typer.Typer(
     name="tlmtc",
-    help="Transfer learning for multi-label text classification.",
+    help="Production Workflows for Transformer-based Multi-Label Text Classification.",
 )
 
 
@@ -281,3 +281,53 @@ def train_command(
     )
 
     typer.echo(f"Run completed: {result.paths.run_dir}")
+
+
+@app.command("predict")
+def predict_command(
+    prediction_csv: str = typer.Option(
+        ...,
+        "--prediction-csv",
+        help="Path to the unlabeled prediction CSV with text and, if required by the training run, text_pair.",
+    ),
+    work_dir: str | None = typer.Option(
+        None,
+        "--work-dir",
+        help="Base directory for reading training artifacts and writing prediction artifacts.",
+    ),
+    config_path: str | None = typer.Option(
+        None,
+        "--config-path",
+        help="Path to a YAML configuration file. CLI options override config values.",
+    ),
+    run_id: str | None = typer.Option(
+        None,
+        "--run-id",
+        help="Training run identifier to use for prediction. If omitted, the latest completed training run is used.",
+    ),
+    batch_size: int | None = typer.Option(
+        None,
+        "--batch-size",
+        help="Prediction batch size used for batched inference.",
+    ),
+    use_cpu: bool | None = typer.Option(
+        None,
+        "--use-cpu/--no-use-cpu",
+        help="Force CPU execution.",
+    ),
+) -> None:
+    """Run the full multi-label text classification prediction workflow."""
+    from tlmtc.api import predict_tlmtc
+
+    result = predict_tlmtc(
+        prediction_csv=prediction_csv,
+        work_dir=UNSET if work_dir is None else work_dir,
+        config_path=UNSET if config_path is None else config_path,
+        run_id=UNSET if run_id is None else run_id,
+        batch_size=UNSET if batch_size is None else batch_size,
+        use_cpu=UNSET if use_cpu is None else use_cpu,
+    )
+
+    typer.echo(f"Prediction completed: {result.paths.prediction_run_dir}")
+    typer.echo(f"Probabilities: {result.paths.probabilities_path}")
+    typer.echo(f"Predictions: {result.paths.predictions_path}")

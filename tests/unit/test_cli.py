@@ -58,6 +58,32 @@ def stub_train_tlmtc(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return calls
 
 
+@pytest.fixture
+def stub_predict_tlmtc(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
+    """Provide a stub tlmtc.api.predict_tlmtc and capture kwargs passed by the CLI.
+
+    The CLI imports predict_tlmtc lazily from tlmtc.api inside the predict command, so
+    tests stub the module import target rather than patching a top-level cli symbol.
+    """
+    calls: dict[str, Any] = {}
+
+    def _predict_tlmtc(**kwargs: Any) -> SimpleNamespace:
+        calls["kwargs"] = kwargs
+        return SimpleNamespace(
+            paths=SimpleNamespace(
+                prediction_run_dir=Path("prediction_outputs/test-run"),
+                probabilities_path=Path("prediction_outputs/test-run/probabilities.csv"),
+                predictions_path=Path("prediction_outputs/test-run/predictions.csv"),
+            )
+        )
+
+    stub = types.ModuleType("tlmtc.api")
+    stub.predict_tlmtc = _predict_tlmtc  # type: ignore[attr-defined]
+
+    monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
+    return calls
+
+
 class TestParseOptunaSpace:
     """Test suite for parse_optuna_space()."""
 
@@ -101,7 +127,7 @@ class TestParseOptunaSpace:
 
 
 class TestCliApp:
-    """Test suite for the Typer CLI app."""
+    """Test suite for shared Typer CLI app behavior."""
 
     def test_root_help_is_shown_without_command(self, runner: CliRunner) -> None:
         """Ensure invoking the root command without a subcommand prints help."""
@@ -109,8 +135,9 @@ class TestCliApp:
         output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "Transfer learning for multi-label text classification." in output
+        assert "Production Workflows for Transformer-based Multi-Label Text Classification." in output
         assert "train" in output
+        assert "predict" in output
 
     def test_version_flag_prints_version(self, runner: CliRunner) -> None:
         """Ensure --version prints the package version."""
@@ -119,6 +146,10 @@ class TestCliApp:
 
         assert result.exit_code == 0
         assert "0.0.1" in output
+
+
+class TestTrainCliApp:
+    """Test suite for the train CLI command."""
 
     def test_train_help_is_available(self, runner: CliRunner) -> None:
         """Ensure train command help is available."""
@@ -137,14 +168,14 @@ class TestCliApp:
             ("--no-transfer-learning", False),
         ],
     )
-    def test_boolean_flag_pairs_parse_explicit_values(
+    def test_train_boolean_flag_pairs_parse_explicit_values(
         self,
         runner: CliRunner,
         flag: str,
         expected: bool,
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
-        """Ensure Typer boolean flag pairs set the expected boolean value."""
+        """Ensure train boolean flag pairs set the expected boolean value."""
         result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", flag])
 
         assert result.exit_code == 0
@@ -258,7 +289,7 @@ class TestCliApp:
         runner: CliRunner,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Ensure downstream exceptions are not converted into fake parser errors."""
+        """Ensure downstream training exceptions are not converted into fake parser errors."""
 
         def _boom(**_kwargs: Any) -> None:
             raise RuntimeError("boom")
@@ -268,6 +299,145 @@ class TestCliApp:
         monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
 
         result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv"])
+
+        assert result.exit_code != 0
+        assert isinstance(result.exception, RuntimeError)
+        assert str(result.exception) == "boom"
+
+
+class TestPredictCliApp:
+    """Test suite for the predict CLI command."""
+
+    def test_predict_help_is_available(self, runner: CliRunner) -> None:
+        """Ensure predict command help is available."""
+        result = invoke_cli(runner, ["predict", "--help"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code == 0
+        assert "--prediction-csv" in output
+        assert "--run-id" in output
+        assert "--batch-size" in output
+        assert "--use-cpu" in output
+
+    @pytest.mark.parametrize(
+        "flag, expected",
+        [
+            ("--use-cpu", True),
+            ("--no-use-cpu", False),
+        ],
+    )
+    def test_predict_boolean_flag_pairs_parse_explicit_values(
+        self,
+        runner: CliRunner,
+        flag: str,
+        expected: bool,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure predict boolean flag pairs set the expected boolean value."""
+        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv", flag])
+
+        assert result.exit_code == 0
+        assert stub_predict_tlmtc["kwargs"]["use_cpu"] is expected
+
+    def test_predict_invokes_predict_tlmtc(
+        self,
+        runner: CliRunner,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure predict maps CLI options to predict_tlmtc kwargs."""
+        result = invoke_cli(
+            runner,
+            [
+                "predict",
+                "--prediction-csv",
+                "prediction.csv",
+                "--work-dir",
+                "work",
+                "--run-id",
+                "test-run",
+                "--batch-size",
+                "8",
+                "--use-cpu",
+            ],
+        )
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code == 0
+        assert "Prediction completed: prediction_outputs/test-run" in output
+        assert "Probabilities: prediction_outputs/test-run/probabilities.csv" in output
+        assert "Predictions: prediction_outputs/test-run/predictions.csv" in output
+
+        kwargs = stub_predict_tlmtc["kwargs"]
+        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["work_dir"] == "work"
+        assert kwargs["run_id"] == "test-run"
+        assert kwargs["batch_size"] == 8
+        assert kwargs["use_cpu"] is True
+
+    def test_predict_forwards_config_path(
+        self,
+        runner: CliRunner,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure --config-path is forwarded to predict_tlmtc."""
+        result = invoke_cli(
+            runner,
+            [
+                "predict",
+                "--prediction-csv",
+                "prediction.csv",
+                "--config-path",
+                "config.yaml",
+            ],
+        )
+
+        assert result.exit_code == 0
+        kwargs = stub_predict_tlmtc["kwargs"]
+        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["config_path"] == "config.yaml"
+
+    def test_predict_omitted_optional_args_are_forwarded_as_unset(
+        self,
+        runner: CliRunner,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure omitted predict flags preserve layered settings semantics via UNSET."""
+        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv"])
+
+        assert result.exit_code == 0
+
+        kwargs = stub_predict_tlmtc["kwargs"]
+        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["work_dir"] is UNSET
+        assert kwargs["config_path"] is UNSET
+        assert kwargs["run_id"] is UNSET
+        assert kwargs["batch_size"] is UNSET
+        assert kwargs["use_cpu"] is UNSET
+
+    def test_predict_requires_prediction_csv(self, runner: CliRunner) -> None:
+        """Ensure predict exits with a usage error when required args are missing."""
+        result = invoke_cli(runner, ["predict"])
+        output = clean_cli_output(result.output)
+
+        assert result.exit_code != 0
+        assert "Missing option" in output
+        assert "--prediction-csv" in output
+
+    def test_predict_propagates_downstream_exception(
+        self,
+        runner: CliRunner,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Ensure downstream prediction exceptions are not converted into fake parser errors."""
+
+        def _boom(**_kwargs: Any) -> None:
+            raise RuntimeError("boom")
+
+        stub = types.ModuleType("tlmtc.api")
+        stub.predict_tlmtc = _boom  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
+
+        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv"])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)
