@@ -423,5 +423,7 @@ class PredictionSettings(ResolvableSettings):
     model_config = ConfigDict(extra="forbid")
 
     prediction_csv: Path
+    work_dir: Path = Field(default_factory=Path.cwd)
+    run_id: str | None = None
     batch_size: PositiveInt = 32
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
