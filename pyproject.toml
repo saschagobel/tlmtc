@@ -5,7 +5,7 @@ description = "Transfer Learning for Multi-Label Text Classification"
 readme = "README.md"
 license = { file = "LICENSE.md" }
 authors = [
-  { name = "Sascha Göbel", email = "goebel@hertie-school.org" },
+  { name = "Sascha Göbel", email = "sascha.goebel@tuta.com" },
 ]
 requires-python = ">=3.12"
 dependencies = [
