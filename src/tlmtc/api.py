@@ -16,6 +16,7 @@ from tlmtc.prediction import (
     make_prediction_frame,
     predict_probabilities,
 )
+from tlmtc.runtime_output import configure_runtime_output
 from tlmtc.settings import UNSET, PredictionSettings, RunSettings, Unset, load_config_file
 
 
@@ -76,6 +77,7 @@ def train_tlmtc(
     lora_bias: str | Unset = UNSET,
     early_stopping_patience: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
+    verbosity: str | Unset = UNSET,
 ) -> TrainResult:
     """Run the full multi-label text classification training workflow.
 
@@ -176,6 +178,8 @@ def train_tlmtc(
         early_stopping_patience: Early stopping patience in epochs without improvement. Defaults to
             `10`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
+        verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
+            `"progress"`.
 
     Returns:
         Result metadata containing the resolved input and artifact paths.
@@ -232,8 +236,13 @@ def train_tlmtc(
             "hardware": {
                 "use_cpu": use_cpu,
             },
+            "runtime": {
+                "verbosity": verbosity,
+            },
         },
     )
+
+    configure_runtime_output(settings.runtime.verbosity)
 
     paths = resolve_paths(
         raw_csv=settings.raw_csv,
@@ -315,6 +324,7 @@ def predict_tlmtc(
     run_id: str | None | Unset = UNSET,
     batch_size: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
+    verbosity: str | Unset = UNSET,
 ) -> PredictResult:
     """Run the multi-label text classification prediction workflow.
 
@@ -332,6 +342,8 @@ def predict_tlmtc(
             completed training run is selected from persisted training metadata.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
+        verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
+            `"progress"`.
 
     Returns:
         Result metadata containing the resolved input and artifact paths.
@@ -347,8 +359,14 @@ def predict_tlmtc(
             "hardware": {
                 "use_cpu": use_cpu,
             },
+            "runtime": {
+                "verbosity": verbosity,
+            },
         },
     )
+
+    configure_runtime_output(settings.runtime.verbosity)
+
     paths = resolve_prediction_paths(
         input_csv=settings.prediction_csv,
         work_dir=settings.work_dir,
