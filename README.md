@@ -41,3 +41,37 @@ In applied settings, text classification is rarely a simple single-label task or
 - Automatic persistence and reuse of data splits, Optuna studies, trained models, thresholds, and run metadata
 - Highly configurable through a small workflow-oriented Python API and CLI
 - CPU and multi-GPU training and prediction support
+
+## Installation
+
+We recommend installing **tlmtc** in a dedicated [`uv`](https://docs.astral.sh/uv/) environment with the `full` extra:
+
+```bash
+uv add "tlmtc[full]"
+```
+
+The `full` extra installs the optional deep-learning dependencies required for training and prediction, including PyTorch, PEFT, and Accelerate.
+
+<details>
+<summary><strong>Using pip?</strong></summary>
+
+```bash
+pip install "tlmtc[full]"
+```
+
+</details>
+
+<details>
+<summary><strong>Installing from source?</strong></summary>
+
+```bash
+uv add "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+```
+
+Or with pip:
+
+```bash
+pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+```
+
+</details>
