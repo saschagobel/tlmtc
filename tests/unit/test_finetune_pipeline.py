@@ -507,6 +507,31 @@ class TestTuneHyperparameters:
 
         assert pipeline.training == original_training
 
+    def test_suppresses_trainer_console_callbacks(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure HPO Trainer console callbacks are suppressed after Trainer construction."""
+        pipeline = pipeline_with_tokenized_hpo
+
+        suppress_mock = MagicMock(side_effect=lambda trainer: trainer)
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.suppress_trainer_console_callbacks",
+            suppress_mock,
+            raising=True,
+        )
+
+        def trainer_factory(*_args, **_kwargs):
+            return fake_trainer
+
+        result = pipeline.tune_hyperparameters(trainer=trainer_factory)
+
+        assert result is pipeline
+        suppress_mock.assert_called_once_with(fake_trainer)
+        fake_trainer.hyperparameter_search.assert_called_once()
+
 
 class TestFineTunePretrained:
     """Test suite for FinetunePipeline.fine_tune_pretrained."""
@@ -679,6 +704,51 @@ class TestFineTunePretrained:
         assert training_args.lr_scheduler_type == "cosine"
 
         assert training_args.metric_for_best_model == pipeline.training.best_model_metric
+
+    def test_suppresses_trainer_console_callbacks_without_removing_early_stopping(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure final Trainer console callbacks are suppressed while preserving early stopping."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
+
+        suppress_mock = MagicMock(side_effect=lambda trainer: trainer)
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.suppress_trainer_console_callbacks",
+            suppress_mock,
+            raising=True,
+        )
+
+        recorded: dict[str, Any] = {}
+
+        def trainer_factory(*args, **kwargs):
+            recorded["args"] = args
+            recorded["kwargs"] = kwargs
+            return fake_trainer
+
+        result = pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        assert result is pipeline
+        suppress_mock.assert_called_once_with(fake_trainer)
+
+        callbacks = recorded["kwargs"]["callbacks"]
+        assert isinstance(callbacks, list)
+        assert callbacks, "Expected early stopping callback to be preserved"
+        assert callbacks[0].early_stopping_patience == pipeline.training.early_stopping_patience
+
+        fake_trainer.train.assert_called_once()
+        assert pipeline.updated_trainer is fake_trainer
 
 
 class TestTuneThresholds:
