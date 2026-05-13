@@ -14,7 +14,7 @@ from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.paths import RunPaths
-from tlmtc.runtime_output import emit_progress
+from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
@@ -191,14 +191,16 @@ class FinetunePipeline:
                 best_model_metric=self.training.best_model_metric,
                 use_cpu=self.hardware.use_cpu,
             )
-            trainer_instance = trainer(
-                model=None,
-                args=training_args,
-                train_dataset=self.tokenized_dataset["train"],
-                eval_dataset=self.tokenized_dataset["validation"],
-                compute_metrics=compute_metrics,
-                class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
-                model_init=model_init,
+            trainer_instance = suppress_trainer_console_callbacks(
+                trainer(
+                    model=None,
+                    args=training_args,
+                    train_dataset=self.tokenized_dataset["train"],
+                    eval_dataset=self.tokenized_dataset["validation"],
+                    compute_metrics=compute_metrics,
+                    class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+                    model_init=model_init,
+                )
             )
 
             emit_progress("Loading pretrained proxy transformer model")
@@ -267,14 +269,16 @@ class FinetunePipeline:
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
         )
-        trainer_instance = trainer(
-            model=self.pretrained_model,
-            args=training_args,
-            train_dataset=self.tokenized_dataset["train"],
-            eval_dataset=self.tokenized_dataset["validation"],
-            compute_metrics=compute_metrics,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=self.training.early_stopping_patience)],
-            class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+        trainer_instance = suppress_trainer_console_callbacks(
+            trainer(
+                model=self.pretrained_model,
+                args=training_args,
+                train_dataset=self.tokenized_dataset["train"],
+                eval_dataset=self.tokenized_dataset["validation"],
+                compute_metrics=compute_metrics,
+                callbacks=[EarlyStoppingCallback(early_stopping_patience=self.training.early_stopping_patience)],
+                class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+            )
         )
         trainer_instance.train()
         self.updated_trainer = trainer_instance
