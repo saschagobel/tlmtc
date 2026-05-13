@@ -65,7 +65,7 @@ def _apply_third_party_suppression() -> None:
     datasets.disable_progress_bars()
 
     huggingface_hub.logging.set_verbosity_error()
-    huggingface_hub.utils.disable_progress_bars()
+    huggingface_hub.utils.disable_progress_bars()  # type: ignore[attr-defined]
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
