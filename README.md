@@ -12,11 +12,11 @@
 
 <hr>
 
-**tlmtc** is a Python package that provides an out-of-the-box, end-to-end pipeline for fine-tuning pretrained encoder-only transformer models for robust multi-label text classification.
+**tlmtc** (**T**ransfer **L**earning for **M**ulti-label **T**ext **C**lassification) is an opinionated Python package that provides production-ready, end-to-end workflows for fine-tuning pretrained encoder-only transformer models for robust multi-label text classification.
 
-In real applications, text classification is rarely a simple single-label or mutually exclusive multiclass problem. In healthcare, a single clinical note may map to several ICD codes at once. In fintech products, assets may need multiple attributes and in-app user queries can express several intents. In the legal domain, one contract often bundles many clause types, and litigation documents can raise several legal issues. In defense, technical incident reports can span several failure modes, while threat-intelligence reports are tagged with multiple threat dimensions. Even in highly specialized domains like optics and photonics, defect reports are often labeled with multiple defect mechanisms. And in everyday customer support, tickets routinely span several issue categories that matter for routing, prioritization, and analytics.
+In applied settings, text classification is rarely a simple single-label task or a mutually exclusive multiclass problem. A clinical note may map to several ICD codes at once. A customer-support ticket can span multiple issue categories for routing, prioritization, and analytics. A contract may contain several clause types, and a litigation document can raise multiple legal issues. In RAG and LLM evaluation, a single answer may need several concurrent quality labels. A threat-intelligence report can mention multiple tactics, techniques, and vulnerabilities in the same document. Across domains, useful text labels often overlap, co-occur, and vary in prevalence.
 
-**tlmtc** turns these use cases into a repeatable workflow. With a single function call or CLI command, it runs data preparation, hyperparameter tuning, model fine-tuning, and evaluation end to end.
+**tlmtc** turns these use cases into repeatable training and prediction workflows. It prepares multi-label text data, fine-tunes transformer classifiers, tunes hyperparameters and decision thresholds, evaluates model performance, writes reports, and applies trained models to new data  — all exposed through a small workflow-oriented API.
 
 **Key features**
 
