@@ -1,6 +1,7 @@
 """Public package interface and lazy-loaded API exports."""
 
 import importlib
+import logging
 from typing import TYPE_CHECKING, Any
 
 __version__ = "0.0.1"
@@ -10,6 +11,8 @@ __all__ = [
     "train_tlmtc",
     "__version__",
 ]
+
+logging.getLogger("tlmtc").addHandler(logging.NullHandler())
 
 _LAZY: dict[str, tuple[str, str]] = {
     "predict_tlmtc": ("tlmtc.api", "predict_tlmtc"),
