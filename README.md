@@ -1,9 +1,13 @@
 <p align="center">
-  <img
-    src="assets/tlmtc-dark.png"
-    alt="tlmtc: Transfer Learning for Multi-label Text Classification"
-    style="width: 100%; max-width: 900px;"
-  >
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/tlmtc-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/tlmtc-bright.png">
+    <img
+      src="assets/tlmtc-bright.png"
+      alt="tlmtc: Transfer Learning for Multi-label Text Classification"
+      style="width: 100%; max-width: 900px;"
+    >
+  </picture>
 </p>
 
 <hr>
