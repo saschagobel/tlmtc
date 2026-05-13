@@ -14,6 +14,7 @@ from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.paths import RunPaths
+from tlmtc.runtime_output import emit_progress
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
@@ -119,6 +120,8 @@ class FinetunePipeline:
         if not self.paths.train_data_path.exists():
             raise RuntimeError("Train data not found. Run DataPipeline class first.")
 
+        emit_progress("Loading pretrained transformer model")
+
         self.num_labels = sum(
             1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
         )
@@ -197,6 +200,11 @@ class FinetunePipeline:
                 class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
                 model_init=model_init,
             )
+
+            emit_progress("Loading pretrained proxy transformer model")
+
+            emit_progress("Running hyperparameter optimization")
+
             best_run = trainer_instance.hyperparameter_search(
                 direction="maximize",
                 backend="optuna",
@@ -247,6 +255,8 @@ class FinetunePipeline:
         if self.pretrained_model is None:
             raise RuntimeError("Pretrained model not loaded. Run load_pretrained() first.")
 
+        emit_progress("Fine-tuning model")
+
         training_args = get_training_args(
             logging_path=self.paths.logs_dir,
             batch_size=self.runtime_training.batch_size,
@@ -287,6 +297,8 @@ class FinetunePipeline:
         if self.updated_trainer is None:
             raise RuntimeError("Trained model not found. Run fine_tune_pretrained() first.")
 
+        emit_progress("Optimizing decision thresholds")
+
         preds = self.updated_trainer.predict(self.tokenized_dataset["validation"])
         logits = preds.predictions
         probabilities = torch.sigmoid(torch.tensor(logits)).numpy()
@@ -316,6 +328,8 @@ class FinetunePipeline:
 
         if self.updated_trainer is None:
             raise RuntimeError("Instantiated Trainer after fine-tuning not found. Run fine_tune_pretrained() first.")
+
+        emit_progress("Saving model artifacts")
 
         self.updated_trainer.model.save_pretrained(self.paths.model_dir)  # type: ignore[operator,union-attr]
         return self

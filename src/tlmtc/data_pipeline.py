@@ -17,6 +17,7 @@ from tlmtc.data_contracts import (
 )
 from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
 from tlmtc.paths import RunPaths
+from tlmtc.runtime_output import emit_progress
 from tlmtc.settings import ModelSettings, SplitSettings
 
 
@@ -74,6 +75,8 @@ class DataPipeline:
         train_data_exists = self.paths.train_data_path.exists()
         test_data_exists = self.paths.test_data_path.exists()
         val_data_exists = self.paths.val_data_path.exists()
+
+        emit_progress("Preparing multi-label data splits")
 
         if train_data_exists and val_data_exists and test_data_exists:
             self.train_data, label_cols, self.input_mode = validate_multilabel_frame(
@@ -228,6 +231,8 @@ class DataPipeline:
 
         if self.input_mode is None:
             raise RuntimeError("Input mode not found. Run split_data() first.")
+
+        emit_progress("Tokenizing training inputs")
 
         tokenizer = AutoTokenizer.from_pretrained(self.model.checkpoint)
 

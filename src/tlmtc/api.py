@@ -16,7 +16,7 @@ from tlmtc.prediction import (
     make_prediction_frame,
     predict_probabilities,
 )
-from tlmtc.runtime_output import configure_runtime_output
+from tlmtc.runtime_output import configure_runtime_output, emit_progress
 from tlmtc.settings import UNSET, PredictionSettings, RunSettings, Unset, load_config_file
 
 
@@ -243,6 +243,7 @@ def train_tlmtc(
     )
 
     configure_runtime_output(settings.runtime.verbosity)
+    emit_progress("Starting training run")
 
     paths = resolve_paths(
         raw_csv=settings.raw_csv,
@@ -313,6 +314,7 @@ def train_tlmtc(
         path=paths.train_run_meta_path,
     )
 
+    emit_progress("Training run complete")
     return TrainResult(paths=paths)
 
 
@@ -366,12 +368,15 @@ def predict_tlmtc(
     )
 
     configure_runtime_output(settings.runtime.verbosity)
+    emit_progress("Starting prediction run")
 
     paths = resolve_prediction_paths(
         input_csv=settings.prediction_csv,
         work_dir=settings.work_dir,
         run_id=settings.run_id,
     ).ensure_dirs()
+
+    emit_progress("Reading training metadata")
 
     meta = read_run_meta(paths.train_run_meta_path)
 
@@ -387,6 +392,8 @@ def predict_tlmtc(
     assert input_mode is not None
     assert label_names is not None
 
+    emit_progress("Reading prediction inputs")
+
     input_df = read_prediction_csv(
         df_path=paths.input_data_path,
         expected_input_mode=input_mode,
@@ -395,18 +402,21 @@ def predict_tlmtc(
         df=input_df,
         input_mode=input_mode,
     )
+    emit_progress("Tokenizing prediction inputs")
     tokenized_dataset = tokenize_prediction_dataset(
         dataset=prediction_dataset,
         checkpoint=meta.checkpoint,
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
     )
+    emit_progress("Loading fine-tuned prediction model")
     model = load_prediction_model(
         model_dir=paths.train_run_model_dir,
         checkpoint=meta.checkpoint,
         num_labels=len(label_names),
         wrap_peft=meta.wrap_peft,
     )
+    emit_progress("Running prediction")
     probabilities = predict_probabilities(
         model=model,
         dataset=tokenized_dataset,
@@ -428,7 +438,9 @@ def predict_tlmtc(
         label_names=label_names,
     )
 
+    emit_progress("Writing prediction artifacts")
     probability_df.to_csv(paths.probabilities_path, index=False)
     prediction_df.to_csv(paths.predictions_path, index=False)
 
+    emit_progress("Prediction run complete")
     return PredictResult(paths=paths)

@@ -30,6 +30,7 @@ from tlmtc.reporting import (
     make_objective_values_plot,
     make_roc_curves_plot,
 )
+from tlmtc.runtime_output import emit_progress
 from tlmtc.settings import ModelSettings, TrainingSettings, WorkflowSettings
 
 
@@ -110,6 +111,8 @@ class EvaluationPipeline:
         Raises:
             RuntimeError: If required HPO results or trained model state are missing.
         """
+        emit_progress("Evaluating model and writing reports")
+
         if self.workflow.hyperparameter_tuning:
             if not self.paths.optuna_trials_path.exists():
                 raise RuntimeError(f"Optuna study database not found at {self.paths.optuna_trials_path}.")
