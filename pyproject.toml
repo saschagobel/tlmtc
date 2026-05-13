@@ -24,6 +24,7 @@ dependencies = [
     "great-tables>=0.20,<1.0",
     "matplotlib>=3.10,<4",
     "seaborn>=0.13,<1.0",
+    "huggingface-hub>=1.12.0,<2.0",
 ]
 
 [project.optional-dependencies]

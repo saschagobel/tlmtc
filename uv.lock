@@ -2309,6 +2309,7 @@ source = { editable = "." }
 dependencies = [
     { name = "datasets" },
     { name = "great-tables" },
+    { name = "huggingface-hub" },
     { name = "iterative-stratification" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -2349,6 +2350,7 @@ requires-dist = [
     { name = "accelerate", marker = "extra == 'full'", specifier = ">=1.13,<2.0" },
     { name = "datasets", specifier = ">=4.4,<5.0" },
     { name = "great-tables", specifier = ">=0.20,<1.0" },
+    { name = "huggingface-hub", specifier = ">=1.12.0" },
     { name = "iterative-stratification", specifier = ">=0.1,<1.0" },
     { name = "matplotlib", specifier = ">=3.10,<4" },
     { name = "numpy", specifier = ">=2.3,<3.0" },
