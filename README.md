@@ -120,6 +120,7 @@ from tlmtc import train_tlmtc
 
 train_tlmtc(
     "paired_example.csv",
+    target_name="Requirements Evidence Alignment",
     checkpoint="google/bert_uncased_L-2_H-128_A-2",
     proxy_checkpoint="google/bert_uncased_L-2_H-128_A-2",
     use_cpu=True,
@@ -145,6 +146,7 @@ predict_tlmtc(
 ```bash
 tlmtc train \
   --raw-csv paired_example.csv \
+  --target_name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --proxy-checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --use-cpu
