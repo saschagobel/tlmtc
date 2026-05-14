@@ -9,7 +9,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "datasets >=4.4,<5.0",
+    "datasets>=4.8.5,<5.0",
     "iterative-stratification >=0.1,<1.0",
     "numpy >=2.3,<3.0",
     "optuna >=4.6,<5.0",
@@ -19,8 +19,8 @@ dependencies = [
     "pyyaml >=6.0,<7.0",
     "pydantic >=2.0,<3.0",
     "scikit-learn >=1.7,<2.0",
-    "transformers >=4.57,<6.0",
-    "typer>=0.12,<1",
+    "transformers>=5.7.0,<6.0",
+    "typer>=0.25.1,<1",
     "great-tables>=0.20,<1.0",
     "matplotlib>=3.10,<4",
     "seaborn>=0.13,<1.0",
