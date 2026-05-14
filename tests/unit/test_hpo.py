@@ -1,12 +1,13 @@
 """Tests for hpo helpers."""
 
 import math
+from types import SimpleNamespace
 
 import pytest
 from optuna.trial import FixedTrial
 from transformers import BertConfig, BertForSequenceClassification
 
-from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.settings import OptunaSpaceSettings
 
 
@@ -135,3 +136,50 @@ def test_optuna_hp_space_keeps_learning_rate_unchanged_at_reference_batch_size()
     result = optuna_hp_space(trial, space)
 
     assert result["learning_rate"] == 5e-5
+
+
+def test_get_existing_trial_count_returns_zero_when_study_does_not_exist(monkeypatch) -> None:
+    """Return zero when the requested Optuna study is not yet persisted."""
+
+    def fake_load_study(*, study_name: str, storage: str):
+        raise KeyError("Record does not exist.")
+
+    monkeypatch.setattr(
+        "tlmtc.hpo.optuna.load_study",
+        fake_load_study,
+    )
+
+    assert (
+        get_existing_trial_count(
+            study_name="missing_study",
+            storage="sqlite:///dummy.db",
+        )
+        == 0
+    )
+
+
+def test_get_existing_trial_count_returns_number_of_persisted_trials(monkeypatch) -> None:
+    """Return the number of trials already stored for an existing Optuna study."""
+    study = SimpleNamespace(
+        trials=[
+            SimpleNamespace(number=0),
+            SimpleNamespace(number=1),
+            SimpleNamespace(number=2),
+        ]
+    )
+
+    def fake_load_study(*, study_name: str, storage: str):
+        return study
+
+    monkeypatch.setattr(
+        "tlmtc.hpo.optuna.load_study",
+        fake_load_study,
+    )
+
+    assert (
+        get_existing_trial_count(
+            study_name="existing_study",
+            storage="sqlite:///dummy.db",
+        )
+        == 3
+    )
