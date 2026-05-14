@@ -13,7 +13,7 @@ updates:
     open-pull-requests-limit: 5
     versioning-strategy: "increase-if-necessary"
     commit-message:
-      prefix: "chore"
+      prefix: "deps"
     labels:
       - "dependencies"
     groups:
@@ -36,7 +36,7 @@ updates:
       default-days: 14
     open-pull-requests-limit: 5
     commit-message:
-      prefix: "chore"
+      prefix: "deps"
     labels:
       - "dependencies"
     groups:

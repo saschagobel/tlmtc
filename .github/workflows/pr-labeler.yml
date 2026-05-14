@@ -1,0 +1,46 @@
+name: Pull Request Labeler
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    name: Label pull request
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Apply type labels
+        uses: actions/labeler@v6
+        with:
+          sync-labels: true
+
+      - name: Apply size label
+        if: github.event.action != 'edited'
+        uses: codelytv/pr-size-labeler@v1
+        with:
+          xs_label: 'size: XS'
+          xs_max_size: '49'
+          s_label: 'size: S'
+          s_max_size: '199'
+          m_label: 'size: M'
+          m_max_size: '499'
+          l_label: 'size: L'
+          l_max_size: '999'
+          xl_label: 'size: XL'
+          fail_if_xl: 'false'
+          files_to_ignore: |
+            uv.lock
