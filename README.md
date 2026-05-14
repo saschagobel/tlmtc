@@ -75,3 +75,97 @@ pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
 ```
 
 </details>
+
+## Quickstart
+
+This quickstart uses a small synthetic paired-text dataset included in the repository. It mimics a requirements-engineering setting, where requirement records are paired with validation, commissioning, configuration, or field-service evidence and labeled for multiple concurrent issues. You will fine-tune a multi-label classifier and then apply the trained model to unlabeled examples.
+
+Create a working directory and download the example data:
+
+```bash
+mkdir tlmtc-quickstart
+cd tlmtc-quickstart
+
+curl -L -o paired_example.csv \
+  https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example.csv
+
+curl -L -o paired_example_unlabeled.csv \
+  https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example_unlabeled.csv
+```
+
+The code below assumes that both CSV files are in your current working directory. If you save them somewhere else, adjust the file paths accordingly.
+
+<details>
+<summary><strong>Using Windows PowerShell?</strong></summary>
+
+```powershell
+New-Item -ItemType Directory -Force -Path tlmtc-quickstart
+Set-Location tlmtc-quickstart
+
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example.csv" `
+  -OutFile "paired_example.csv"
+
+Invoke-WebRequest `
+  -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example_unlabeled.csv" `
+  -OutFile "paired_example_unlabeled.csv"
+```
+
+</details>
+
+Fine-tune a model:
+
+```python
+from tlmtc import train_tlmtc
+
+train_tlmtc(
+    "paired_example.csv",
+    checkpoint="google/bert_uncased_L-2_H-128_A-2",
+    proxy_checkpoint="google/bert_uncased_L-2_H-128_A-2",
+    use_cpu=True,
+)
+```
+
+Use your fine-tuned model to run prediction on unlabeled data:
+
+```python
+from tlmtc import predict_tlmtc
+
+predict_tlmtc(
+    "paired_example_unlabeled.csv",
+    use_cpu=True,
+)
+```
+
+**tlmtc** writes training artifacts to `train_outputs/` and prediction artifacts to `prediction_outputs/`. Evaluation reports are written to `train_outputs/<run_id>/evaluation/`.
+
+<details>
+<summary><strong>Prefer the CLI?</strong></summary>
+
+```bash
+tlmtc train \
+  --raw-csv paired_example.csv \
+  --checkpoint google/bert_uncased_L-2_H-128_A-2 \
+  --proxy-checkpoint google/bert_uncased_L-2_H-128_A-2 \
+  --use-cpu
+
+tlmtc predict \
+  --prediction-csv paired_example_unlabeled.csv \
+  --use-cpu
+```
+
+</details>
+
+<details>
+<summary><strong>Try your own data</strong></summary>
+
+Your training CSV must include:
+
+- a `text` column
+- at least two binary `label_`-prefixed columns
+
+Add a `text_pair` column for paired-input classification. **tlmtc** detects and handles this automatically.
+
+For prediction, provide an unlabeled CSV with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
+
+</details>
