@@ -1,10 +1,10 @@
 """Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
-from functools import partial
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol, Self
 
 import numpy as np
+import optuna
 import pandas as pd
 import torch
 from datasets import DatasetDict
@@ -12,7 +12,7 @@ from transformers import AutoModelForSequenceClassification, EarlyStoppingCallba
 
 from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
-from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
@@ -163,10 +163,23 @@ class FinetunePipeline:
                 1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
             )
 
-        hp_space_fn = partial(
-            optuna_hp_space,
-            space=self.hpo.optuna_space,
+        study_name = f"{self.model.target_name.replace(' ', '_')}_optuna_study"
+        study_storage = f"sqlite:///{self.paths.optuna_trials_path.as_posix()}"
+
+        existing_trials = get_existing_trial_count(
+            study_name=study_name,
+            storage=study_storage,
         )
+        total_trials = existing_trials + self.hpo.tuning_trials
+
+        def hp_space_with_progress(
+            trial: optuna.trial.Trial,
+        ) -> dict[str, Any]:
+            emit_progress(f"HPO trial {trial.number + 1}/{total_trials} started")
+            return optuna_hp_space(
+                trial=trial,
+                space=self.hpo.optuna_space,
+            )
 
         self.paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -210,10 +223,10 @@ class FinetunePipeline:
             best_run = trainer_instance.hyperparameter_search(
                 direction="maximize",
                 backend="optuna",
-                hp_space=hp_space_fn,
+                hp_space=hp_space_with_progress,
                 n_trials=self.hpo.tuning_trials,
-                study_name=f"{self.model.target_name.replace(' ', '_')}_optuna_study",
-                storage=f"sqlite:///{self.paths.optuna_trials_path.as_posix()}",
+                study_name=study_name,
+                storage=study_storage,
                 compute_objective=compute_objective,
                 load_if_exists=True,
             )
