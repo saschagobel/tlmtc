@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Apply type labels
-        uses: actions/labeler@v6
+        uses: actions/labeler@v6.0.1
         with:
           sync-labels: true
 
