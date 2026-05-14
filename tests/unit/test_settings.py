@@ -19,6 +19,7 @@ from tlmtc.settings import (
     PredictionSettings,
     ResolvableSettings,
     RunSettings,
+    RuntimeSettings,
     SplitSettings,
     ThresholdSettings,
     TrainingSettings,
@@ -379,6 +380,12 @@ class TestBundleSettings:
 
         assert settings.use_cpu is False
 
+    def test_runtime_settings_defaults(self) -> None:
+        """RuntimeSettings should expose the package runtime-output defaults."""
+        settings = RuntimeSettings()
+
+        assert settings.verbosity == "progress"
+
     @pytest.mark.parametrize(
         "factory",
         [
@@ -389,6 +396,7 @@ class TestBundleSettings:
             ThresholdSettings,
             PeftSettings,
             HardwareSettings,
+            RuntimeSettings,
         ],
     )
     def test_frozen_settings_reject_assignment(self, factory: type[BaseModel]) -> None:
@@ -411,6 +419,7 @@ class TestBundleSettings:
             (TrainingSettings, {"weight_decay": -0.1}, "weight_decay"),
             (PeftSettings, {"lora_dropout": 1.0}, "lora_dropout"),
             (PeftSettings, {"lora_r": 0}, "lora_r"),
+            (RuntimeSettings, {"verbosity": "verbose"}, "verbosity"),
             (
                 OptunaSpaceSettings,
                 {
@@ -437,6 +446,7 @@ class TestBundleSettings:
             (ModelSettings, {"unknown": 1}),
             (TrainingSettings, {"unknown": "boom"}),
             (PeftSettings, {"unknown": True}),
+            (RuntimeSettings, {"unknown": "boom"}),
         ],
     )
     def test_settings_bundles_reject_extra_keys(
@@ -471,6 +481,7 @@ class TestRunSettings:
         assert isinstance(settings.hpo.optuna_space, OptunaSpaceSettings)
         assert isinstance(settings.peft, PeftSettings)
         assert isinstance(settings.hardware, HardwareSettings)
+        assert isinstance(settings.runtime, RuntimeSettings)
 
         assert settings.model.target_name == "Target"
         assert settings.split.validation_size == 0.15
@@ -479,6 +490,7 @@ class TestRunSettings:
         assert settings.threshold.threshold_type == "label"
         assert settings.peft.lora_r == 8
         assert settings.hardware.use_cpu is False
+        assert settings.runtime.verbosity == "progress"
         assert settings.hpo.tuning_trials == 10
         assert settings.hpo.optuna_space.model_dump(mode="python") == DEFAULT_OPTUNA_SPACE_PEFT
 
@@ -525,6 +537,9 @@ class TestRunSettings:
                         "epoch_high": 25,
                     }
                 },
+                "runtime": {
+                    "verbosity": "quiet",
+                },
             },
             overrides={
                 "model": {
@@ -535,6 +550,9 @@ class TestRunSettings:
                 },
                 "training": {
                     "batch_size": 32,
+                },
+                "runtime": {
+                    "verbosity": "progress",
                 },
             },
         )
@@ -554,6 +572,7 @@ class TestRunSettings:
             "batch_sizes": [16],
             "epoch_high": 25,
         }
+        assert settings.runtime.verbosity == "progress"
 
     def test_run_settings_resolve_prunes_unset_in_nested_overrides(self) -> None:
         """RunSettings.resolve should ignore nested override values explicitly marked as UNSET."""
@@ -568,6 +587,9 @@ class TestRunSettings:
                     "batch_size": 32,
                 },
                 "hpo": MINIMAL_HPO,
+                "runtime": {
+                    "verbosity": "quiet",
+                },
             },
             overrides={
                 "model": {
@@ -578,6 +600,9 @@ class TestRunSettings:
                     "batch_size": UNSET,
                     "learning_rate": 1e-4,
                 },
+                "runtime": {
+                    "verbosity": UNSET,
+                },
             },
         )
 
@@ -585,6 +610,7 @@ class TestRunSettings:
         assert settings.model.sequence_length == 256
         assert settings.training.batch_size == 32
         assert settings.training.learning_rate == 1e-4
+        assert settings.runtime.verbosity == "quiet"
 
     def test_run_settings_requires_raw_csv(self) -> None:
         """RunSettings should require raw_csv."""
@@ -659,6 +685,8 @@ class TestPredictionSettings:
         assert settings.batch_size == 32
         assert isinstance(settings.hardware, HardwareSettings)
         assert settings.hardware.use_cpu is False
+        assert isinstance(settings.runtime, RuntimeSettings)
+        assert settings.runtime.verbosity == "progress"
 
     def test_prediction_settings_accepts_explicit_values(self, tmp_path: Path) -> None:
         """PredictionSettings should preserve explicit prediction runtime values."""
@@ -668,6 +696,7 @@ class TestPredictionSettings:
             run_id="manual-run",
             batch_size=64,
             hardware={"use_cpu": True},
+            runtime={"verbosity": "quiet"},
         )
 
         assert settings.prediction_csv == tmp_path / "predict.csv"
@@ -675,6 +704,7 @@ class TestPredictionSettings:
         assert settings.run_id == "manual-run"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
+        assert settings.runtime.verbosity == "quiet"
 
     def test_prediction_settings_resolve_applies_overrides_and_preserves_defaults(self) -> None:
         """PredictionSettings.resolve should merge prediction overrides while preserving defaults."""
@@ -684,6 +714,9 @@ class TestPredictionSettings:
                 "work_dir": "from-config-workdir",
                 "run_id": "from-config-run",
                 "batch_size": 16,
+                "runtime": {
+                    "verbosity": "quiet",
+                },
             },
             overrides={
                 "prediction_csv": "from-override.csv",
@@ -699,6 +732,7 @@ class TestPredictionSettings:
         assert settings.run_id is None
         assert settings.batch_size == 16
         assert settings.hardware.use_cpu is True
+        assert settings.runtime.verbosity == "quiet"
 
     def test_prediction_settings_resolve_prunes_unset_values(self) -> None:
         """PredictionSettings.resolve should ignore override values explicitly marked as UNSET."""
@@ -711,6 +745,9 @@ class TestPredictionSettings:
                 "hardware": {
                     "use_cpu": True,
                 },
+                "runtime": {
+                    "verbosity": "quiet",
+                },
             },
             overrides={
                 "work_dir": UNSET,
@@ -718,6 +755,9 @@ class TestPredictionSettings:
                 "batch_size": UNSET,
                 "hardware": {
                     "use_cpu": UNSET,
+                },
+                "runtime": {
+                    "verbosity": UNSET,
                 },
             },
         )
@@ -727,6 +767,7 @@ class TestPredictionSettings:
         assert settings.run_id == "configured-run"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
+        assert settings.runtime.verbosity == "quiet"
 
     def test_prediction_settings_requires_prediction_csv(self) -> None:
         """PredictionSettings should require prediction_csv."""
@@ -755,6 +796,13 @@ class TestPredictionSettings:
                 {
                     "prediction_csv": "predict.csv",
                     "hardware": {"unknown": "boom"},
+                },
+                "unknown",
+            ),
+            (
+                {
+                    "prediction_csv": "predict.csv",
+                    "runtime": {"unknown": "boom"},
                 },
                 "unknown",
             ),

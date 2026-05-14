@@ -128,3 +128,27 @@ def make_compute_objective(
         return metrics["eval_" + best_model_metric]
 
     return compute_objective
+
+
+def get_existing_trial_count(
+    study_name: str,
+    storage: str,
+) -> int:
+    """Count trials already persisted for an Optuna study.
+
+    Args:
+        study_name: Optuna study name.
+        storage: Optuna storage URL.
+
+    Returns:
+        Number of existing trials, or zero if the study does not exist.
+    """
+    try:
+        study = optuna.load_study(
+            study_name=study_name,
+            storage=storage,
+        )
+    except KeyError:
+        return 0
+
+    return len(study.trials)

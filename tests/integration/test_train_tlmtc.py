@@ -439,3 +439,68 @@ def test_tlmtc_train_cli_runs_end_to_end_with_tiny_local_model(
     assert train_meta.run_id == "integration_cli"
     assert train_meta.sequence_length == 16
     assert train_meta.wrap_peft is False
+
+
+def test_tlmtc_train_cli_quiet_runtime_mode_suppresses_progress_output(
+    raw_multilabel_csv: Path,
+    tiny_checkpoint_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run the tlmtc train CLI with quiet runtime verbosity."""
+    monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "train",
+            "--raw-csv",
+            str(raw_multilabel_csv),
+            "--work-dir",
+            str(tmp_path),
+            "--run-id",
+            "integration_cli_quiet",
+            "--checkpoint",
+            str(tiny_checkpoint_dir),
+            "--proxy-checkpoint",
+            str(tiny_checkpoint_dir),
+            "--no-hyperparameter-tuning",
+            "--transfer-learning",
+            "--threshold-optimization",
+            "--no-wrap-peft",
+            "--train-epochs",
+            "1",
+            "--batch-size",
+            "4",
+            "--sequence-length",
+            "16",
+            "--validation-size",
+            "0.25",
+            "--test-size",
+            "0.25",
+            "--early-stopping-patience",
+            "1",
+            "--use-cpu",
+            "--verbosity",
+            "quiet",
+        ],
+    )
+
+    paths = resolve_paths(
+        raw_csv=raw_multilabel_csv,
+        raw_test_csv=None,
+        work_dir=tmp_path,
+        run_id="integration_cli_quiet",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "tlmtc:" not in result.output
+    assert f"Run completed: {paths.run_dir}" in result.output
+    assert_common_training_artifacts(paths)
+
+    train_meta = read_run_meta(paths.train_run_meta_path)
+    assert train_meta.run_id == "integration_cli_quiet"
+    assert train_meta.sequence_length == 16
+    assert train_meta.wrap_peft is False

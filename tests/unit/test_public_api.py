@@ -1,6 +1,7 @@
 """Tests for the tlmtc public API surface."""
 
 import importlib
+import logging
 import re
 import sys
 from types import ModuleType
@@ -63,6 +64,15 @@ def test_public_api_declares_expected_exports() -> None:
         "predict_tlmtc",
         "train_tlmtc",
     }
+
+
+def test_public_api_attaches_package_null_handler() -> None:
+    """Test that importing tlmtc installs an inert package logger handler."""
+    import tlmtc
+
+    package_logger = logging.getLogger(tlmtc.__name__)
+
+    assert any(isinstance(handler, logging.NullHandler) for handler in package_logger.handlers)
 
 
 def test_public_api_dir_lists_declared_exports() -> None:

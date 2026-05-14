@@ -436,3 +436,56 @@ def test_tlmtc_predict_cli_runs_end_to_end_with_tiny_local_model(
         input_csv=prediction_csv,
         expected_input_mode=InputMode.SINGLE_TEXT,
     )
+
+
+def test_tlmtc_predict_cli_quiet_runtime_mode_suppresses_progress_output(
+    raw_multilabel_csv: Path,
+    prediction_csv: Path,
+    tiny_checkpoint_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """Run the tlmtc predict CLI with quiet runtime verbosity."""
+    train_paths = _train_tiny_model(
+        raw_csv=raw_multilabel_csv,
+        tiny_checkpoint_dir=tiny_checkpoint_dir,
+        work_dir=tmp_path,
+        run_id="integration_prediction_cli_quiet",
+        sequence_length=16,
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "predict",
+            "--prediction-csv",
+            str(prediction_csv),
+            "--work-dir",
+            str(tmp_path),
+            "--run-id",
+            train_paths.run_id,
+            "--batch-size",
+            "2",
+            "--use-cpu",
+            "--verbosity",
+            "quiet",
+        ],
+    )
+
+    paths = resolve_prediction_paths(
+        input_csv=prediction_csv,
+        work_dir=tmp_path,
+        run_id=train_paths.run_id,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "tlmtc:" not in result.output
+    assert f"Prediction completed: {paths.prediction_run_dir}" in result.output
+    assert f"Probabilities: {paths.probabilities_path}" in result.output
+    assert f"Predictions: {paths.predictions_path}" in result.output
+
+    assert_prediction_artifacts(
+        paths=paths,
+        input_csv=prediction_csv,
+        expected_input_mode=InputMode.SINGLE_TEXT,
+    )

@@ -149,6 +149,14 @@ def paired_prediction_csv(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def configure_runtime_output_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Mock runtime-output configuration for API orchestration tests."""
+    mock = MagicMock()
+    monkeypatch.setattr(api_mod, "configure_runtime_output", mock)
+    return mock
+
+
 def _write_yaml(path: Path, content: str) -> None:
     """Write dedented YAML test config."""
     path.write_text(dedent(content).strip() + "\n", encoding="utf-8")
@@ -612,6 +620,24 @@ class TestTrainTlmtc:
         finetune_pipeline_cls.assert_not_called()
         evaluation_pipeline_cls.assert_not_called()
 
+    def test_configures_runtime_output_from_explicit_argument(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        configure_runtime_output_mock: MagicMock,
+    ) -> None:
+        _mock_successful_pipelines(monkeypatch)
+
+        api_mod.train_tlmtc(
+            raw_csv,
+            work_dir=tmp_path,
+            run_id="quiet_run",
+            verbosity="quiet",
+        )
+
+        configure_runtime_output_mock.assert_called_once_with("quiet")
+
 
 class TestPredictTlmtc:
     """Tests for the public prediction entrypoint."""
@@ -825,3 +851,25 @@ class TestPredictTlmtc:
             )
 
         read_prediction_csv_mock.assert_not_called()
+
+    def test_configures_runtime_output_from_explicit_argument(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+        configure_runtime_output_mock: MagicMock,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="quiet_prediction_run",
+        )
+        _mock_prediction_operations(monkeypatch)
+
+        api_mod.predict_tlmtc(
+            prediction_csv,
+            work_dir=tmp_path,
+            run_id="quiet_prediction_run",
+            verbosity="quiet",
+        )
+
+        configure_runtime_output_mock.assert_called_once_with("quiet")

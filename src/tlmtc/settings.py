@@ -348,6 +348,18 @@ class HardwareSettings(BaseModel):
     use_cpu: bool = False
 
 
+class RuntimeSettings(BaseModel):
+    """Runtime output settings.
+
+    Attributes:
+        verbosity: Runtime output mode for package-owned progress messages.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    verbosity: Literal["progress", "quiet"] = "progress"
+
+
 class RunSettings(ResolvableSettings):
     """Resolved top-level settings for a tlmtc training run.
 
@@ -364,6 +376,7 @@ class RunSettings(ResolvableSettings):
         hpo: Hyperparameter optimization settings.
         peft: PEFT/LoRA settings.
         hardware: Hardware execution settings.
+        runtime: Runtime output settings.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -381,6 +394,7 @@ class RunSettings(ResolvableSettings):
     hpo: HpoSettings
     peft: PeftSettings = Field(default_factory=PeftSettings)
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
+    runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
 
     @model_validator(mode="before")
     @classmethod
@@ -427,3 +441,4 @@ class PredictionSettings(ResolvableSettings):
     run_id: str | None = None
     batch_size: PositiveInt = 32
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
+    runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)

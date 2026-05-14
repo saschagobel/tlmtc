@@ -9,16 +9,15 @@ import pandas as pd
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
+from optuna.trial import FixedTrial
 from transformers import TrainingArguments
 
 from tlmtc.finetune_pipeline import FinetunePipeline
-from tlmtc.hpo import optuna_hp_space
 from tlmtc.paths import resolve_paths
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
     ModelSettings,
-    OptunaSpaceSettings,
     PeftSettings,
     ThresholdSettings,
     TrainingSettings,
@@ -396,9 +395,7 @@ class TestTuneHyperparameters:
         hp_search_kwargs = fake_trainer.hp_search_calls[0]
         hp_space_fn = hp_search_kwargs["hp_space"]
 
-        assert hp_space_fn.func is optuna_hp_space
-        assert isinstance(hp_space_fn.keywords["space"], OptunaSpaceSettings)
-        assert hp_space_fn.keywords["space"].model_dump(mode="python") == base_search_space
+        assert callable(hp_space_fn)
 
         assert hp_search_kwargs["direction"] == "maximize"
         assert hp_search_kwargs["backend"] == "optuna"
@@ -506,6 +503,72 @@ class TestTuneHyperparameters:
         assert pipeline.runtime_training.train_epochs == 2
 
         assert pipeline.training == original_training
+
+    def test_suppresses_trainer_console_callbacks(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure HPO Trainer console callbacks are suppressed after Trainer construction."""
+        pipeline = pipeline_with_tokenized_hpo
+
+        suppress_mock = MagicMock(side_effect=lambda trainer: trainer)
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.suppress_trainer_console_callbacks",
+            suppress_mock,
+            raising=True,
+        )
+
+        def trainer_factory(*_args, **_kwargs):
+            return fake_trainer
+
+        result = pipeline.tune_hyperparameters(trainer=trainer_factory)
+
+        assert result is pipeline
+        suppress_mock.assert_called_once_with(fake_trainer)
+        fake_trainer.hyperparameter_search.assert_called_once()
+
+    def test_hpo_hp_space_emits_trial_progress(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure HPO hp_space emits per-trial progress."""
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.get_existing_trial_count",
+            MagicMock(return_value=3),
+            raising=True,
+        )
+
+        emit_progress_mock = MagicMock()
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.emit_progress",
+            emit_progress_mock,
+            raising=True,
+        )
+
+        pipeline_with_tokenized_hpo.tune_hyperparameters(
+            trainer=lambda **_: fake_trainer,
+        )
+
+        hp_space_fn = fake_trainer.hp_search_calls[0]["hp_space"]
+
+        hp_space_fn(
+            FixedTrial(
+                {
+                    "learning_rate": 1e-4,
+                    "per_device_train_batch_size": 8,
+                    "weight_decay": 0.01,
+                    "lr_scheduler_type": "linear",
+                    "num_train_epochs": 2,
+                },
+                number=3,
+            )
+        )
+
+        emit_progress_mock.assert_any_call("HPO trial 4/4 started")
 
 
 class TestFineTunePretrained:
@@ -679,6 +742,51 @@ class TestFineTunePretrained:
         assert training_args.lr_scheduler_type == "cosine"
 
         assert training_args.metric_for_best_model == pipeline.training.best_model_metric
+
+    def test_suppresses_trainer_console_callbacks_without_removing_early_stopping(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure final Trainer console callbacks are suppressed while preserving early stopping."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+        )
+        pipeline.pretrained_model = SimpleNamespace()
+        pipeline.num_labels = 2
+
+        suppress_mock = MagicMock(side_effect=lambda trainer: trainer)
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.suppress_trainer_console_callbacks",
+            suppress_mock,
+            raising=True,
+        )
+
+        recorded: dict[str, Any] = {}
+
+        def trainer_factory(*args, **kwargs):
+            recorded["args"] = args
+            recorded["kwargs"] = kwargs
+            return fake_trainer
+
+        result = pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        assert result is pipeline
+        suppress_mock.assert_called_once_with(fake_trainer)
+
+        callbacks = recorded["kwargs"]["callbacks"]
+        assert isinstance(callbacks, list)
+        assert callbacks, "Expected early stopping callback to be preserved"
+        assert callbacks[0].early_stopping_patience == pipeline.training.early_stopping_patience
+
+        fake_trainer.train.assert_called_once()
+        assert pipeline.updated_trainer is fake_trainer
 
 
 class TestTuneThresholds:

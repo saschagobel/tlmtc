@@ -1,10 +1,10 @@
 """Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
-from functools import partial
 from tempfile import TemporaryDirectory
 from typing import Any, Protocol, Self
 
 import numpy as np
+import optuna
 import pandas as pd
 import torch
 from datasets import DatasetDict
@@ -12,8 +12,9 @@ from transformers import AutoModelForSequenceClassification, EarlyStoppingCallba
 
 from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
-from tlmtc.hpo import make_compute_objective, make_model_init, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, make_compute_objective, make_model_init, optuna_hp_space
 from tlmtc.paths import RunPaths
+from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
@@ -119,6 +120,8 @@ class FinetunePipeline:
         if not self.paths.train_data_path.exists():
             raise RuntimeError("Train data not found. Run DataPipeline class first.")
 
+        emit_progress("Loading pretrained transformer model")
+
         self.num_labels = sum(
             1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
         )
@@ -160,10 +163,23 @@ class FinetunePipeline:
                 1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
             )
 
-        hp_space_fn = partial(
-            optuna_hp_space,
-            space=self.hpo.optuna_space,
+        study_name = f"{self.model.target_name.replace(' ', '_')}_optuna_study"
+        study_storage = f"sqlite:///{self.paths.optuna_trials_path.as_posix()}"
+
+        existing_trials = get_existing_trial_count(
+            study_name=study_name,
+            storage=study_storage,
         )
+        total_trials = existing_trials + self.hpo.tuning_trials
+
+        def hp_space_with_progress(
+            trial: optuna.trial.Trial,
+        ) -> dict[str, Any]:
+            emit_progress(f"HPO trial {trial.number + 1}/{total_trials} started")
+            return optuna_hp_space(
+                trial=trial,
+                space=self.hpo.optuna_space,
+            )
 
         self.paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -188,22 +204,29 @@ class FinetunePipeline:
                 best_model_metric=self.training.best_model_metric,
                 use_cpu=self.hardware.use_cpu,
             )
-            trainer_instance = trainer(
-                model=None,
-                args=training_args,
-                train_dataset=self.tokenized_dataset["train"],
-                eval_dataset=self.tokenized_dataset["validation"],
-                compute_metrics=compute_metrics,
-                class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
-                model_init=model_init,
+            trainer_instance = suppress_trainer_console_callbacks(
+                trainer(
+                    model=None,
+                    args=training_args,
+                    train_dataset=self.tokenized_dataset["train"],
+                    eval_dataset=self.tokenized_dataset["validation"],
+                    compute_metrics=compute_metrics,
+                    class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+                    model_init=model_init,
+                )
             )
+
+            emit_progress("Loading pretrained proxy transformer model")
+
+            emit_progress("Running hyperparameter optimization")
+
             best_run = trainer_instance.hyperparameter_search(
                 direction="maximize",
                 backend="optuna",
-                hp_space=hp_space_fn,
+                hp_space=hp_space_with_progress,
                 n_trials=self.hpo.tuning_trials,
-                study_name=f"{self.model.target_name.replace(' ', '_')}_optuna_study",
-                storage=f"sqlite:///{self.paths.optuna_trials_path.as_posix()}",
+                study_name=study_name,
+                storage=study_storage,
                 compute_objective=compute_objective,
                 load_if_exists=True,
             )
@@ -247,6 +270,8 @@ class FinetunePipeline:
         if self.pretrained_model is None:
             raise RuntimeError("Pretrained model not loaded. Run load_pretrained() first.")
 
+        emit_progress("Fine-tuning model")
+
         training_args = get_training_args(
             logging_path=self.paths.logs_dir,
             batch_size=self.runtime_training.batch_size,
@@ -257,14 +282,16 @@ class FinetunePipeline:
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
         )
-        trainer_instance = trainer(
-            model=self.pretrained_model,
-            args=training_args,
-            train_dataset=self.tokenized_dataset["train"],
-            eval_dataset=self.tokenized_dataset["validation"],
-            compute_metrics=compute_metrics,
-            callbacks=[EarlyStoppingCallback(early_stopping_patience=self.training.early_stopping_patience)],
-            class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+        trainer_instance = suppress_trainer_console_callbacks(
+            trainer(
+                model=self.pretrained_model,
+                args=training_args,
+                train_dataset=self.tokenized_dataset["train"],
+                eval_dataset=self.tokenized_dataset["validation"],
+                compute_metrics=compute_metrics,
+                callbacks=[EarlyStoppingCallback(early_stopping_patience=self.training.early_stopping_patience)],
+                class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+            )
         )
         trainer_instance.train()
         self.updated_trainer = trainer_instance
@@ -286,6 +313,8 @@ class FinetunePipeline:
             raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
         if self.updated_trainer is None:
             raise RuntimeError("Trained model not found. Run fine_tune_pretrained() first.")
+
+        emit_progress("Optimizing decision thresholds")
 
         preds = self.updated_trainer.predict(self.tokenized_dataset["validation"])
         logits = preds.predictions
@@ -316,6 +345,8 @@ class FinetunePipeline:
 
         if self.updated_trainer is None:
             raise RuntimeError("Instantiated Trainer after fine-tuning not found. Run fine_tune_pretrained() first.")
+
+        emit_progress("Saving model artifacts")
 
         self.updated_trainer.model.save_pretrained(self.paths.model_dir)  # type: ignore[operator,union-attr]
         return self

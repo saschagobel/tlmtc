@@ -16,6 +16,7 @@ from tlmtc.prediction import (
     make_prediction_frame,
     predict_probabilities,
 )
+from tlmtc.runtime_output import configure_runtime_output, emit_progress
 from tlmtc.settings import UNSET, PredictionSettings, RunSettings, Unset, load_config_file
 
 
@@ -76,6 +77,7 @@ def train_tlmtc(
     lora_bias: str | Unset = UNSET,
     early_stopping_patience: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
+    verbosity: str | Unset = UNSET,
 ) -> TrainResult:
     """Run the full multi-label text classification training workflow.
 
@@ -176,6 +178,8 @@ def train_tlmtc(
         early_stopping_patience: Early stopping patience in epochs without improvement. Defaults to
             `10`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
+        verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
+            `"progress"`.
 
     Returns:
         Result metadata containing the resolved input and artifact paths.
@@ -232,8 +236,14 @@ def train_tlmtc(
             "hardware": {
                 "use_cpu": use_cpu,
             },
+            "runtime": {
+                "verbosity": verbosity,
+            },
         },
     )
+
+    configure_runtime_output(settings.runtime.verbosity)
+    emit_progress("Starting training run")
 
     paths = resolve_paths(
         raw_csv=settings.raw_csv,
@@ -304,6 +314,7 @@ def train_tlmtc(
         path=paths.train_run_meta_path,
     )
 
+    emit_progress("Training run complete")
     return TrainResult(paths=paths)
 
 
@@ -315,6 +326,7 @@ def predict_tlmtc(
     run_id: str | None | Unset = UNSET,
     batch_size: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
+    verbosity: str | Unset = UNSET,
 ) -> PredictResult:
     """Run the multi-label text classification prediction workflow.
 
@@ -332,6 +344,8 @@ def predict_tlmtc(
             completed training run is selected from persisted training metadata.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
+        verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
+            `"progress"`.
 
     Returns:
         Result metadata containing the resolved input and artifact paths.
@@ -347,13 +361,22 @@ def predict_tlmtc(
             "hardware": {
                 "use_cpu": use_cpu,
             },
+            "runtime": {
+                "verbosity": verbosity,
+            },
         },
     )
+
+    configure_runtime_output(settings.runtime.verbosity)
+    emit_progress("Starting prediction run")
+
     paths = resolve_prediction_paths(
         input_csv=settings.prediction_csv,
         work_dir=settings.work_dir,
         run_id=settings.run_id,
     ).ensure_dirs()
+
+    emit_progress("Reading training metadata")
 
     meta = read_run_meta(paths.train_run_meta_path)
 
@@ -369,6 +392,8 @@ def predict_tlmtc(
     assert input_mode is not None
     assert label_names is not None
 
+    emit_progress("Reading prediction inputs")
+
     input_df = read_prediction_csv(
         df_path=paths.input_data_path,
         expected_input_mode=input_mode,
@@ -377,18 +402,21 @@ def predict_tlmtc(
         df=input_df,
         input_mode=input_mode,
     )
+    emit_progress("Tokenizing prediction inputs")
     tokenized_dataset = tokenize_prediction_dataset(
         dataset=prediction_dataset,
         checkpoint=meta.checkpoint,
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
     )
+    emit_progress("Loading fine-tuned prediction model")
     model = load_prediction_model(
         model_dir=paths.train_run_model_dir,
         checkpoint=meta.checkpoint,
         num_labels=len(label_names),
         wrap_peft=meta.wrap_peft,
     )
+    emit_progress("Running prediction")
     probabilities = predict_probabilities(
         model=model,
         dataset=tokenized_dataset,
@@ -410,7 +438,9 @@ def predict_tlmtc(
         label_names=label_names,
     )
 
+    emit_progress("Writing prediction artifacts")
     probability_df.to_csv(paths.probabilities_path, index=False)
     prediction_df.to_csv(paths.predictions_path, index=False)
 
+    emit_progress("Prediction run complete")
     return PredictResult(paths=paths)

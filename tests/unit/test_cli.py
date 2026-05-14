@@ -160,6 +160,7 @@ class TestTrainCliApp:
         assert "--raw-csv" in output
         assert "--optuna-space" in output
         assert "--use-cpu" in output
+        assert "--verbosity" in output
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -180,6 +181,28 @@ class TestTrainCliApp:
 
         assert result.exit_code == 0
         assert stub_train_tlmtc["kwargs"]["transfer_learning"] is expected
+
+    @pytest.mark.parametrize("verbosity", ["progress", "quiet"])
+    def test_train_forwards_verbosity(
+        self,
+        runner: CliRunner,
+        verbosity: str,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure --verbosity is forwarded to train_tlmtc."""
+        result = invoke_cli(
+            runner,
+            [
+                "train",
+                "--raw-csv",
+                "raw.csv",
+                "--verbosity",
+                verbosity,
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert stub_train_tlmtc["kwargs"]["verbosity"] == verbosity
 
     def test_train_invokes_train_tlmtc(
         self,
@@ -243,6 +266,7 @@ class TestTrainCliApp:
         assert kwargs["threshold_type"] is UNSET
         assert kwargs["optuna_space"] is UNSET
         assert kwargs["use_cpu"] is UNSET
+        assert kwargs["verbosity"] is UNSET
 
     def test_train_accepts_optuna_space_from_file(
         self,
@@ -318,6 +342,7 @@ class TestPredictCliApp:
         assert "--run-id" in output
         assert "--batch-size" in output
         assert "--use-cpu" in output
+        assert "--verbosity" in output
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -338,6 +363,28 @@ class TestPredictCliApp:
 
         assert result.exit_code == 0
         assert stub_predict_tlmtc["kwargs"]["use_cpu"] is expected
+
+    @pytest.mark.parametrize("verbosity", ["progress", "quiet"])
+    def test_predict_forwards_verbosity(
+        self,
+        runner: CliRunner,
+        verbosity: str,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        """Ensure --verbosity is forwarded to predict_tlmtc."""
+        result = invoke_cli(
+            runner,
+            [
+                "predict",
+                "--prediction-csv",
+                "prediction.csv",
+                "--verbosity",
+                verbosity,
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert stub_predict_tlmtc["kwargs"]["verbosity"] == verbosity
 
     def test_predict_invokes_predict_tlmtc(
         self,
@@ -413,6 +460,7 @@ class TestPredictCliApp:
         assert kwargs["run_id"] is UNSET
         assert kwargs["batch_size"] is UNSET
         assert kwargs["use_cpu"] is UNSET
+        assert kwargs["verbosity"] is UNSET
 
     def test_predict_requires_prediction_csv(self, runner: CliRunner) -> None:
         """Ensure predict exits with a usage error when required args are missing."""
