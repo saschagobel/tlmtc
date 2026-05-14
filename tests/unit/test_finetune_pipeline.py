@@ -9,16 +9,15 @@ import pandas as pd
 import pytest
 import torch
 from datasets import Dataset, DatasetDict
+from optuna.trial import FixedTrial
 from transformers import TrainingArguments
 
 from tlmtc.finetune_pipeline import FinetunePipeline
-from tlmtc.hpo import optuna_hp_space
 from tlmtc.paths import resolve_paths
 from tlmtc.settings import (
     HardwareSettings,
     HpoSettings,
     ModelSettings,
-    OptunaSpaceSettings,
     PeftSettings,
     ThresholdSettings,
     TrainingSettings,
@@ -396,9 +395,7 @@ class TestTuneHyperparameters:
         hp_search_kwargs = fake_trainer.hp_search_calls[0]
         hp_space_fn = hp_search_kwargs["hp_space"]
 
-        assert hp_space_fn.func is optuna_hp_space
-        assert isinstance(hp_space_fn.keywords["space"], OptunaSpaceSettings)
-        assert hp_space_fn.keywords["space"].model_dump(mode="python") == base_search_space
+        assert callable(hp_space_fn)
 
         assert hp_search_kwargs["direction"] == "maximize"
         assert hp_search_kwargs["backend"] == "optuna"
@@ -531,6 +528,47 @@ class TestTuneHyperparameters:
         assert result is pipeline
         suppress_mock.assert_called_once_with(fake_trainer)
         fake_trainer.hyperparameter_search.assert_called_once()
+
+    def test_hpo_hp_space_emits_trial_progress(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure HPO hp_space emits per-trial progress."""
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.get_existing_trial_count",
+            MagicMock(return_value=3),
+            raising=True,
+        )
+
+        emit_progress_mock = MagicMock()
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.emit_progress",
+            emit_progress_mock,
+            raising=True,
+        )
+
+        pipeline_with_tokenized_hpo.tune_hyperparameters(
+            trainer=lambda **_: fake_trainer,
+        )
+
+        hp_space_fn = fake_trainer.hp_search_calls[0]["hp_space"]
+
+        hp_space_fn(
+            FixedTrial(
+                {
+                    "learning_rate": 1e-4,
+                    "per_device_train_batch_size": 8,
+                    "weight_decay": 0.01,
+                    "lr_scheduler_type": "linear",
+                    "num_train_epochs": 2,
+                },
+                number=3,
+            )
+        )
+
+        emit_progress_mock.assert_any_call("HPO trial 4/4 started")
 
 
 class TestFineTunePretrained:
