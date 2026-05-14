@@ -240,6 +240,11 @@ def train_command(
         "--use-cpu/--no-use-cpu",
         help="Force CPU execution.",
     ),
+    verbosity: str | None = typer.Option(
+        None,
+        "--verbosity",
+        help='Runtime output mode. Supported values: "progress", "quiet".',
+    ),
 ) -> None:
     """Run the full multi-label text classification training workflow."""
     from tlmtc.api import train_tlmtc
@@ -278,6 +283,7 @@ def train_command(
         lora_bias=UNSET if lora_bias is None else lora_bias,
         early_stopping_patience=UNSET if early_stopping_patience is None else early_stopping_patience,
         use_cpu=UNSET if use_cpu is None else use_cpu,
+        verbosity=UNSET if verbosity is None else verbosity,
     )
 
     typer.echo(f"Run completed: {result.paths.run_dir}")
@@ -315,6 +321,11 @@ def predict_command(
         "--use-cpu/--no-use-cpu",
         help="Force CPU execution.",
     ),
+    verbosity: str | None = typer.Option(
+        None,
+        "--verbosity",
+        help='Runtime output mode. Supported values: "progress", "quiet".',
+    ),
 ) -> None:
     """Run the full multi-label text classification prediction workflow."""
     from tlmtc.api import predict_tlmtc
@@ -326,6 +337,7 @@ def predict_command(
         run_id=UNSET if run_id is None else run_id,
         batch_size=UNSET if batch_size is None else batch_size,
         use_cpu=UNSET if use_cpu is None else use_cpu,
+        verbosity=UNSET if verbosity is None else verbosity,
     )
 
     typer.echo(f"Prediction completed: {result.paths.prediction_run_dir}")
