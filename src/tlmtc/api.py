@@ -342,6 +342,7 @@ def predict_tlmtc(
     Args:
         prediction_csv: Path to the unlabeled prediction CSV. The file must contain a `text`
             column and, for models trained with paired-text inputs, a `text_pair` column.
+            Prediction artifacts preserve input text columns unchanged.
         work_dir: Base directory for resolving inputs, reading training artifacts, and writing
             prediction artifacts. Defaults to the current working directory.
         config_path: Path to a YAML configuration file. Defaults to no configuration file.
