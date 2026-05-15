@@ -328,6 +328,23 @@ class TestBundleSettings:
         assert settings.checkpoint == "EuroBERT/EuroBERT-610m"
         assert settings.sequence_length == 128
 
+    def test_model_settings_defaults_proxy_to_explicit_checkpoint(self) -> None:
+        """ModelSettings should use an explicit checkpoint as proxy when proxy is omitted."""
+        settings = ModelSettings(checkpoint="custom/target")
+
+        assert settings.checkpoint == "custom/target"
+        assert settings.proxy_checkpoint == "custom/target"
+
+    def test_model_settings_preserves_explicit_proxy_checkpoint(self) -> None:
+        """ModelSettings should preserve an explicit proxy checkpoint."""
+        settings = ModelSettings(
+            checkpoint="custom/target",
+            proxy_checkpoint="custom/proxy",
+        )
+
+        assert settings.checkpoint == "custom/target"
+        assert settings.proxy_checkpoint == "custom/proxy"
+
     def test_split_settings_defaults(self) -> None:
         """SplitSettings should expose the package defaults."""
         settings = SplitSettings()
@@ -560,6 +577,7 @@ class TestRunSettings:
         assert settings.raw_csv == Path("train.csv")
         assert settings.model.target_name == "Target"
         assert settings.model.checkpoint == "microsoft/deberta-v3-large"
+        assert settings.model.proxy_checkpoint == "microsoft/deberta-v3-large"
         assert settings.model.sequence_length == 256
         assert settings.split.validation_size == 0.2
         assert settings.split.test_size == 0.15
