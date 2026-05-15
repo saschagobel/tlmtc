@@ -172,8 +172,8 @@ def make_label_metrics_table(
             subtitle=md(f"*Performance metrics for fine-tuned {model_name}*"),
         )
         .cols_label(
-            true_support=md("True<br>support"),
-            pred_support=md("Pred<br>support"),
+            true_prevalence=md("True<br>prevalence"),
+            pred_prevalence=md("Pred<br>prevalence"),
         )
         .fmt_number(
             columns=[
@@ -182,8 +182,8 @@ def make_label_metrics_table(
                 "Recall",
                 "ROC-AUC",
                 "PR-AUC",
-                "true_support",
-                "pred_support",
+                "true_prevalence",
+                "pred_prevalence",
             ],
             decimals=2,
         )
