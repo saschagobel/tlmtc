@@ -70,8 +70,8 @@ def label_eval_metrics() -> dict[str, dict[str, float]]:
             "recall": 0.86,
             "roc_auc": 0.91,
             "pr_auc": 0.88,
-            "true_support": 0.4,
-            "pred_support": 0.46,
+            "true_prevalence": 0.4,
+            "pred_prevalence": 0.46,
         },
         "label_b": {
             "f1": 0.7,
@@ -79,8 +79,8 @@ def label_eval_metrics() -> dict[str, dict[str, float]]:
             "recall": 0.74,
             "roc_auc": 0.84,
             "pr_auc": 0.79,
-            "true_support": 0.6,
-            "pred_support": 0.55,
+            "true_prevalence": 0.6,
+            "pred_prevalence": 0.55,
         },
     }
 
@@ -320,8 +320,8 @@ class TestMakeLabelMetricsTable:
                 "Recall": 0.86,
                 "ROC-AUC": 0.91,
                 "PR-AUC": 0.88,
-                "true_support": 0.4,
-                "pred_support": 0.46,
+                "true_prevalence": 0.4,
+                "pred_prevalence": 0.46,
             },
             {
                 "Label": "label_b",
@@ -330,8 +330,8 @@ class TestMakeLabelMetricsTable:
                 "Recall": 0.74,
                 "ROC-AUC": 0.84,
                 "PR-AUC": 0.79,
-                "true_support": 0.6,
-                "pred_support": 0.55,
+                "true_prevalence": 0.6,
+                "pred_prevalence": 0.55,
             },
         ]
 

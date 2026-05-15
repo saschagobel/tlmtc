@@ -222,8 +222,8 @@ class TestMetricsExtractionUtils:
                 "recall",
                 "roc_auc",
                 "pr_auc",
-                "true_support",
-                "pred_support",
+                "true_prevalence",
+                "pred_prevalence",
             }
 
     @pytest.mark.parametrize("case_fixture", ["perfect_multilabel_case", "imperfect_multilabel_case"])
@@ -247,17 +247,17 @@ class TestMetricsExtractionUtils:
             for k in ["f1", "precision", "recall", "roc_auc", "pr_auc"]:
                 assert metrics[name][k] == pytest.approx(1.0)
 
-    def test_get_label_eval_metrics_returns_expected_supports_for_perfect_predictions(
+    def test_get_label_eval_metrics_returns_expected_prevalences_for_perfect_predictions(
         self, perfect_multilabel_case, label_names_two
     ):
-        """Ensure _get_label_eval_metrics returns correct per-label true and predicted supports."""
+        """Ensure _get_label_eval_metrics returns correct per-label true and predicted prevalences."""
         y_true, y_pred, y_prob = perfect_multilabel_case
 
         metrics = get_label_eval_metrics(y_true=y_true, y_pred=y_pred, y_prob=y_prob, label_names=label_names_two)
 
         for i, name in enumerate(label_names_two):
-            assert metrics[name]["true_support"] == pytest.approx(float(y_true[:, i].mean()))
-            assert metrics[name]["pred_support"] == pytest.approx(float(y_pred[:, i].mean()))
+            assert metrics[name]["true_prevalence"] == pytest.approx(float(y_true[:, i].mean()))
+            assert metrics[name]["pred_prevalence"] == pytest.approx(float(y_pred[:, i].mean()))
 
     def test_get_label_eval_metrics_is_label_specific_for_imperfect_predictions(
         self, imperfect_multilabel_case, label_names_two
