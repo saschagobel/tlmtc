@@ -38,3 +38,4 @@ chore:
 dependencies:
   - head-branch:
       - '^deps/'
+      - '^dependabot/'
