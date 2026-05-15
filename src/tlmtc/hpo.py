@@ -89,7 +89,10 @@ def make_model_init(
             Pretrained model configured for multi-label classification.
         """
         model = AutoModelForSequenceClassification.from_pretrained(
-            checkpoint, num_labels=num_labels, problem_type="multi_label_classification"
+            checkpoint,
+            num_labels=num_labels,
+            problem_type="multi_label_classification",
+            trust_remote_code=False,
         )
         if wrap_peft:
             model = wrap_model_with_peft(

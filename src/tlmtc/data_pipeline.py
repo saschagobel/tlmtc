@@ -234,7 +234,10 @@ class DataPipeline:
 
         emit_progress("Tokenizing training inputs")
 
-        tokenizer = AutoTokenizer.from_pretrained(self.model.checkpoint)
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.model.checkpoint,
+            trust_remote_code=False,
+        )
 
         td = self.hf_dataset.map(
             lambda batch: tokenize_batch(

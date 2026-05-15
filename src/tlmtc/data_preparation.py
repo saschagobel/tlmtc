@@ -202,7 +202,10 @@ def tokenize_prediction_dataset(
     Returns:
         Tokenized prediction dataset.
     """
-    tokenizer = AutoTokenizer.from_pretrained(checkpoint)
+    tokenizer = AutoTokenizer.from_pretrained(
+        checkpoint,
+        trust_remote_code=False,
+    )
 
     tokenized_dataset = dataset.map(
         lambda batch: tokenize_batch(
