@@ -73,8 +73,8 @@ def get_label_eval_metrics(
             "recall": float(recall),
             "roc_auc": float(roc),
             "pr_auc": float(pr),
-            "true_support": float(y_true[:, i].mean()),
-            "pred_support": float(y_pred[:, i].mean()),
+            "true_prevalence": float(y_true[:, i].mean()),
+            "pred_prevalence": float(y_pred[:, i].mean()),
         }
         for i, (name, f1, precision, recall, roc, pr) in enumerate(
             zip(label_names, label_f1, label_precision, label_recall, label_roc, label_pr)
