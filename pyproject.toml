@@ -1,13 +1,27 @@
 [project]
 name = "tlmtc"
-version = "0.0.1"
-description = "Transfer Learning for Multi-Label Text Classification"
+version = "0.1.0"
+description = "Production Workflows for Transformer-based Multi-label Text Classification"
 readme = "README.md"
-license = { file = "LICENSE.md" }
+license = "MIT"
+license-files = ["LICENSE.md"]
 authors = [
   { name = "Sascha Göbel", email = "sascha.goebel@tuta.com" },
 ]
 requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+]
 dependencies = [
     "datasets >=4.4,<5.0",
     "iterative-stratification >=0.1,<1.0",
@@ -19,13 +33,19 @@ dependencies = [
     "pyyaml >=6.0,<7.0",
     "pydantic >=2.0,<3.0",
     "scikit-learn >=1.7,<2.0",
-    "transformers >=4.57,<6.0",
+    "transformers >=5.0,<6.0",
     "typer>=0.12,<1",
     "great-tables>=0.20,<1.0",
     "matplotlib>=3.10,<4",
     "seaborn>=0.13,<1.0",
     "huggingface-hub>=1.12.0,<2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/saschagobel/tlmtc"
+Repository = "https://github.com/saschagobel/tlmtc"
+Issues = "https://github.com/saschagobel/tlmtc/issues"
+Changelog = "https://github.com/saschagobel/tlmtc/releases"
 
 [project.optional-dependencies]
 full = [
