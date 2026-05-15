@@ -167,6 +167,18 @@ def trainer_with_args(tmp_path: Path) -> object:
     return type("TrainerStub", (), {"args": args})()
 
 
+def assert_no_executable_markup(
+    html: str,
+) -> None:
+    """Assert dynamic report text was not emitted as executable HTML."""
+    normalized = html.lower()
+
+    assert "<script" not in normalized
+    assert "</script" not in normalized
+    assert "<img" not in normalized
+    assert "<svg" not in normalized
+
+
 class TestMakeGlobalMetricsTable:
     """Tests for global metrics table rendering."""
 
@@ -270,6 +282,31 @@ class TestMakeGlobalMetricsTable:
                 input_mode="Single text",
             )
 
+    def test_escapes_markdown_rendered_metadata(
+        self,
+        reporting_paths: tuple[Path, Path],
+        global_eval_metrics: dict[str, float],
+    ) -> None:
+        """Global metrics table escapes dynamic text rendered through Markdown."""
+        train_path, test_path = reporting_paths
+
+        table = make_global_metrics_table(
+            eval_metrics=global_eval_metrics,
+            target_name='Policy <script>alert("target")</script>',
+            label_names=["label_a", "label_b"],
+            checkpoint='user/<img src=x onerror=alert("model")>',
+            train_data_path=train_path,
+            test_data_path=test_path,
+            input_mode='Single text <svg onload=alert("mode")>',
+        )
+
+        html = table.as_raw_html()
+
+        assert_no_executable_markup(html)
+        assert "&lt;script&gt;" in html
+        assert "&lt;img" in html
+        assert "&lt;svg" in html
+
 
 class TestMakeLabelMetricsTable:
     """Tests for label metrics table rendering."""
@@ -364,6 +401,29 @@ class TestMakeLabelMetricsTable:
         assert "2" in html
         assert "1" in html
 
+    def test_escapes_markdown_rendered_metadata(
+        self,
+        reporting_paths: tuple[Path, Path],
+        label_eval_metrics: dict[str, dict[str, float]],
+    ) -> None:
+        """Label metrics table escapes dynamic text rendered through Markdown."""
+        train_path, test_path = reporting_paths
+
+        table = make_label_metrics_table(
+            eval_metrics=label_eval_metrics,
+            target_name='Policy <script>alert("target")</script>',
+            checkpoint='user/<img src=x onerror=alert("model")>',
+            train_data_path=train_path,
+            test_data_path=test_path,
+            input_mode='Single text <svg onload=alert("mode")>',
+        )
+
+        html = table.as_raw_html()
+
+        assert_no_executable_markup(html)
+        assert "&lt;script&gt;" in html
+        assert "&lt;img" in html
+        assert "&lt;svg" in html
 
 class TestMakeHyperparametersTable:
     """Tests for hyperparameter table rendering."""
@@ -448,6 +508,26 @@ class TestMakeHyperparametersTable:
         assert "Hyperparameters" in html
         assert "Input mode" in html
         assert "Paired text" in html
+
+    def test_escapes_markdown_rendered_metadata(
+        self,
+        trainer_with_args: object,
+    ) -> None:
+        """Hyperparameter table escapes dynamic text rendered through Markdown."""
+        table = make_hyperparameters_table(
+            threshold=np.array([0.42]),
+            trainer=trainer_with_args,
+            target_name='Policy <script>alert("target")</script>',
+            checkpoint='user/<img src=x onerror=alert("model")>',
+            input_mode='Paired text <svg onload=alert("mode")>',
+        )
+
+        html = table.as_raw_html()
+
+        assert_no_executable_markup(html)
+        assert "&lt;script&gt;" in html
+        assert "&lt;img" in html
+        assert "&lt;svg" in html
 
 
 class TestMakeRocCurvesPlot:
