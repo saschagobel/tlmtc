@@ -135,8 +135,14 @@ def get_scaled_lr(
     min_scale = 0.5
     max_scale = 1.0
 
-    target_hidden_size = AutoConfig.from_pretrained(checkpoint).hidden_size
-    proxy_hidden_size = AutoConfig.from_pretrained(proxy_checkpoint).hidden_size
+    target_hidden_size = AutoConfig.from_pretrained(
+        checkpoint,
+        trust_remote_code=False,
+    ).hidden_size
+    proxy_hidden_size = AutoConfig.from_pretrained(
+        proxy_checkpoint,
+        trust_remote_code=False,
+    ).hidden_size
 
     hidden_size_ratio = proxy_hidden_size / target_hidden_size
     exponent = peft_exponent if peft else full_finetune_exponent

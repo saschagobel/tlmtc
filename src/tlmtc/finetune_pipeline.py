@@ -126,7 +126,10 @@ class FinetunePipeline:
             1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
         )
         self.pretrained_model = AutoModelForSequenceClassification.from_pretrained(
-            self.model.checkpoint, num_labels=self.num_labels, problem_type="multi_label_classification"
+            self.model.checkpoint,
+            num_labels=self.num_labels,
+            problem_type="multi_label_classification",
+            trust_remote_code=False,
         )
 
         if self.workflow.wrap_peft:

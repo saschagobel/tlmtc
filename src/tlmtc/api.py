@@ -119,9 +119,12 @@ def train_tlmtc(
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
             hyperparameter tuning. Defaults to `"EuroBERT/EuroBERT-210m"`. If `checkpoint`
             is supplied and `proxy_checkpoint` is omitted, the proxy checkpoint defaults to the
-            selected `checkpoint`.
+            selected `checkpoint`. Loaded with `trust_remote_code=False`; checkpoints that require
+            custom remote code are not supported. Only use checkpoints you trust.
         checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
-            final fine-tuning. Defaults to `"EuroBERT/EuroBERT-610m"`
+            final fine-tuning. Defaults to `"EuroBERT/EuroBERT-610m"`. Loaded with `trust_remote_code=False`;
+            checkpoints that require custom remote code are not supported. Only use checkpoints and local model
+            directories you trust.
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
         best_model_metric: Metric used to select the best model checkpoint. Supported values are
             `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
@@ -339,11 +342,15 @@ def predict_tlmtc(
     Args:
         prediction_csv: Path to the unlabeled prediction CSV. The file must contain a `text`
             column and, for models trained with paired-text inputs, a `text_pair` column.
+            Prediction artifacts preserve input text columns unchanged.
         work_dir: Base directory for resolving inputs, reading training artifacts, and writing
             prediction artifacts. Defaults to the current working directory.
         config_path: Path to a YAML configuration file. Defaults to no configuration file.
         run_id: Run identifier used to select the completed training run. If omitted, the latest
-            completed training run is selected from persisted training metadata.
+            completed training run is selected from persisted training metadata. Prediction reloads
+            the trained model or adapter artifacts for this run with `trust_remote_code=False`;
+            artifacts that require custom remote code are not supported. Only use saved model
+            artifacts and adapters you trust.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
         verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to

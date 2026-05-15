@@ -39,6 +39,7 @@ def load_prediction_model(
             problem_type="multi_label_classification",
             low_cpu_mem_usage=True,
             torch_dtype="auto",
+            trust_remote_code=False,
         )
         return PeftModel.from_pretrained(
             base_model,
@@ -50,6 +51,7 @@ def load_prediction_model(
         model_dir,
         low_cpu_mem_usage=True,
         torch_dtype="auto",
+        trust_remote_code=False,
     )
 
 

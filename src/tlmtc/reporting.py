@@ -1,5 +1,6 @@
 """Reporting tables and figures for multi-label text classification evaluation."""
 
+from html import escape
 from pathlib import Path
 
 import matplotlib.patheffects as pe
@@ -30,6 +31,13 @@ FONT_CFG = {
         "Arial",
     ],
 }
+
+
+def escape_report_text(
+    value: object,
+) -> str:
+    """Escape text before Markdown/HTML report rendering."""
+    return escape(str(value), quote=True)
 
 
 def set_non_degenerate_xlim(ax: Axes, xmin: float, xmax: float) -> None:
@@ -69,6 +77,9 @@ def make_global_metrics_table(
     Returns:
         Renderable table object.
     """
+    safe_target_name = escape_report_text(target_name)
+    safe_input_mode = escape_report_text(input_mode)
+
     name_map = {
         "f1_micro": ("F1", "    micro"),
         "f1_macro": ("F1", "    macro"),
@@ -92,21 +103,22 @@ def make_global_metrics_table(
     )
 
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+    safe_model_name = escape_report_text(model_name)
     train_examples = len(pd.read_parquet(train_data_path))
     test_examples = len(pd.read_parquet(test_data_path))
 
     return (
         GT(df)
         .tab_header(
-            title=md(f"**Multi-label Classification<br>of {target_name}**"),
-            subtitle=md(f"*Performance metrics<br>for fine-tuned {model_name}*"),
+            title=md(f"**Multi-label Classification<br>of {safe_target_name}**"),
+            subtitle=md(f"*Performance metrics<br>for fine-tuned {safe_model_name}*"),
         )
         .tab_stub(rowname_col="metric_type", groupname_col="metric")
         .tab_stubhead(label="Metric")
         .fmt_number(columns="Value", decimals=2)
         .tab_source_note(
             source_note=md(
-                f"*Input mode*: {input_mode}<br>"
+                f"*Input mode*: {safe_input_mode}<br>"
                 f"*Labels*: {len(label_names)}<br>"
                 f"*Train examples*: {train_examples}<br>"
                 f"*Test examples*: {test_examples}"
@@ -149,6 +161,9 @@ def make_label_metrics_table(
     Returns:
         Renderable table object.
     """
+    safe_target_name = escape_report_text(target_name)
+    safe_input_mode = escape_report_text(input_mode)
+
     df = pd.DataFrame(eval_metrics).T.reset_index()
     df = df.rename(
         columns={
@@ -162,14 +177,15 @@ def make_label_metrics_table(
     )
 
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+    safe_model_name = escape_report_text(model_name)
     train_examples = len(pd.read_parquet(train_data_path))
     test_examples = len(pd.read_parquet(test_data_path))
 
     return (
         GT(df)
         .tab_header(
-            title=md(f"**Multi-label Classification of {target_name}**"),
-            subtitle=md(f"*Performance metrics for fine-tuned {model_name}*"),
+            title=md(f"**Multi-label Classification of {safe_target_name}**"),
+            subtitle=md(f"*Performance metrics for fine-tuned {safe_model_name}*"),
         )
         .cols_label(
             true_prevalence=md("True<br>prevalence"),
@@ -189,7 +205,9 @@ def make_label_metrics_table(
         )
         .tab_source_note(
             source_note=md(
-                f"*Input mode*: {input_mode}<br>*Train examples*: {train_examples}<br>*Test examples*: {test_examples}"
+                f"*Input mode*: {safe_input_mode}<br>"
+                f"*Train examples*: {train_examples}<br>"
+                f"*Test examples*: {test_examples}"
             )
         )
         .tab_style(
@@ -218,6 +236,9 @@ def make_hyperparameters_table(
     Returns:
         Renderable table object.
     """
+    safe_target_name = escape_report_text(target_name)
+    safe_input_mode = escape_report_text(input_mode)
+
     if threshold.size == 1:
         threshold_name = "Global threshold"
         threshold_value = f"{threshold.item():.2f}"
@@ -247,12 +268,13 @@ def make_hyperparameters_table(
     )
 
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
+    safe_model_name = escape_report_text(model_name)
 
     return (
         GT(df)
         .tab_header(
-            title=md(f"**Multi-label Classification<br>of {target_name}**"),
-            subtitle=md(f"*Hyperparameters<br>for fine-tuned {model_name}*"),
+            title=md(f"**Multi-label Classification<br>of {safe_target_name}**"),
+            subtitle=md(f"*Hyperparameters<br>for fine-tuned {safe_model_name}*"),
         )
         .tab_stubhead(label="Metric")
         .tab_style(
@@ -264,7 +286,7 @@ def make_hyperparameters_table(
             locations=[loc.stubhead(), loc.column_header()],
         )
         .tab_style(style=style.text(whitespace="pre"), locations=loc.stub())
-        .tab_source_note(source_note=md(f"*Input mode*: {input_mode}"))
+        .tab_source_note(source_note=md(f"*Input mode*: {safe_input_mode}"))
         .tab_options(stub_border_style="none")
     )
 

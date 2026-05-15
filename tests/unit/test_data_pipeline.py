@@ -586,11 +586,12 @@ class TestTokenizeData:
             }
 
         tokenizer = object()
+        tokenizer_loader = Mock(return_value=tokenizer)
         tokenize_batch_spy = Mock(side_effect=fake_tokenize_batch)
 
         monkeypatch.setattr(
             "tlmtc.data_pipeline.AutoTokenizer.from_pretrained",
-            lambda checkpoint: tokenizer,
+            tokenizer_loader,
         )
         monkeypatch.setattr(
             "tlmtc.data_pipeline.tokenize_batch",
@@ -604,6 +605,11 @@ class TestTokenizeData:
 
         dp.split_data().get_multi_hot_vectors().create_hf_dataset()
         dp.tokenize_data()
+
+        tokenizer_loader.assert_called_once_with(
+            dp.model.checkpoint,
+            trust_remote_code=False,
+        )
 
         assert tokenize_batch_spy.call_count > 0
 

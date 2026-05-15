@@ -1,5 +1,6 @@
 """Filesystem path layout for tlmtc training runs."""
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -14,6 +15,28 @@ DEFAULT_LOGS_DIRNAME: Final[str] = "logs"
 DEFAULT_MODEL_DIRNAME: Final[str] = "model"
 DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 TRAIN_RUN_META_FILENAME: Final[str] = "train_run_meta.json"
+
+RUN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def validate_run_id(
+    run_id: str,
+) -> str:
+    """Validate a run identifier as a safe single path segment.
+
+    Args:
+        run_id: Run identifier to validate.
+
+    Returns:
+        The validated run identifier.
+
+    Raises:
+        ValueError: If `run_id` is not a safe path segment.
+    """
+    if not RUN_ID_PATTERN.fullmatch(run_id):
+        raise ValueError("run_id must be a safe path segment matching '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$'.")
+
+    return run_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +160,9 @@ def resolve_paths(
     raw_data_path = raw_csv.expanduser().resolve()
     raw_test_data_path = None if raw_test_csv is None else raw_test_csv.expanduser().resolve()
 
-    run_dir = resolved_work_dir / outputs_dirname / run_id
+    resolved_run_id = validate_run_id(run_id)
+
+    run_dir = resolved_work_dir / outputs_dirname / resolved_run_id
     data_dir = run_dir / data_dirname
     logs_dir = run_dir / logs_dirname
     model_dir = run_dir / model_dirname
@@ -303,6 +328,7 @@ def resolve_prediction_paths(
         )
 
     resolved_run_id = run_id if run_id is not None else find_latest_train_run_id(train_outputs_dir)
+    resolved_run_id = validate_run_id(resolved_run_id)
 
     train_run_dir = train_outputs_dir / resolved_run_id
     if not train_run_dir.is_dir():

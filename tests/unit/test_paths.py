@@ -18,6 +18,7 @@ from tlmtc.paths import (
     find_latest_train_run_id,
     resolve_paths,
     resolve_prediction_paths,
+    validate_run_id,
 )
 
 
@@ -64,6 +65,47 @@ def _make_prediction_source_run(
     (model_dir / "artifact.txt").write_text("model artifact", encoding="utf-8")
 
     return run_dir
+
+
+class TestValidateRunId:
+    """Test suite for validate_run_id."""
+
+    @pytest.mark.parametrize(
+        "run_id",
+        [
+            "run123",
+            "run-123",
+            "run_123",
+            "run.123",
+            "a" * 128,
+        ],
+    )
+    def test_accepts_safe_path_segments(self, run_id: str) -> None:
+        """Ensure safe run identifiers are returned unchanged."""
+        assert validate_run_id(run_id) == run_id
+
+    @pytest.mark.parametrize(
+        "run_id",
+        [
+            "",
+            ".",
+            "..",
+            "../outside",
+            "outside/child",
+            "outside\\child",
+            "/tmp/outside",
+            "-leading-dash",
+            "_leading-underscore",
+            ".leading-dot",
+            "run id",
+            "run:id",
+            "a" * 129,
+        ],
+    )
+    def test_rejects_unsafe_path_segments(self, run_id: str) -> None:
+        """Ensure unsafe run identifiers cannot be used as path segments."""
+        with pytest.raises(ValueError, match="run_id must be a safe path segment"):
+            validate_run_id(run_id)
 
 
 class TestResolvePaths:
@@ -176,6 +218,16 @@ class TestResolvePaths:
         assert paths.raw_data_path == raw_csv.resolve()
         assert paths.raw_test_data_path == raw_test_csv.resolve()
         assert paths.run_dir == work_dir.resolve() / DEFAULT_TRAIN_OUTPUTS_DIRNAME / "run123"
+
+    def test_rejects_unsafe_run_id(self, tmp_path: Path) -> None:
+        """Ensure training path resolution rejects unsafe run identifiers."""
+        with pytest.raises(ValueError, match="run_id must be a safe path segment"):
+            resolve_paths(
+                raw_csv=tmp_path / "raw.csv",
+                raw_test_csv=None,
+                work_dir=tmp_path / "workspace",
+                run_id="../outside",
+            )
 
 
 class TestRunPaths:
@@ -440,6 +492,40 @@ class TestResolvePredictionPaths:
                 input_csv=input_csv,
                 work_dir=work_dir,
                 run_id="run123",
+            )
+
+    def test_rejects_unsafe_explicit_run_id(self, tmp_path: Path) -> None:
+        """Ensure prediction path resolution rejects unsafe explicit run identifiers."""
+        work_dir = tmp_path / "workspace"
+        (work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME).mkdir(parents=True)
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="run_id must be a safe path segment"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id="../outside",
+            )
+
+    def test_rejects_unsafe_latest_run_id_from_metadata(self, tmp_path: Path) -> None:
+        """Ensure latest-run selection cannot return an unsafe persisted run identifier."""
+        work_dir = tmp_path / "workspace"
+        train_outputs_dir = work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME
+        input_csv = tmp_path / "predict.csv"
+        input_csv.write_text("text\nexample\n", encoding="utf-8")
+
+        _write_train_run_meta(
+            train_outputs_dir / "safe-dir",
+            run_id="../outside",
+            created_at=datetime.now(UTC),
+        )
+
+        with pytest.raises(ValueError, match="run_id must be a safe path segment"):
+            resolve_prediction_paths(
+                input_csv=input_csv,
+                work_dir=work_dir,
+                run_id=None,
             )
 
 

@@ -55,6 +55,7 @@ class TestLoadPredictionModel:
             tmp_path / "model",
             low_cpu_mem_usage=True,
             torch_dtype="auto",
+            trust_remote_code=False,
         )
 
     def test_loads_peft_model_from_base_checkpoint_and_adapter_dir(
@@ -87,6 +88,7 @@ class TestLoadPredictionModel:
             problem_type="multi_label_classification",
             low_cpu_mem_usage=True,
             torch_dtype="auto",
+            trust_remote_code=False,
         )
         peft_from_pretrained.assert_called_once_with(
             base_model,
