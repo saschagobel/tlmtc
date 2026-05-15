@@ -272,6 +272,7 @@ class TestLoadPretrained:
                 "dummy",
                 num_labels=2,
                 problem_type="multi_label_classification",
+                trust_remote_code=False,
             )
             assert pipeline.pretrained_model is fake_model
             assert pipeline.num_labels == 2
@@ -314,6 +315,7 @@ class TestLoadPretrained:
             "dummy",
             num_labels=2,
             problem_type="multi_label_classification",
+            trust_remote_code=False,
         )
 
         if wrap_peft:

@@ -327,8 +327,13 @@ class TestTokenizePredictionDataset:
     ) -> None:
         tokenizer = RecordingTokenizer()
 
-        def from_pretrained(checkpoint: str) -> RecordingTokenizer:
+        def from_pretrained(
+            checkpoint: str,
+            *,
+            trust_remote_code: bool,
+        ) -> RecordingTokenizer:
             assert checkpoint == "test-checkpoint"
+            assert trust_remote_code is False
             return tokenizer
 
         monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
@@ -368,8 +373,13 @@ class TestTokenizePredictionDataset:
     ) -> None:
         tokenizer = RecordingTokenizer()
 
-        def from_pretrained(checkpoint: str) -> RecordingTokenizer:
+        def from_pretrained(
+            checkpoint: str,
+            *,
+            trust_remote_code: bool,
+        ) -> RecordingTokenizer:
             assert checkpoint == "test-checkpoint"
+            assert trust_remote_code is False
             return tokenizer
 
         monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
