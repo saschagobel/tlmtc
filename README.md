@@ -123,9 +123,11 @@ train_tlmtc(
     target_name="Requirements Evidence Alignment",
     checkpoint="google/bert_uncased_L-2_H-128_A-2",
     proxy_checkpoint="google/bert_uncased_L-2_H-128_A-2",
+    tuning_trials=5,
     use_cpu=True,
 )
 ```
+This quickstart intentionally uses a tiny model and only five HPO trials to keep the demo lightweight. 
 
 Use your fine-tuned model to run prediction on unlabeled data:
 
@@ -149,6 +151,7 @@ tlmtc train \
   --target_name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --proxy-checkpoint google/bert_uncased_L-2_H-128_A-2 \
+  --tuning-trials 5 \
   --use-cpu
 
 tlmtc predict \
