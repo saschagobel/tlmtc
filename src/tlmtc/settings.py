@@ -152,6 +152,18 @@ class ModelSettings(BaseModel):
     checkpoint: str = "EuroBERT/EuroBERT-610m"
     sequence_length: PositiveInt = 128
 
+    @model_validator(mode="before")
+    @classmethod
+    def default_proxy_to_checkpoint(
+        cls,
+        value: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Use an explicitly selected target checkpoint as proxy when no proxy is supplied."""
+        if "checkpoint" in value and "proxy_checkpoint" not in value:
+            return {**value, "proxy_checkpoint": value["checkpoint"]}
+
+        return value
+
 
 class SplitSettings(BaseModel):
     """Data splitting settings.
