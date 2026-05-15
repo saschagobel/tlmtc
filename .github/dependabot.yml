@@ -11,7 +11,7 @@ updates:
     cooldown:
       default-days: 14
     open-pull-requests-limit: 5
-    versioning-strategy: "increase-if-necessary"
+    versioning-strategy: "lockfile-only"
     commit-message:
       prefix: "deps"
     labels:
