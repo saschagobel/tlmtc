@@ -145,7 +145,7 @@ class TestCliApp:
         output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "0.0.1" in output
+        assert "0.1.0" in output
 
 
 class TestTrainCliApp:
