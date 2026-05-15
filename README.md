@@ -122,7 +122,6 @@ train_tlmtc(
     "paired_example.csv",
     target_name="Requirements Evidence Alignment",
     checkpoint="google/bert_uncased_L-2_H-128_A-2",
-    proxy_checkpoint="google/bert_uncased_L-2_H-128_A-2",
     tuning_trials=5,
     use_cpu=True,
 )
@@ -150,7 +149,6 @@ tlmtc train \
   --raw-csv paired_example.csv \
   --target_name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
-  --proxy-checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --tuning-trials 5 \
   --use-cpu
 
