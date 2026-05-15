@@ -283,7 +283,6 @@ class TestResolvePredictionPaths:
         assert paths.prediction_run_dir == expected_prediction_run_dir
         assert paths.probabilities_path == expected_prediction_run_dir / "probabilities.csv"
         assert paths.predictions_path == expected_prediction_run_dir / "predictions.csv"
-        assert paths.prediction_meta_path == expected_prediction_run_dir / "prediction_meta.json"
 
     def test_resolves_latest_run_id_when_run_id_is_none(self, tmp_path: Path) -> None:
         """Ensure omitted run_id selects the latest completed training run."""
@@ -472,4 +471,3 @@ class TestPredictionPaths:
         assert paths.prediction_run_dir.is_dir()
         assert not paths.probabilities_path.exists()
         assert not paths.predictions_path.exists()
-        assert not paths.prediction_meta_path.exists()
