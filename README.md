@@ -172,3 +172,7 @@ Add a `text_pair` column for paired-input classification. **tlmtc** detects and 
 For prediction, provide an unlabeled CSV with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
 
 </details>
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request.
