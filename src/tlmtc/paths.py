@@ -185,8 +185,8 @@ class PredictionPaths:
                     model/
             prediction_outputs/
                 <run_id>/
+                    probabilities.csv
                     predictions.csv
-                    prediction_meta.json
 
     Attributes:
         work_dir: Existing base directory containing tlmtc training outputs.
@@ -199,7 +199,6 @@ class PredictionPaths:
         prediction_outputs_dir: Root directory for all prediction outputs.
         prediction_run_dir: Output directory for predictions from this training run.
         predictions_path: Destination CSV path for prediction results.
-        prediction_meta_path: Destination JSON path for prediction metadata.
     """
 
     work_dir: Path
@@ -216,7 +215,6 @@ class PredictionPaths:
     prediction_run_dir: Path
     probabilities_path: Path
     predictions_path: Path
-    prediction_meta_path: Path
 
     def ensure_dirs(
         self,
@@ -344,5 +342,4 @@ def resolve_prediction_paths(
         prediction_run_dir=prediction_run_dir,
         probabilities_path=prediction_run_dir / "probabilities.csv",
         predictions_path=prediction_run_dir / "predictions.csv",
-        prediction_meta_path=prediction_run_dir / "prediction_meta.json",
     )
