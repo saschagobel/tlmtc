@@ -425,6 +425,7 @@ class TestMakeLabelMetricsTable:
         assert "&lt;img" in html
         assert "&lt;svg" in html
 
+
 class TestMakeHyperparametersTable:
     """Tests for hyperparameter table rendering."""
 
