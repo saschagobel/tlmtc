@@ -1,0 +1,55 @@
+name: Feature request
+description: Suggest a new tlmtc functionality or user-facing improvement.
+labels: ["feature"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to request a new feature.
+
+        Use this form to suggest new tlmtc functionality or improvements to existing behavior.
+
+  - type: textarea
+    id: feature
+    attributes:
+      label: Feature description
+      description: |
+        Please provide a clear and concise description of the feature you would like to see added.
+
+        What specific functionality are you requesting? What problem would this solve for tlmtc users? Be as detailed as necessary.
+      placeholder: |
+        I would like tlmtc to support...
+
+        This feature would allow users to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: |
+        If you have ideas about how this feature could be implemented, please describe them here.
+
+        This can include a possible Python API, CLI command, configuration shape, output artifact, validation behavior, or workflow change.
+
+        You can also mention alternatives or workarounds you have considered.
+      placeholder: |
+        A possible approach would be...
+
+        The API or CLI could look like...
+
+        Alternatives I considered include...
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else useful for evaluating the feature request?
+      placeholder: |
+        Add links, examples, related issues, downstream use cases, or notes about compatibility with existing tlmtc behavior.
+    validations:
+      required: false
