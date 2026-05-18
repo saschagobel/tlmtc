@@ -21,7 +21,7 @@
 
 In applied settings, text classification is rarely a simple single-label task or a mutually exclusive multiclass problem. A clinical note may map to several ICD codes at once. A customer-support ticket can span multiple issue categories for routing, prioritization, and analytics. A contract may contain several clause types, and a litigation document can raise multiple legal issues. In RAG and LLM evaluation, a single answer may need several concurrent quality labels. A threat-intelligence report can mention multiple tactics, techniques, and vulnerabilities in the same document. Across domains, useful text labels often overlap, co-occur, and vary in prevalence.
 
-**tlmtc** turns these use cases into repeatable training and prediction workflows. It prepares multi-label text data, fine-tunes transformer classifiers, tunes hyperparameters and decision thresholds, evaluates model performance, writes reports, and applies trained models to new data  — all exposed through a small workflow-oriented API.
+**tlmtc** turns these use cases into repeatable training and prediction workflows. It prepares multi-label text data, fine-tunes transformer classifiers, tunes hyperparameters and decision thresholds, evaluates model performance, writes reports, and applies trained models to new data — all exposed through a small workflow-oriented API.
 
 ## Key features
 
@@ -123,6 +123,7 @@ train_tlmtc(
     use_cpu=True,
 )
 ```
+
 This quickstart intentionally uses a tiny model and only five HPO trials to keep the demo lightweight. 
 
 Use your fine-tuned model to run prediction on unlabeled data:
