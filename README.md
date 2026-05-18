@@ -144,7 +144,7 @@ predict_tlmtc(
 ```bash
 tlmtc train \
   --raw-csv paired_example.csv \
-  --target_name "Requirements Evidence Alignment" \
+  --target-name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --tuning-trials 5 \
   --use-cpu
