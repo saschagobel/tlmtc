@@ -1,0 +1,102 @@
+name: Implementation task
+description: Define a scoped implementation task for tlmtc.
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping improve tlmtc.
+
+        Use this form for scoped implementation work, including patches, small features, refactors, tests, CLI/API additions, or internal cleanup.
+        
+        This template is primarily intended for maintainers to define already-scoped implementation tasks. If you are proposing new functionality, please use the feature request template instead.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal and context
+      description: |
+        What should this issue achieve, and why is this change useful or necessary?
+
+        Please describe the intended outcome and the relevant user problem, maintainer need, or design motivation.
+      placeholder: |
+        This issue should...
+
+        The motivation for this change is...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: |
+        What parts of tlmtc are likely involved?
+        
+        Mention likely modules, CLI commands, public API functions, tests, artifacts, or documentation affected by this change.
+      placeholder: |
+        This likely touches...
+
+        Relevant parts of the package may include...
+    validations:
+      required: true
+
+  - type: textarea
+    id: contract
+    attributes:
+      label: Expected behavior / contract
+      description: |
+        What should be true when this issue is complete?
+
+        Describe the observable behavior, API or CLI contract, generated artifacts, validation behavior, error behavior, or internal invariant that should hold after the change.
+      placeholder: |
+        When this issue is complete, tlmtc should...
+
+        The expected behavior is...
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation-requirements
+    attributes:
+      label: Implementation requirements
+      description: |
+        What implementation constraints or conventions should be respected?
+
+        Note design constraints, compatibility requirements, naming conventions, module boundaries, or existing utilities that should be reused.
+      placeholder: |
+        The implementation should...
+
+        Please keep in mind...
+    validations:
+      required: true
+
+  - type: textarea
+    id: testing-requirements
+    attributes:
+      label: Testing requirements
+      description: |
+        What tests should be added or updated?
+
+        Mention the expected unit and/or integration test coverage, including important success and failure cases.
+      placeholder: |
+        Please add or update tests covering...
+
+        Important cases include...
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: |
+        What should this issue explicitly not attempt?
+
+        Use this field to keep the issue focused and separate related follow-up work from the current task.
+      placeholder: |
+        This issue should not...
+
+        Related follow-up work should be handled separately, including...
+    validations:
+      required: false

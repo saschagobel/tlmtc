@@ -1,0 +1,69 @@
+name: Bug report
+description: Report something that is broken or behaving unexpectedly in tlmtc.
+labels: ["bug"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to file a bug report.
+
+        If you want to report a security issue, please do not open a public issue. Instead, use the repository's **Security** tab and choose **Report a vulnerability**.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong, and what did you expect from the tlmtc command or API call?
+      placeholder: |
+        Briefly describe the bug, where it occurs, and what behavior you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproducible example
+      description: |
+        Please add a self-contained, minimal reproducible example with your use case.
+
+        This will be automatically formatted into code, so no need for backticks.
+      placeholder: |
+        Include the smallest command, Python snippet, configuration, or input shape needed to reproduce the issue.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Relevant error output
+      description: Copy and paste the relevant error message, traceback, or unexpected output.
+      placeholder: |
+        Paste the relevant error output here.
+      render: shell
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: tlmtc version
+      description: Which version of tlmtc are you using?
+      placeholder: "0.1.0"
+    validations:
+      required: false
+
+  - type: textarea
+    id: system-info
+    attributes:
+      label: System info
+      description: Please provide the relevant environment details for reproducing the issue.
+      placeholder: |
+        - tlmtc version:
+        - Python version:
+        - Installation method: uv / pip / source
+        - Operating system:
+        - CPU/GPU:
+    validations:
+      required: false
