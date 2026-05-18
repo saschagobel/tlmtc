@@ -12,22 +12,16 @@
 
 
 <p align="center">
-  <a href="https://github.com/saschagobel/tlmtc/blob/main/LICENSE.md">
-    <img alt="License" src="https://img.shields.io/github/license/saschagobel/tlmtc">
-  </a>
-  <a href="https://github.com/saschagobel/tlmtc/actions">
-    <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/saschagobel/tlmtc/ci.yml?label=ci">
-  </a>
-  <a href="https://pypi.org/project/tlmtc/">
-    <img alt="PyPI" src="https://img.shields.io/pypi/v/tlmtc?label=pypi">
-  </a>
+  <a href="https://github.com/saschagobel/tlmtc/blob/main/LICENSE.md"><img alt="License" src="https://img.shields.io/github/license/saschagobel/tlmtc"></a>
+  <a href="https://github.com/saschagobel/tlmtc/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/saschagobel/tlmtc/ci.yml?label=ci"></a>
+  <a href="https://pypi.org/project/tlmtc/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tlmtc?label=pypi"></a>
 </p>
 
 **tlmtc** (**T**ransfer **L**earning for **M**ulti-label **T**ext **C**lassification) is an opinionated Python package that provides production-ready, end-to-end workflows for fine-tuning pretrained encoder-only transformer models for robust multi-label text classification.
 
 In applied settings, text classification is rarely a simple single-label task or a mutually exclusive multiclass problem. A clinical note may map to several ICD codes at once. A customer-support ticket can span multiple issue categories for routing, prioritization, and analytics. A contract may contain several clause types, and a litigation document can raise multiple legal issues. In RAG and LLM evaluation, a single answer may need several concurrent quality labels. A threat-intelligence report can mention multiple tactics, techniques, and vulnerabilities in the same document. Across domains, useful text labels often overlap, co-occur, and vary in prevalence.
 
-**tlmtc** turns these use cases into repeatable training and prediction workflows. It prepares multi-label text data, fine-tunes transformer classifiers, tunes hyperparameters and decision thresholds, evaluates model performance, writes reports, and applies trained models to new data  — all exposed through a small workflow-oriented API.
+**tlmtc** turns these use cases into repeatable training and prediction workflows. It prepares multi-label text data, fine-tunes transformer classifiers, tunes hyperparameters and decision thresholds, evaluates model performance, writes reports, and applies trained models to new data — all exposed through a small workflow-oriented API.
 
 ## Key features
 
@@ -129,6 +123,7 @@ train_tlmtc(
     use_cpu=True,
 )
 ```
+
 This quickstart intentionally uses a tiny model and only five HPO trials to keep the demo lightweight. 
 
 Use your fine-tuned model to run prediction on unlabeled data:
@@ -150,7 +145,7 @@ predict_tlmtc(
 ```bash
 tlmtc train \
   --raw-csv paired_example.csv \
-  --target_name "Requirements Evidence Alignment" \
+  --target-name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --tuning-trials 5 \
   --use-cpu
