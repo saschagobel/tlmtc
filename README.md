@@ -30,7 +30,7 @@ In applied settings, text classification is rarely a simple single-label task or
 - Customizable Optuna-based hyperparameter tuning, optionally on a smaller proxy model for efficiency
 - Carry-over from proxy to larger target model with optional automatic learning-rate scaling
 - Global and label-specific threshold optimization for calibrated multi-label decisions
-- Iterative stratified data splitting for multi-label datasets
+- Iterative stratified data splitting for multi-label datasets, with automatic group-aware splitting
 - Custom class-weighted loss for handling label imbalance
 - Comprehensive evaluation suite with global and label-specific multi-label metrics
 - Publication-ready reporting through tables and graphs
@@ -166,6 +166,8 @@ Your training CSV must include:
 - at least two binary `label_`-prefixed columns
 
 Add a `text_pair` column for paired-input classification. **tlmtc** detects and handles this automatically.
+
+Add a `split_group` column when semantically related rows must not cross train, validation, and test splits.
 
 For prediction, provide an unlabeled CSV with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
 
