@@ -13,6 +13,7 @@ from tlmtc.data_contracts import (
     InputMode,
     validate_multilabel_frame,
     validate_prediction_frame,
+    validate_split_group_disjointness,
 )
 
 FrameFactory = Callable[..., pd.DataFrame]
@@ -171,6 +172,37 @@ class TestValidateMultilabelFrame:
 
         with pytest.raises(DataContractError, match="multilabel data contract"):
             validate_multilabel_frame(df)
+
+
+class TestValidateSplitGroupDisjointness:
+    """Tests for validating split-group boundaries across materialized splits."""
+
+    def test_allows_frames_without_split_group_column(self) -> None:
+        validate_split_group_disjointness(
+            pd.DataFrame({TEXT_COL: ["train text"]}),
+            pd.DataFrame({TEXT_COL: ["test text"]}),
+        )
+
+    def test_allows_disjoint_split_groups(self) -> None:
+        validate_split_group_disjointness(
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_a", "group_b"]}),
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_c"]}),
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_d"]}),
+        )
+
+    def test_rejects_partial_split_group_presence(self) -> None:
+        with pytest.raises(DataContractError, match="must be present in all split dataframes or none"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_a"]}),
+                pd.DataFrame({TEXT_COL: ["ungrouped text"]}),
+            )
+
+    def test_rejects_overlapping_split_groups(self) -> None:
+        with pytest.raises(DataContractError, match="cross split boundaries"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_a", "group_b"]}),
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_c", "group_b"]}),
+            )
 
 
 class TestValidatePredictionFrame:
