@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from datasets import Dataset
 
-from tlmtc.data_contracts import TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
+from tlmtc.data_contracts import SPLIT_GROUP_COL, TEXT_COL, TEXT_PAIR_COL, DataContractError, InputMode
 from tlmtc.data_preparation import (
     df_preprocess,
     df_save,
@@ -84,6 +84,26 @@ class TestDfPreprocess:
         pd.testing.assert_frame_equal(df, df_in)
         np.testing.assert_array_equal(X, np.array(["query a", "query b"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
+
+    def test_preserves_optional_split_group_column(self, tmp_path: Path) -> None:
+        csv_path = tmp_path / "data.csv"
+        df_in = pd.DataFrame(
+            {
+                "text": ["a", "b", "c", "d"],
+                SPLIT_GROUP_COL: ["g1", "g1", "g2", "g2"],
+                "label_1": [1, 0, 1, 0],
+                "label_2": [0, 1, 0, 1],
+            }
+        )
+        df_in.to_csv(csv_path, index=False)
+
+        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
+
+        assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.SINGLE_TEXT
+        pd.testing.assert_frame_equal(df, df_in)
+        np.testing.assert_array_equal(X, np.array(["a", "b", "c", "d"]))
+        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1], [1, 0], [0, 1]]))
 
     def test_raises_contract_error_when_no_rows_remain_after_dropping_missing_values(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "data.csv"
@@ -224,6 +244,70 @@ class TestDfSplit:
 
         with pytest.raises(ValueError, match="Could not create a valid multilabel stratified split"):
             df_split(df=df, text_values=text_values, label_matrix=label_matrix, test_size=0.25, random_seed=42)
+
+    def test_keeps_split_groups_disjoint_when_group_column_is_present(self) -> None:
+        groups = [f"group_{i}" for i in range(20) for _ in range(2)]
+        df = pd.DataFrame(
+            {
+                "text": [f"sample {i}" for i in range(40)],
+                SPLIT_GROUP_COL: groups,
+                "label_a": ([1, 0] * 20),
+                "label_b": ([0, 1, 1, 0] * 10),
+            }
+        )
+        text_values = df["text"].values
+        label_matrix = df[["label_a", "label_b"]].values
+
+        train, test = df_split(
+            df=df,
+            text_values=text_values,
+            label_matrix=label_matrix,
+            test_size=0.25,
+            random_seed=42,
+        )
+
+        assert len(train) + len(test) == len(df)
+        assert set(train[SPLIT_GROUP_COL]).isdisjoint(set(test[SPLIT_GROUP_COL]))
+
+        for group in df[SPLIT_GROUP_COL].unique():
+            group_in_train = group in set(train[SPLIT_GROUP_COL])
+            group_in_test = group in set(test[SPLIT_GROUP_COL])
+            assert group_in_train != group_in_test
+
+    def test_emits_progress_when_grouped_split_row_fraction_drifts(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        messages: list[str] = []
+
+        monkeypatch.setattr(
+            "tlmtc.data_preparation.emit_progress",
+            messages.append,
+        )
+
+        df = pd.DataFrame(
+            {
+                "text": [f"large {i}" for i in range(18)] + ["small 1", "small 2"],
+                SPLIT_GROUP_COL: ["large"] * 18 + ["small"] * 2,
+                "label_a": [1] * 20,
+                "label_b": [1] * 20,
+            }
+        )
+        text_values = df["text"].values
+        label_matrix = df[["label_a", "label_b"]].values
+
+        df_split(
+            df=df,
+            text_values=text_values,
+            label_matrix=label_matrix,
+            test_size=0.5,
+            random_seed=42,
+        )
+
+        assert len(messages) == 1
+        assert messages[0].startswith("Grouped splitting produced a held-out row fraction of ")
+        assert "requested 0.500" in messages[0]
+        assert f"rows sharing the same '{SPLIT_GROUP_COL}' value must stay in the same split" in messages[0]
 
 
 class TestDfSave:
