@@ -3,6 +3,7 @@
 import re
 import sys
 import types
+from importlib.metadata import version
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -145,7 +146,7 @@ class TestCliApp:
         output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "0.1.0" in output
+        assert output.strip() == version("tlmtc")
 
 
 class TestTrainCliApp:
