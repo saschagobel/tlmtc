@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from tlmtc.data_contracts import (
+    SPLIT_GROUP_COL,
     TEXT_COL,
     TEXT_PAIR_COL,
     DataContractError,
@@ -73,6 +74,25 @@ class TestValidateMultilabelFrame:
             ),
         )
 
+    def test_keeps_optional_split_group_column_when_present(self, valid_frame: FrameFactory) -> None:
+        df = valid_frame(**{SPLIT_GROUP_COL: ["group_a", "group_b"]})
+
+        validated, label_cols, input_mode = validate_multilabel_frame(df)
+
+        assert label_cols == ["label_a", "label_b"]
+        assert input_mode is InputMode.SINGLE_TEXT
+        pd.testing.assert_frame_equal(
+            validated,
+            pd.DataFrame(
+                {
+                    TEXT_COL: ["first text", "second text"],
+                    SPLIT_GROUP_COL: ["group_a", "group_b"],
+                    "label_a": [1, 0],
+                    "label_b": [0, 1],
+                }
+            ),
+        )
+
     def test_projects_to_text_and_label_columns(self, valid_frame: FrameFactory) -> None:
         df = valid_frame(unused_metadata=["x", "y"])
 
@@ -131,6 +151,8 @@ class TestValidateMultilabelFrame:
             {"label_a": [1, None]},
             {"label_a": [1, 2]},
             {"label_a": [1, "yes"]},
+            {SPLIT_GROUP_COL: ["group_a", None]},
+            {SPLIT_GROUP_COL: ["group_a", "   "]},
         ],
     )
     def test_rejects_invalid_column_values(self, valid_frame: FrameFactory, overrides: dict[str, object]) -> None:
