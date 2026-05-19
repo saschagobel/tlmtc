@@ -6,12 +6,14 @@ import pandas as pd
 import pytest
 
 from tlmtc.data_contracts import (
+    SPLIT_GROUP_COL,
     TEXT_COL,
     TEXT_PAIR_COL,
     DataContractError,
     InputMode,
     validate_multilabel_frame,
     validate_prediction_frame,
+    validate_split_group_disjointness,
 )
 
 FrameFactory = Callable[..., pd.DataFrame]
@@ -67,6 +69,25 @@ class TestValidateMultilabelFrame:
                 {
                     TEXT_COL: ["first text", "second text"],
                     TEXT_PAIR_COL: ["first pair", "second pair"],
+                    "label_a": [1, 0],
+                    "label_b": [0, 1],
+                }
+            ),
+        )
+
+    def test_keeps_optional_split_group_column_when_present(self, valid_frame: FrameFactory) -> None:
+        df = valid_frame(**{SPLIT_GROUP_COL: ["group_a", "group_b"]})
+
+        validated, label_cols, input_mode = validate_multilabel_frame(df)
+
+        assert label_cols == ["label_a", "label_b"]
+        assert input_mode is InputMode.SINGLE_TEXT
+        pd.testing.assert_frame_equal(
+            validated,
+            pd.DataFrame(
+                {
+                    TEXT_COL: ["first text", "second text"],
+                    SPLIT_GROUP_COL: ["group_a", "group_b"],
                     "label_a": [1, 0],
                     "label_b": [0, 1],
                 }
@@ -131,6 +152,8 @@ class TestValidateMultilabelFrame:
             {"label_a": [1, None]},
             {"label_a": [1, 2]},
             {"label_a": [1, "yes"]},
+            {SPLIT_GROUP_COL: ["group_a", None]},
+            {SPLIT_GROUP_COL: ["group_a", "   "]},
         ],
     )
     def test_rejects_invalid_column_values(self, valid_frame: FrameFactory, overrides: dict[str, object]) -> None:
@@ -149,6 +172,37 @@ class TestValidateMultilabelFrame:
 
         with pytest.raises(DataContractError, match="multilabel data contract"):
             validate_multilabel_frame(df)
+
+
+class TestValidateSplitGroupDisjointness:
+    """Tests for validating split-group boundaries across materialized splits."""
+
+    def test_allows_frames_without_split_group_column(self) -> None:
+        validate_split_group_disjointness(
+            pd.DataFrame({TEXT_COL: ["train text"]}),
+            pd.DataFrame({TEXT_COL: ["test text"]}),
+        )
+
+    def test_allows_disjoint_split_groups(self) -> None:
+        validate_split_group_disjointness(
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_a", "group_b"]}),
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_c"]}),
+            pd.DataFrame({SPLIT_GROUP_COL: ["group_d"]}),
+        )
+
+    def test_rejects_partial_split_group_presence(self) -> None:
+        with pytest.raises(DataContractError, match="must be present in all split dataframes or none"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_a"]}),
+                pd.DataFrame({TEXT_COL: ["ungrouped text"]}),
+            )
+
+    def test_rejects_overlapping_split_groups(self) -> None:
+        with pytest.raises(DataContractError, match="cross split boundaries"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_a", "group_b"]}),
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_c", "group_b"]}),
+            )
 
 
 class TestValidatePredictionFrame:

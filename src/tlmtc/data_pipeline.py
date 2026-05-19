@@ -14,6 +14,7 @@ from tlmtc.data_contracts import (
     DataContractError,
     InputMode,
     validate_multilabel_frame,
+    validate_split_group_disjointness,
 )
 from tlmtc.data_preparation import df_preprocess, df_save, df_split, tokenize_batch
 from tlmtc.paths import RunPaths
@@ -103,6 +104,12 @@ class DataPipeline:
                     f"test is '{test_input_mode.value}'."
                 )
 
+            validate_split_group_disjointness(
+                self.train_data,
+                self.val_data,
+                self.test_data,
+            )
+
             return self
 
         if not self.paths.raw_data_path.exists():
@@ -127,6 +134,8 @@ class DataPipeline:
                     "Input mode mismatch between raw_csv and raw_test_csv: "
                     f"raw_csv is '{self.input_mode.value}', but raw_test_csv is '{test_input_mode.value}'."
                 )
+
+            validate_split_group_disjointness(df, df_test)
 
             self.train_data, self.val_data = df_split(
                 df=df,

@@ -9,7 +9,7 @@ import pytest
 import torch
 from datasets import Dataset, DatasetDict
 
-from tlmtc.data_contracts import TEXT_PAIR_COL, DataContractError, InputMode
+from tlmtc.data_contracts import SPLIT_GROUP_COL, TEXT_PAIR_COL, DataContractError, InputMode
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.paths import resolve_paths
 from tlmtc.settings import ModelSettings, SplitSettings
@@ -305,6 +305,67 @@ class TestSplitData:
         )
 
         with pytest.raises(DataContractError, match="Input mode mismatch between persisted splits"):
+            resumed_dp.split_data()
+
+    def test_raises_error_on_split_group_overlap_between_raw_and_raw_test(
+        self,
+        tmp_path: Path,
+        sample_raw_csv: Path,
+        sample_raw_test_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure user-provided test data cannot share split groups with training data."""
+        raw_df = pd.read_csv(sample_raw_csv)
+        raw_df[SPLIT_GROUP_COL] = [f"train_group_{idx}" for idx in range(len(raw_df))]
+        raw_grouped_csv = tmp_path / "raw_grouped.csv"
+        raw_df.to_csv(raw_grouped_csv, index=False)
+
+        raw_test_df = pd.read_csv(sample_raw_test_csv)
+        raw_test_df[SPLIT_GROUP_COL] = ["train_group_0", "test_group_1", "test_group_2", "test_group_3"]
+        raw_test_grouped_csv = tmp_path / "raw_test_grouped.csv"
+        raw_test_df.to_csv(raw_test_grouped_csv, index=False)
+
+        dp = pipeline_instance_factory(
+            raw_csv=raw_grouped_csv,
+            raw_test_csv=raw_test_grouped_csv,
+        )
+
+        with pytest.raises(DataContractError, match="cross split boundaries"):
+            dp.split_data()
+
+    def test_validates_persisted_split_group_disjointness_when_reusing_cached_splits(
+        self,
+        sample_raw_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+    ) -> None:
+        """Ensure cached split artifacts are rejected when split groups overlap."""
+        dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=None,
+        )
+        dp.split_data()
+
+        train_df = pd.read_parquet(dp.paths.train_data_path)
+        val_df = pd.read_parquet(dp.paths.val_data_path)
+        test_df = pd.read_parquet(dp.paths.test_data_path)
+
+        train_df[SPLIT_GROUP_COL] = [f"train_group_{idx}" for idx in range(len(train_df))]
+        val_df[SPLIT_GROUP_COL] = [f"val_group_{idx}" for idx in range(len(val_df))]
+        test_df[SPLIT_GROUP_COL] = [f"test_group_{idx}" for idx in range(len(test_df))]
+
+        train_df.loc[0, SPLIT_GROUP_COL] = "leaking_group"
+        val_df.loc[0, SPLIT_GROUP_COL] = "leaking_group"
+
+        train_df.to_parquet(dp.paths.train_data_path, index=False)
+        val_df.to_parquet(dp.paths.val_data_path, index=False)
+        test_df.to_parquet(dp.paths.test_data_path, index=False)
+
+        resumed_dp = pipeline_instance_factory(
+            raw_csv=sample_raw_csv,
+            raw_test_csv=None,
+        )
+
+        with pytest.raises(DataContractError, match="cross split boundaries"):
             resumed_dp.split_data()
 
 

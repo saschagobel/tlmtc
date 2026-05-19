@@ -9,6 +9,7 @@ from pandera.errors import SchemaError, SchemaErrors
 
 TEXT_COL: Final[str] = "text"
 TEXT_PAIR_COL: Final[str] = "text_pair"
+SPLIT_GROUP_COL: Final[str] = "split_group"
 LABEL_PREFIX: Final[str] = "label_"
 LABEL_REGEX: Final[str] = r"^label_.+"
 MIN_LABEL_COLS: Final[int] = 2
@@ -38,6 +39,14 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
             nullable=False,
             required=False,
             checks=pa.Check(lambda series: series.str.strip().ne(""), error="must not contain blank strings"),
+        ),
+        SPLIT_GROUP_COL: pa.Column(
+            nullable=False,
+            required=False,
+            checks=pa.Check(
+                lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
+                error="must not contain blank strings",
+            ),
         ),
         LABEL_REGEX: pa.Column(
             int,
@@ -96,7 +105,7 @@ def validate_multilabel_frame(
 
     Args:
         df: Input DataFrame with a required text column, optional paired-text column,
-            and binary label columns.
+            optional split-group column, and binary label columns.
 
     Returns:
         Normalized DataFrame, ordered label column names, and inferred input mode.
@@ -118,7 +127,48 @@ def validate_multilabel_frame(
     if input_mode is InputMode.PAIRED_TEXT:
         text_cols.append(TEXT_PAIR_COL)
 
-    return validated[[*text_cols, *label_cols]], label_cols, input_mode
+    split_cols = [SPLIT_GROUP_COL] if SPLIT_GROUP_COL in validated.columns else []
+
+    return validated[[*text_cols, *split_cols, *label_cols]], label_cols, input_mode
+
+
+def validate_split_group_disjointness(
+    *dfs: pd.DataFrame,
+) -> None:
+    """Validate split-group consistency across materialized split dataframes.
+
+    Use this for split dataframes that are loaded or supplied outside the
+    internal splitting routine, such as persisted train/validation/test artifacts
+    or a user-provided test dataframe.
+
+    Args:
+        *dfs: DataFrames representing split partitions.
+
+    Raises:
+        DataContractError: If only some dataframes contain the split-group column,
+            or if split-group values overlap across dataframes.
+    """
+    has_split_group = [SPLIT_GROUP_COL in df.columns for df in dfs]
+
+    if not any(has_split_group):
+        return
+
+    if not all(has_split_group):
+        raise DataContractError(f"Column '{SPLIT_GROUP_COL}' must be present in all split dataframes or none.")
+
+    seen: set[object] = set()
+    for df in dfs:
+        groups = set(df[SPLIT_GROUP_COL])
+        overlap = seen & groups
+
+        if overlap:
+            overlap_sample = sorted(repr(value) for value in overlap)[:10]
+            raise DataContractError(
+                f"Column '{SPLIT_GROUP_COL}' contains values that cross split boundaries: "
+                f"{overlap_sample}. Rows sharing the same split-group value must stay in the same split."
+            )
+
+        seen.update(groups)
 
 
 def validate_prediction_frame(
