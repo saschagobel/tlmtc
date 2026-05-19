@@ -154,9 +154,7 @@ def validate_split_group_disjointness(
         return
 
     if not all(has_split_group):
-        raise DataContractError(
-            f"Column '{SPLIT_GROUP_COL}' must be present in all split dataframes or none."
-        )
+        raise DataContractError(f"Column '{SPLIT_GROUP_COL}' must be present in all split dataframes or none.")
 
     seen: set[object] = set()
     for df in dfs:

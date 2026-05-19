@@ -112,11 +112,7 @@ def df_split(
             train_data = df.iloc[train_idx].reset_index(drop=True)
             test_data = df.iloc[test_idx].reset_index(drop=True)
 
-        missing_positive_labels = [
-            col
-            for col in label_cols
-            if train_data[col].sum() == 0 or test_data[col].sum() == 0
-        ]
+        missing_positive_labels = [col for col in label_cols if train_data[col].sum() == 0 or test_data[col].sum() == 0]
 
         if not missing_positive_labels:
             if grouped_split:
