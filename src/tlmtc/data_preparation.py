@@ -11,12 +11,14 @@ from transformers import AutoTokenizer, BatchEncoding, PreTrainedTokenizerBase
 
 from tlmtc.data_contracts import (
     LABEL_PREFIX,
+    SPLIT_GROUP_COL,
     TEXT_COL,
     TEXT_PAIR_COL,
     InputMode,
     validate_multilabel_frame,
     validate_prediction_frame,
 )
+from tlmtc.runtime_output import emit_progress
 
 
 def df_preprocess(
@@ -67,9 +69,9 @@ def df_split(
 
     Args:
         df: Preprocessed DataFrame to split.
-        text_values: Text values used as splitter inputs.
-        label_matrix: Multi-label target matrix used for stratification.
-        test_size: Fraction of rows assigned to the second split.
+        text_values: Text values used as splitter inputs for row-level splitting.
+        label_matrix: Multi-label target matrix used for row-level splitting.
+        test_size: Fraction of rows or groups assigned to the second split.
         random_seed: Random seed for reproducible splitting.
 
     Returns:
@@ -79,8 +81,17 @@ def df_split(
         ValueError: If no valid split preserves positive examples for every label.
     """
     max_split_attempts = 3
+    grouped_split = SPLIT_GROUP_COL in df.columns
     label_cols = [col for col in df.columns if col.startswith(LABEL_PREFIX)]
     missing_positive_labels: list[str] = []
+
+    if grouped_split:
+        group_labels = df.groupby(SPLIT_GROUP_COL, sort=False)[label_cols].max()
+        split_values = group_labels.index.to_numpy()
+        split_labels = group_labels.to_numpy()
+    else:
+        split_values = text_values
+        split_labels = label_matrix
 
     for attempt in range(max_split_attempts):
         splitter = MultilabelStratifiedShuffleSplit(
@@ -89,21 +100,66 @@ def df_split(
             random_state=random_seed + attempt,
         )
 
-        train_idx, test_idx = next(splitter.split(text_values, label_matrix))
-        train_data = df.iloc[train_idx].reset_index(drop=True)
-        test_data = df.iloc[test_idx].reset_index(drop=True)
+        train_idx, test_idx = next(splitter.split(split_values, split_labels))
 
-        missing_positive_labels = [col for col in label_cols if train_data[col].sum() == 0 or test_data[col].sum() == 0]
+        if grouped_split:
+            train_groups = group_labels.index[train_idx]
+            test_groups = group_labels.index[test_idx]
+
+            train_data = df[df[SPLIT_GROUP_COL].isin(train_groups)].reset_index(drop=True)
+            test_data = df[df[SPLIT_GROUP_COL].isin(test_groups)].reset_index(drop=True)
+        else:
+            train_data = df.iloc[train_idx].reset_index(drop=True)
+            test_data = df.iloc[test_idx].reset_index(drop=True)
+
+        missing_positive_labels = [
+            col
+            for col in label_cols
+            if train_data[col].sum() == 0 or test_data[col].sum() == 0
+        ]
 
         if not missing_positive_labels:
+            if grouped_split:
+                _emit_grouped_split_drift(
+                    train_data=train_data,
+                    test_data=test_data,
+                    test_size=test_size,
+                )
             return train_data, test_data
 
+    split_kind = "grouped multilabel stratified" if grouped_split else "multilabel stratified"
+    grouped_hint = (
+        " Grouped splitting is constrained by the number and label composition of split groups."
+        if grouped_split
+        else ""
+    )
+
     raise ValueError(
-        "Could not create a valid multilabel stratified split after "
+        f"Could not create a valid {split_kind} split after "
         f"{max_split_attempts} attempts. The following labels have no positive examples "
-        f"in at least one split partition: {missing_positive_labels}. "
+        f"in at least one split partition: {missing_positive_labels}."
+        f"{grouped_hint} "
         "Increase the smaller split size, provide more positive examples for rare labels, "
         "or remove/merge labels with insufficient support."
+    )
+
+
+def _emit_grouped_split_drift(
+    train_data: pd.DataFrame,
+    test_data: pd.DataFrame,
+    test_size: float,
+) -> None:
+    """Emit a progress message when grouped splitting drifts from the requested row fraction."""
+    achieved_test_size = len(test_data) / (len(train_data) + len(test_data))
+
+    if abs(achieved_test_size - test_size) <= 0.05:
+        return
+
+    emit_progress(
+        "Grouped splitting produced a held-out row fraction of "
+        f"{achieved_test_size:.3f}, requested {test_size:.3f}. "
+        f"Exact row-level split sizes are not always possible because rows sharing "
+        f"the same '{SPLIT_GROUP_COL}' value must stay in the same split."
     )
 
 
