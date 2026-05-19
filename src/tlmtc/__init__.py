@@ -2,9 +2,13 @@
 
 import importlib
 import logging
+from importlib import metadata
 from typing import TYPE_CHECKING, Any
 
-__version__ = "0.1.0"
+try:
+    __version__ = metadata.version("tlmtc")
+except metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 __all__ = [
     "predict_tlmtc",
