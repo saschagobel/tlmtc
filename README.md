@@ -41,19 +41,27 @@ In applied settings, text classification is rarely a simple single-label task or
 
 ## Installation
 
-We recommend installing **tlmtc** in a dedicated [`uv`](https://docs.astral.sh/uv/) environment with the `full` extra:
+Install **tlmtc** into your active Python environment with the `full` extra:
 
 ```bash
-uv add "tlmtc[full]"
+pip install "tlmtc[full]"
 ```
 
 The `full` extra installs the optional deep-learning dependencies required for training and prediction, including PyTorch, PEFT, and Accelerate.
 
 <details>
-<summary><strong>Using pip?</strong></summary>
+<summary><strong>Using uv?</strong></summary>
+
+To install into an existing uv-managed environment, use:
 
 ```bash
-pip install "tlmtc[full]"
+uv pip install "tlmtc[full]"
+```
+
+If you are adding **tlmtc** as a dependency to a uv-managed Python project, use:
+
+```bash
+uv add "tlmtc[full]"
 ```
 
 </details>
@@ -61,14 +69,22 @@ pip install "tlmtc[full]"
 <details>
 <summary><strong>Installing from source?</strong></summary>
 
-```bash
-uv add "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
-```
-
-Or with pip:
+Install the latest development version directly from GitHub:
 
 ```bash
 pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+```
+
+With uv, install into the active environment with:
+
+```bash
+uv pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+```
+
+Or add it to a uv-managed project:
+
+```bash
+uv add "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
 ```
 
 </details>
