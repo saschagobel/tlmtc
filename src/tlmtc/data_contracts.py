@@ -43,10 +43,16 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
         SPLIT_GROUP_COL: pa.Column(
             nullable=False,
             required=False,
-            checks=pa.Check(
+            checks=[
+                pa.Check(
+                    lambda series: series.map(lambda value: isinstance(value, (str, int, bool))).all(),
+                    error="must contain only scalar values (str, int, bool)",
+                ),
+                pa.Check(
                 lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
                 error="must not contain blank strings",
-            ),
+                ),
+            ],
         ),
         LABEL_REGEX: pa.Column(
             int,
