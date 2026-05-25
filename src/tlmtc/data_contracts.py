@@ -49,8 +49,8 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
                     error="must contain only scalar values (str, int, bool)",
                 ),
                 pa.Check(
-                lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
-                error="must not contain blank strings",
+                    lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
+                    error="must not contain blank strings",
                 ),
             ],
         ),
