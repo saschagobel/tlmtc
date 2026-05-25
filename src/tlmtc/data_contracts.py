@@ -43,10 +43,16 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
         SPLIT_GROUP_COL: pa.Column(
             nullable=False,
             required=False,
-            checks=pa.Check(
-                lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
-                error="must not contain blank strings",
-            ),
+            checks=[
+                pa.Check(
+                    lambda series: series.map(lambda value: isinstance(value, (str, int, bool))).all(),
+                    error="must contain only scalar values (str, int, bool)",
+                ),
+                pa.Check(
+                    lambda series: series.map(lambda value: not isinstance(value, str) or value.strip() != "").all(),
+                    error="must not contain blank strings",
+                ),
+            ],
         ),
         LABEL_REGEX: pa.Column(
             int,
@@ -158,9 +164,12 @@ def validate_split_group_disjointness(
 
     seen: set[object] = set()
     for df in dfs:
-        groups = set(df[SPLIT_GROUP_COL])
-        overlap = seen & groups
+        try:
+            groups = set(df[SPLIT_GROUP_COL])
+        except TypeError as exc:
+            raise DataContractError(f"Column '{SPLIT_GROUP_COL}' must contain hashable scalar values.") from exc
 
+        overlap = seen & groups
         if overlap:
             overlap_sample = sorted(repr(value) for value in overlap)[:10]
             raise DataContractError(

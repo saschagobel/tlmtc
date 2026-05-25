@@ -154,6 +154,9 @@ class TestValidateMultilabelFrame:
             {"label_a": [1, "yes"]},
             {SPLIT_GROUP_COL: ["group_a", None]},
             {SPLIT_GROUP_COL: ["group_a", "   "]},
+            {SPLIT_GROUP_COL: [["group_a"], "group_b"]},
+            {SPLIT_GROUP_COL: [{"id": "group_a"}, "group_b"]},
+            {SPLIT_GROUP_COL: [("group_a", "group_b"), "group_c"]},
         ],
     )
     def test_rejects_invalid_column_values(self, valid_frame: FrameFactory, overrides: dict[str, object]) -> None:
@@ -202,6 +205,13 @@ class TestValidateSplitGroupDisjointness:
             validate_split_group_disjointness(
                 pd.DataFrame({SPLIT_GROUP_COL: ["group_a", "group_b"]}),
                 pd.DataFrame({SPLIT_GROUP_COL: ["group_c", "group_b"]}),
+            )
+
+    def test_rejects_unhashable_split_group_values(self) -> None:
+        with pytest.raises(DataContractError, match="must contain hashable scalar values"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: [["group_a"], "group_b"]}),
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_c"]}),
             )
 
 
