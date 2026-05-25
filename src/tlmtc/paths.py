@@ -262,7 +262,7 @@ def find_latest_train_run_id(
         train_outputs_dir: Directory containing training-run subdirectories.
 
     Returns:
-        Run identifier of the training run with the latest metadata timestamp.
+        Run identifier of the latest training run with target-checkpoint fine-tuning enabled.
 
     Raises:
         FileNotFoundError: If no training-run metadata files exist.
@@ -271,12 +271,14 @@ def find_latest_train_run_id(
 
     for meta_path in train_outputs_dir.glob(f"*/{TRAIN_RUN_META_FILENAME}"):
         meta = read_run_meta(meta_path)
-        completed_runs.append((meta.created_at, meta.run_id))
+        if meta.transfer_learning:
+            completed_runs.append((meta.created_at, meta.run_id))
 
     if not completed_runs:
         raise FileNotFoundError(
             "No completed tlmtc training runs found. "
-            f"Expected at least one {TRAIN_RUN_META_FILENAME} under {train_outputs_dir}."
+            f"Expected at least one {TRAIN_RUN_META_FILENAME} with transfer_learning=True "
+            f"under {train_outputs_dir}."
         )
 
     return max(completed_runs, key=lambda item: item[0])[1]
