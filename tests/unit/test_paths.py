@@ -27,6 +27,7 @@ def _write_train_run_meta(
     *,
     run_id: str,
     created_at: datetime,
+    transfer_learning: bool = True,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     write_run_meta(
@@ -41,7 +42,7 @@ def _write_train_run_meta(
             label_names=["a", "b"],
             threshold_type="label",
             thresholds=[0.5, 0.5],
-            transfer_learning=True,
+            transfer_learning=transfer_learning,
             hyperparameter_tuning=False,
             threshold_optimization=False,
             scale_learning_rate=False,
@@ -297,6 +298,26 @@ class TestFindLatestTrainRunId:
 
         with pytest.raises(FileNotFoundError, match="No completed tlmtc training runs found"):
             find_latest_train_run_id(train_outputs_dir)
+
+    def test_ignores_latest_run_without_transfer_learning(self, tmp_path: Path) -> None:
+        """Ensure latest-run selection ignores runs without target fine-tuning."""
+        train_outputs_dir = tmp_path / DEFAULT_TRAIN_OUTPUTS_DIRNAME
+        now = datetime.now(UTC)
+
+        _write_train_run_meta(
+            train_outputs_dir / "older-finetuned",
+            run_id="older-finetuned",
+            created_at=now - timedelta(days=1),
+            transfer_learning=True,
+        )
+        _write_train_run_meta(
+            train_outputs_dir / "newer-hpo-only",
+            run_id="newer-hpo-only",
+            created_at=now,
+            transfer_learning=False,
+        )
+
+        assert find_latest_train_run_id(train_outputs_dir) == "older-finetuned"
 
 
 class TestResolvePredictionPaths:
