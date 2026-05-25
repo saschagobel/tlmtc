@@ -207,6 +207,13 @@ class TestValidateSplitGroupDisjointness:
                 pd.DataFrame({SPLIT_GROUP_COL: ["group_c", "group_b"]}),
             )
 
+    def test_rejects_unhashable_split_group_values(self) -> None:
+        with pytest.raises(DataContractError, match="must contain hashable scalar values"):
+            validate_split_group_disjointness(
+                pd.DataFrame({SPLIT_GROUP_COL: [["group_a"], "group_b"]}),
+                pd.DataFrame({SPLIT_GROUP_COL: ["group_c"]}),
+            )
+
 
 class TestValidatePredictionFrame:
     """Tests for validating unlabeled prediction dataframe contracts."""
