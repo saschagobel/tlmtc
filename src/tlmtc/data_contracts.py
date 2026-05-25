@@ -164,9 +164,12 @@ def validate_split_group_disjointness(
 
     seen: set[object] = set()
     for df in dfs:
-        groups = set(df[SPLIT_GROUP_COL])
-        overlap = seen & groups
+        try:
+            groups = set(df[SPLIT_GROUP_COL])
+        except TypeError as exc:
+            raise DataContractError(f"Column '{SPLIT_GROUP_COL}' must contain hashable scalar values.") from exc
 
+        overlap = seen & groups
         if overlap:
             overlap_sample = sorted(repr(value) for value in overlap)[:10]
             raise DataContractError(
