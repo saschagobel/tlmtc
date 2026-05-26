@@ -324,8 +324,8 @@ class TestBundleSettings:
         settings = ModelSettings()
 
         assert settings.target_name == "Target"
-        assert settings.proxy_checkpoint == "EuroBERT/EuroBERT-210m"
-        assert settings.checkpoint == "EuroBERT/EuroBERT-610m"
+        assert settings.proxy_checkpoint == "microsoft/deberta-v3-small"
+        assert settings.checkpoint == "microsoft/deberta-v3-base"
         assert settings.sequence_length == 128
 
     def test_model_settings_defaults_proxy_to_explicit_checkpoint(self) -> None:
