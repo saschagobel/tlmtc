@@ -21,14 +21,13 @@ FONT_CFG = {
     "font.family": "sans-serif",
     "font.sans-serif": [
         "Ubuntu",
-        "-apple-system",
-        "BlinkMacSystemFont",
         "Segoe UI",
         "Roboto",
         "Oxygen",
         "Cantarell",
         "Helvetica Neue",
         "Arial",
+        "DejaVu Sans",
     ],
 }
 
