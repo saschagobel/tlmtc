@@ -68,12 +68,12 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
     calls: list[object] = []
 
     monkeypatch.setattr(
-        runtime_output.transformers.logging,
+        runtime_output.transformers_logging,
         "set_verbosity_error",
         lambda: calls.append("transformers_logging"),
     )
     monkeypatch.setattr(
-        runtime_output.transformers.logging,
+        runtime_output.transformers_logging,
         "disable_progress_bar",
         lambda: calls.append("transformers_progress"),
     )
