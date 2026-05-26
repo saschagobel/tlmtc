@@ -17,8 +17,8 @@ def train_meta() -> TrainRunMeta:
     return TrainRunMeta(
         run_id="run123",
         target_name="Issue Type",
-        checkpoint="EuroBERT/EuroBERT-610m",
-        proxy_checkpoint="EuroBERT/EuroBERT-210m",
+        checkpoint="microsoft/deberta-v3-base",
+        proxy_checkpoint="microsoft/deberta-v3-small",
         sequence_length=128,
         input_mode=InputMode.SINGLE_TEXT,
         label_names=["routing", "compliance"],
@@ -40,8 +40,8 @@ class TestTrainRunMeta:
         meta = TrainRunMeta(
             run_id="run123",
             target_name="Issue Type",
-            checkpoint="EuroBERT/EuroBERT-610m",
-            proxy_checkpoint="EuroBERT/EuroBERT-210m",
+            checkpoint="microsoft/deberta-v3-base",
+            proxy_checkpoint="microsoft/deberta-v3-small",
             sequence_length=256,
             input_mode=InputMode.PAIRED_TEXT,
             label_names=["routing", "compliance"],
@@ -56,8 +56,8 @@ class TestTrainRunMeta:
 
         assert meta.run_id == "run123"
         assert meta.target_name == "Issue Type"
-        assert meta.checkpoint == "EuroBERT/EuroBERT-610m"
-        assert meta.proxy_checkpoint == "EuroBERT/EuroBERT-210m"
+        assert meta.checkpoint == "microsoft/deberta-v3-base"
+        assert meta.proxy_checkpoint == "microsoft/deberta-v3-small"
         assert meta.sequence_length == 256
         assert meta.input_mode is InputMode.PAIRED_TEXT
         assert meta.label_names == ["routing", "compliance"]
