@@ -17,19 +17,20 @@ from matplotlib.layout_engine import ConstrainedLayoutEngine
 from matplotlib.ticker import MaxNLocator
 from transformers import Trainer
 
+REPORT_FONT_STACK = [
+    "Ubuntu",
+    "Segoe UI",
+    "Roboto",
+    "Oxygen",
+    "Cantarell",
+    "Helvetica Neue",
+    "Arial",
+    "DejaVu Sans",
+]
+
 FONT_CFG = {
     "font.family": "sans-serif",
-    "font.sans-serif": [
-        "Ubuntu",
-        "-apple-system",
-        "BlinkMacSystemFont",
-        "Segoe UI",
-        "Roboto",
-        "Oxygen",
-        "Cantarell",
-        "Helvetica Neue",
-        "Arial",
-    ],
+    "font.sans-serif": REPORT_FONT_STACK,
 }
 
 
@@ -109,6 +110,7 @@ def make_global_metrics_table(
 
     return (
         GT(df)
+        .opt_table_font(font=REPORT_FONT_STACK)
         .tab_header(
             title=md(f"**Multi-label Classification<br>of {safe_target_name}**"),
             subtitle=md(f"*Performance metrics<br>for fine-tuned {safe_model_name}*"),
@@ -183,6 +185,7 @@ def make_label_metrics_table(
 
     return (
         GT(df)
+        .opt_table_font(font=REPORT_FONT_STACK)
         .tab_header(
             title=md(f"**Multi-label Classification of {safe_target_name}**"),
             subtitle=md(f"*Performance metrics for fine-tuned {safe_model_name}*"),
@@ -272,6 +275,7 @@ def make_hyperparameters_table(
 
     return (
         GT(df)
+        .opt_table_font(font=REPORT_FONT_STACK)
         .tab_header(
             title=md(f"**Multi-label Classification<br>of {safe_target_name}**"),
             subtitle=md(f"*Hyperparameters<br>for fine-tuned {safe_model_name}*"),
