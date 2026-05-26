@@ -7,9 +7,9 @@ from typing import Final, Literal
 import datasets
 import huggingface_hub
 import optuna
-import transformers
 from transformers import Trainer
 from transformers.trainer_callback import PrinterCallback, ProgressCallback
+from transformers.utils import logging as transformers_logging
 
 PROGRESS_LOGGER_NAME: Final[str] = "tlmtc.progress"
 
@@ -58,8 +58,8 @@ def suppress_trainer_console_callbacks(
 
 def _apply_third_party_suppression() -> None:
     """Suppress routine console output from third-party ML libraries."""
-    transformers.logging.set_verbosity_error()
-    transformers.logging.disable_progress_bar()
+    transformers_logging.set_verbosity_error()
+    transformers_logging.disable_progress_bar()
 
     datasets.logging.set_verbosity_error()
     datasets.disable_progress_bars()
