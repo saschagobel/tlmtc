@@ -54,8 +54,8 @@ DEFAULT_OPTUNA_SPACE_BASE = {
 }
 
 DEFAULT_OPTUNA_SPACE_PEFT = {
-    "lr_low": 5e-5,
-    "lr_high": 4e-4,
+    "lr_low": 1e-5,
+    "lr_high": 1e-4,
     "batch_sizes": [8, 16, 32],
     "wd_low": 0.0,
     "wd_high": 0.01,

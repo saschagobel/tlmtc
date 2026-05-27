@@ -166,7 +166,7 @@ def train_tlmtc(
 
             {
                 "lr_low": 1e-5,
-                "lr_high": 8e-5,
+                "lr_high": 1e-4,
                 "batch_sizes": [8, 16, 32],
                 "wd_low": 0.0,
                 "wd_high": 0.1,
