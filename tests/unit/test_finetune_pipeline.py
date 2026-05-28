@@ -409,6 +409,7 @@ class TestTuneHyperparameters:
 
         assert callable(hp_search_kwargs["compute_objective"])
         assert hp_search_kwargs["load_if_exists"] is True
+        assert hp_search_kwargs["catch"] == (ValueError,)
 
     def test_instantiates_trainer_with_expected_arguments(
         self,
