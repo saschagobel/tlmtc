@@ -61,6 +61,13 @@ def _apply_third_party_suppression() -> None:
     transformers_logging.set_verbosity_error()
     transformers_logging.disable_progress_bar()
 
+    # Suppress benign Transformers checkpoint-ordering fallback noise on filesystems
+    # where checkpoint mtimes are not reliable
+    transformers_logger = logging.getLogger("transformers.trainer_utils")
+    transformers_logger.addFilter(
+        lambda record: "mtime may not be reliable on this filesystem" not in record.getMessage()
+    )
+
     datasets.logging.set_verbosity_error()
     datasets.disable_progress_bars()
 
