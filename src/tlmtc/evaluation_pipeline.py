@@ -121,7 +121,8 @@ class EvaluationPipeline:
                 study_name=f"{self.model.target_name.replace(' ', '_')}_optuna_study",
                 storage=f"sqlite:///{self.paths.optuna_trials_path.as_posix()}",
             )
-            self.hp_objective_values = optuna_study.trials_dataframe(attrs=("number", "value"))[["number", "value"]]
+            objective_values = optuna_study.trials_dataframe(attrs=("number", "value"))[["number", "value"]]
+            self.hp_objective_values = objective_values.dropna(subset=["value"])
 
             if self.hp_objective_values.empty:
                 raise RuntimeError("Optuna study does not contain any completed trials with objective values.")

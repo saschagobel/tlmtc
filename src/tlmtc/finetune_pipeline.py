@@ -232,6 +232,7 @@ class FinetunePipeline:
                 storage=study_storage,
                 compute_objective=compute_objective,
                 load_if_exists=True,
+                catch=(ValueError,),
             )
         if isinstance(best_run, list):
             raise RuntimeError("Expected a single best run from single-objective HPO, but received a list.")
