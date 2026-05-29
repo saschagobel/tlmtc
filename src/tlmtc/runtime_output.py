@@ -106,8 +106,10 @@ def _configure_progress_logger(
     _PROGRESS_LOGGER.propagate = False
     _PROGRESS_LOGGER.disabled = verbosity == "quiet" or not is_main_process
 
-    if verbosity == "progress" and is_main_process and not any(
-        getattr(handler, handler_marker, False) for handler in _PROGRESS_LOGGER.handlers
+    if (
+        verbosity == "progress"
+        and is_main_process
+        and not any(getattr(handler, handler_marker, False) for handler in _PROGRESS_LOGGER.handlers)
     ):
         handler = logging.StreamHandler(sys.stderr)
         handler.setLevel(logging.INFO)

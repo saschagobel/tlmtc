@@ -156,6 +156,7 @@ def configure_runtime_output_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setattr(api_mod, "configure_runtime_output", mock)
     return mock
 
+
 @pytest.fixture(autouse=True)
 def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Mock distributed runtime context for API orchestration tests."""
@@ -651,6 +652,7 @@ class TestTrainTlmtc:
 
         configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
         distributed_context_mock.warn_if_multi_gpu_without_launcher.assert_called_once_with(use_cpu=False)
+
 
 class TestPredictTlmtc:
     """Tests for the public prediction entrypoint."""
