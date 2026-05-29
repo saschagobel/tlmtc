@@ -40,7 +40,7 @@ def test_configure_runtime_output_applies_suppression_and_configures_logger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Ensure runtime output configuration delegates to suppression and progress setup."""
-    calls: list[tuple[str, str | None]] = []
+    calls: list[object] = []
 
     monkeypatch.setattr(
         runtime_output,
@@ -50,14 +50,14 @@ def test_configure_runtime_output_applies_suppression_and_configures_logger(
     monkeypatch.setattr(
         runtime_output,
         "_configure_progress_logger",
-        lambda verbosity: calls.append(("logger", verbosity)),
+        lambda verbosity, *, is_main_process=True: calls.append(("logger", verbosity, is_main_process)),
     )
 
     runtime_output.configure_runtime_output("quiet")
 
     assert calls == [
         ("suppression", None),
-        ("logger", "quiet"),
+        ("logger", "quiet", True),
     ]
 
 
@@ -117,19 +117,25 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
 
 
 @pytest.mark.parametrize(
-    ("verbosity", "expected_stderr"),
+    ("verbosity", "is_main_process", "expected_stderr"),
     [
-        ("progress", "tlmtc: Preparing data\n"),
-        ("quiet", ""),
+        ("progress", True, "tlmtc: Preparing data\n"),
+        ("progress", False, ""),
+        ("quiet", True, ""),
+        ("quiet", False, ""),
     ],
 )
 def test_configure_progress_logger_controls_progress_emission(
     verbosity: str,
+    is_main_process: bool,
     expected_stderr: str,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """Ensure runtime verbosity controls package-owned progress messages."""
-    runtime_output._configure_progress_logger(verbosity)  # type: ignore[arg-type]
+    runtime_output._configure_progress_logger(  # type: ignore[arg-type]
+        verbosity,
+        is_main_process=is_main_process,
+    )
 
     runtime_output.emit_progress("Preparing data")
 
