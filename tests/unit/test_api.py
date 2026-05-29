@@ -156,6 +156,18 @@ def configure_runtime_output_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     monkeypatch.setattr(api_mod, "configure_runtime_output", mock)
     return mock
 
+@pytest.fixture(autouse=True)
+def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
+    """Mock distributed runtime context for API orchestration tests."""
+    context = MagicMock()
+    context.is_main_process = True
+
+    distributed_context_cls = MagicMock()
+    distributed_context_cls.create.return_value = context
+
+    monkeypatch.setattr(api_mod, "DistributedContext", distributed_context_cls)
+    return context
+
 
 def _write_yaml(path: Path, content: str) -> None:
     """Write dedented YAML test config."""
@@ -626,6 +638,7 @@ class TestTrainTlmtc:
         tmp_path: Path,
         raw_csv: Path,
         configure_runtime_output_mock: MagicMock,
+        distributed_context_mock: MagicMock,
     ) -> None:
         _mock_successful_pipelines(monkeypatch)
 
@@ -636,8 +649,8 @@ class TestTrainTlmtc:
             verbosity="quiet",
         )
 
-        configure_runtime_output_mock.assert_called_once_with("quiet")
-
+        configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
+        distributed_context_mock.warn_if_multi_gpu_without_launcher.assert_called_once_with(use_cpu=False)
 
 class TestPredictTlmtc:
     """Tests for the public prediction entrypoint."""
@@ -872,4 +885,4 @@ class TestPredictTlmtc:
             verbosity="quiet",
         )
 
-        configure_runtime_output_mock.assert_called_once_with("quiet")
+        configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
