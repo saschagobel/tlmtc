@@ -6,6 +6,7 @@ from typing import Any
 
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.data_preparation import create_prediction_dataset, read_prediction_csv, tokenize_prediction_dataset
+from tlmtc.distributed import DistributedContext
 from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
 from tlmtc.meta import TrainRunMeta, read_run_meta, write_run_meta
@@ -247,7 +248,13 @@ def train_tlmtc(
         },
     )
 
-    configure_runtime_output(settings.runtime.verbosity)
+    distributed = DistributedContext.create(use_cpu=settings.hardware.use_cpu)
+    configure_runtime_output(
+        settings.runtime.verbosity,
+        is_main_process=distributed.is_main_process,
+    )
+    distributed.warn_if_multi_gpu_without_launcher(use_cpu=settings.hardware.use_cpu)
+
     emit_progress("Starting training run")
 
     paths = resolve_paths(
@@ -376,7 +383,12 @@ def predict_tlmtc(
         },
     )
 
-    configure_runtime_output(settings.runtime.verbosity)
+    distributed = DistributedContext.create(use_cpu=settings.hardware.use_cpu)
+    configure_runtime_output(
+        settings.runtime.verbosity,
+        is_main_process=distributed.is_main_process,
+    )
+
     emit_progress("Starting prediction run")
 
     paths = resolve_prediction_paths(

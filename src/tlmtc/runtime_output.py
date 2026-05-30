@@ -18,14 +18,20 @@ _PROGRESS_LOGGER = logging.getLogger(PROGRESS_LOGGER_NAME)
 
 def configure_runtime_output(
     verbosity: Literal["progress", "quiet"],
+    *,
+    is_main_process: bool = True,
 ) -> None:
     """Configure runtime console behavior for a tlmtc workflow.
 
     Args:
         verbosity: Runtime output mode.
+        is_main_process: Whether package-owned progress output should be emitted.
     """
     _apply_third_party_suppression()
-    _configure_progress_logger(verbosity=verbosity)
+    _configure_progress_logger(
+        verbosity=verbosity,
+        is_main_process=is_main_process,
+    )
 
 
 def emit_progress(
@@ -79,11 +85,14 @@ def _apply_third_party_suppression() -> None:
 
 def _configure_progress_logger(
     verbosity: Literal["progress", "quiet"],
+    *,
+    is_main_process: bool = True,
 ) -> None:
     """Configure the package-owned progress logger idempotently.
 
     Args:
         verbosity: Runtime output mode.
+        is_main_process: Whether progress output should be enabled for this process.
 
     Raises:
         ValueError: If an unsupported verbosity value is passed.
@@ -95,10 +104,12 @@ def _configure_progress_logger(
 
     _PROGRESS_LOGGER.setLevel(logging.INFO)
     _PROGRESS_LOGGER.propagate = False
-    _PROGRESS_LOGGER.disabled = verbosity == "quiet"
+    _PROGRESS_LOGGER.disabled = verbosity == "quiet" or not is_main_process
 
-    if verbosity == "progress" and not any(
-        getattr(handler, handler_marker, False) for handler in _PROGRESS_LOGGER.handlers
+    if (
+        verbosity == "progress"
+        and is_main_process
+        and not any(getattr(handler, handler_marker, False) for handler in _PROGRESS_LOGGER.handlers)
     ):
         handler = logging.StreamHandler(sys.stderr)
         handler.setLevel(logging.INFO)
