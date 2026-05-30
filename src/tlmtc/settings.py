@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from typing import Any, Final, Literal, Self
-from uuid import uuid4
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
@@ -396,7 +395,7 @@ class RunSettings(ResolvableSettings):
     raw_csv: Path
     raw_test_csv: Path | None = None
     work_dir: Path = Field(default_factory=Path.cwd)
-    run_id: str = Field(default_factory=lambda: uuid4().hex)
+    run_id: str | None = None
 
     model: ModelSettings = Field(default_factory=ModelSettings)
     split: SplitSettings = Field(default_factory=SplitSettings)
