@@ -257,13 +257,14 @@ def train_tlmtc(
 
     resolved_run_id = distributed.resolve_run_id(settings.run_id)
 
-    with distributed.main_process_first():
-        paths = resolve_paths(
-            raw_csv=settings.raw_csv,
-            raw_test_csv=settings.raw_test_csv,
-            work_dir=settings.work_dir,
-            run_id=resolved_run_id,
-        ).ensure_dirs()
+    paths = resolve_paths(
+        raw_csv=settings.raw_csv,
+        raw_test_csv=settings.raw_test_csv,
+        work_dir=settings.work_dir,
+        run_id=resolved_run_id,
+    )
+
+    distributed.run_on_main(paths.ensure_dirs, sync=True)
 
     emit_progress("Starting training run")
 
@@ -306,11 +307,12 @@ def train_tlmtc(
         input_mode=data_pipeline.input_mode,
     )
     evaluation_pipeline.run_evaluation()
-    evaluation_pipeline.save_metrics()
-    evaluation_pipeline.render_tables()
-    evaluation_pipeline.render_figures()
+    distributed.run_on_main(evaluation_pipeline.save_metrics)
+    distributed.run_on_main(evaluation_pipeline.render_tables)
+    distributed.run_on_main(evaluation_pipeline.render_figures)
 
-    write_run_meta(
+    distributed.run_on_main(
+        write_run_meta,
         meta=TrainRunMeta(
             run_id=resolved_run_id,
             target_name=settings.model.target_name,
@@ -399,7 +401,9 @@ def predict_tlmtc(
         input_csv=settings.prediction_csv,
         work_dir=settings.work_dir,
         run_id=settings.run_id,
-    ).ensure_dirs()
+    )
+
+    distributed.run_on_main(paths.ensure_dirs, sync=True)
 
     emit_progress("Reading training metadata")
 
@@ -464,8 +468,8 @@ def predict_tlmtc(
     )
 
     emit_progress("Writing prediction artifacts")
-    probability_df.to_csv(paths.probabilities_path, index=False)
-    prediction_df.to_csv(paths.predictions_path, index=False)
+    distributed.run_on_main(probability_df.to_csv, paths.probabilities_path, index=False)
+    distributed.run_on_main(prediction_df.to_csv, paths.predictions_path, index=False)
 
     emit_progress("Prediction run complete")
     return PredictResult(paths=paths)
