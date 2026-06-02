@@ -162,6 +162,7 @@ def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Mock distributed runtime context for API orchestration tests."""
     context = MagicMock()
     context.is_main_process = True
+    context.resolve_run_id.side_effect = lambda run_id: run_id or "generated_run"
 
     distributed_context_cls = MagicMock()
     distributed_context_cls.create.return_value = context
@@ -470,6 +471,28 @@ class TestTrainTlmtc:
 
         _assert_training_pipeline_call_order(pipelines)
         _assert_default_train_meta(result.paths.train_run_meta_path)
+
+    def test_uses_distributed_resolved_run_id_when_run_id_is_omitted(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        """train_tlmtc should use the distributed-resolved run id for artifacts."""
+        _mock_successful_pipelines(monkeypatch)
+        distributed_context_mock.resolve_run_id.side_effect = lambda run_id: "synced_run"
+
+        result = api_mod.train_tlmtc(
+            raw_csv,
+            work_dir=tmp_path,
+        )
+
+        distributed_context_mock.resolve_run_id.assert_called_once_with(None)
+        assert result.paths.run_id == "synced_run"
+
+        run_meta = read_run_meta(result.paths.train_run_meta_path)
+        assert run_meta.run_id == "synced_run"
 
     def test_preserves_explicit_raw_test_path(
         self,
