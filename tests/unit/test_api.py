@@ -164,6 +164,11 @@ def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     context.is_main_process = True
     context.resolve_run_id.side_effect = lambda run_id: run_id or "generated_run"
 
+    def run_on_main(fn, *args, sync: bool = False, **kwargs):
+        return fn(*args, **kwargs) if context.is_main_process else None
+
+    context.run_on_main.side_effect = run_on_main
+
     distributed_context_cls = MagicMock()
     distributed_context_cls.create.return_value = context
 
@@ -676,6 +681,51 @@ class TestTrainTlmtc:
         configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
         distributed_context_mock.warn_if_multi_gpu_without_launcher.assert_called_once_with(use_cpu=False)
 
+    def test_guards_training_artifact_writes_on_main(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        """train_tlmtc should guard tlmtc-owned artifact writes but keep compute all-rank."""
+        pipelines = _mock_successful_pipelines(monkeypatch)
+
+        api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
+
+        guarded_fns = [args[0] for args, _ in distributed_context_mock.run_on_main.call_args_list]
+
+        assert pipelines.finetune_pipeline.tune_hyperparameters not in guarded_fns
+        assert pipelines.evaluation_pipeline.run_evaluation not in guarded_fns
+
+        assert pipelines.evaluation_pipeline.save_metrics in guarded_fns
+        assert pipelines.evaluation_pipeline.render_tables in guarded_fns
+        assert pipelines.evaluation_pipeline.render_figures in guarded_fns
+        assert api_mod.write_run_meta in guarded_fns
+
+    def test_non_main_rank_skips_training_artifact_writes_but_runs_compute(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        """Non-main ranks should skip tlmtc-owned writes but still run all-rank stages."""
+        distributed_context_mock.is_main_process = False
+        pipelines = _mock_successful_pipelines(monkeypatch)
+
+        result = api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
+
+        pipelines.finetune_pipeline.tune_hyperparameters.assert_called_once()
+        pipelines.finetune_pipeline.fine_tune_pretrained.assert_called_once()
+        pipelines.finetune_pipeline.tune_thresholds.assert_called_once()
+        pipelines.evaluation_pipeline.run_evaluation.assert_called_once()
+
+        pipelines.evaluation_pipeline.save_metrics.assert_not_called()
+        pipelines.evaluation_pipeline.render_tables.assert_not_called()
+        pipelines.evaluation_pipeline.render_figures.assert_not_called()
+        assert not result.paths.train_run_meta_path.exists()
+
 
 class TestPredictTlmtc:
     """Tests for the public prediction entrypoint."""
@@ -911,3 +961,40 @@ class TestPredictTlmtc:
         )
 
         configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
+
+    def test_guards_prediction_artifact_writes_on_main(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        """predict_tlmtc should guard output directory creation and final CSV writes."""
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="run_123",
+        )
+        ops = _mock_prediction_operations(monkeypatch)
+
+        result = api_mod.predict_tlmtc(
+            prediction_csv,
+            work_dir=tmp_path,
+            run_id="run_123",
+        )
+
+        guarded_fns = [args[0] for args, _ in distributed_context_mock.run_on_main.call_args_list]
+
+        assert result.paths.ensure_dirs in guarded_fns
+        assert ops.predict_probabilities not in guarded_fns
+
+        to_csv_calls = [
+            (args, kwargs)
+            for args, kwargs in distributed_context_mock.run_on_main.call_args_list
+            if getattr(args[0], "__name__", None) == "to_csv"
+        ]
+
+        assert len(to_csv_calls) == 2
+        assert to_csv_calls[0][0][1] == result.paths.probabilities_path
+        assert to_csv_calls[0][1] == {"index": False}
+        assert to_csv_calls[1][0][1] == result.paths.predictions_path
+        assert to_csv_calls[1][1] == {"index": False}
