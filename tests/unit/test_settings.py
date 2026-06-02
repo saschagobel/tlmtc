@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
-from uuid import UUID
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -486,8 +485,7 @@ class TestRunSettings:
         assert settings.raw_csv == Path("train.csv")
         assert settings.raw_test_csv is None
         assert settings.work_dir == Path.cwd()
-        assert isinstance(settings.run_id, str)
-        assert settings.run_id
+        assert settings.run_id is None
 
         assert isinstance(settings.model, ModelSettings)
         assert isinstance(settings.split, SplitSettings)
@@ -518,13 +516,6 @@ class TestRunSettings:
         settings = RunSettings(raw_csv="train.csv")
 
         assert settings.work_dir == tmp_path
-
-    def test_run_settings_generates_run_id_by_default(self) -> None:
-        """RunSettings should generate a non-empty run identifier by default."""
-        settings = RunSettings(raw_csv="train.csv")
-
-        UUID(settings.run_id)
-        assert len(settings.run_id) == 32
 
     def test_run_settings_accepts_explicit_work_dir_and_run_id(self, tmp_path: Path) -> None:
         """RunSettings should preserve explicit work_dir and run_id values."""

@@ -255,21 +255,25 @@ def train_tlmtc(
     )
     distributed.warn_if_multi_gpu_without_launcher(use_cpu=settings.hardware.use_cpu)
 
-    emit_progress("Starting training run")
+    resolved_run_id = distributed.resolve_run_id(settings.run_id)
 
-    paths = resolve_paths(
-        raw_csv=settings.raw_csv,
-        raw_test_csv=settings.raw_test_csv,
-        work_dir=settings.work_dir,
-        run_id=settings.run_id,
-    ).ensure_dirs()
+    with distributed.main_process_first():
+        paths = resolve_paths(
+            raw_csv=settings.raw_csv,
+            raw_test_csv=settings.raw_test_csv,
+            work_dir=settings.work_dir,
+            run_id=resolved_run_id,
+        ).ensure_dirs()
+
+    emit_progress("Starting training run")
 
     data_pipeline = DataPipeline(
         paths=paths,
         split=settings.split,
         model=settings.model,
     )
-    data_pipeline.split_data()
+    with distributed.main_process_first():
+        data_pipeline.split_data()
     data_pipeline.get_multi_hot_vectors()
     data_pipeline.create_hf_dataset()
     data_pipeline.tokenize_data()
@@ -308,7 +312,7 @@ def train_tlmtc(
 
     write_run_meta(
         meta=TrainRunMeta(
-            run_id=settings.run_id,
+            run_id=resolved_run_id,
             target_name=settings.model.target_name,
             checkpoint=settings.model.checkpoint,
             proxy_checkpoint=settings.model.proxy_checkpoint,
