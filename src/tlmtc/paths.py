@@ -123,7 +123,7 @@ class RunPaths:
         """
         for directory in (
             self.data_dir,
-            self.logs_dir,
+            self.hpo_checkpoints_dir,
             self.model_dir,
             self.eval_dir,
         ):
