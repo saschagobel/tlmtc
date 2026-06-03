@@ -12,6 +12,7 @@ DEFAULT_TRAIN_OUTPUTS_DIRNAME: Final[str] = "train_outputs"
 DEFAULT_PREDICTION_OUTPUTS_DIRNAME: Final[str] = "prediction_outputs"
 DEFAULT_DATA_DIRNAME: Final[str] = "data"
 DEFAULT_LOGS_DIRNAME: Final[str] = "logs"
+DEFAULT_HPO_CHECKPOINTS_DIRNAME: Final[str] = "hpo_checkpoints"
 DEFAULT_MODEL_DIRNAME: Final[str] = "model"
 DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 TRAIN_RUN_META_FILENAME: Final[str] = "train_run_meta.json"
@@ -50,6 +51,7 @@ class RunPaths:
                     train_run_meta.json
                     data/
                     logs/
+                        hpo_checkpoints/
                     model/
                     evaluation/
 
@@ -62,6 +64,7 @@ class RunPaths:
         raw_test_data_path: Resolved path to the optional raw test CSV.
         data_dir: Directory for prepared dataset split artifacts.
         logs_dir: Directory for training logs and HPO artifacts.
+        hpo_checkpoints_dir: Directory for Trainer checkpoints created during HPO.
         model_dir: Directory for saved model artifacts.
         eval_dir: Directory for evaluation metrics, tables, and figures.
         train_data_path: Path to the prepared training split.
@@ -90,6 +93,7 @@ class RunPaths:
 
     data_dir: Path
     logs_dir: Path
+    hpo_checkpoints_dir: Path
     model_dir: Path
     eval_dir: Path
 
@@ -136,6 +140,7 @@ def resolve_paths(
     outputs_dirname: str = DEFAULT_TRAIN_OUTPUTS_DIRNAME,
     data_dirname: str = DEFAULT_DATA_DIRNAME,
     logs_dirname: str = DEFAULT_LOGS_DIRNAME,
+    hpo_checkpoints_dirname: str = DEFAULT_HPO_CHECKPOINTS_DIRNAME,
     model_dirname: str = DEFAULT_MODEL_DIRNAME,
     eval_dirname: str = DEFAULT_EVAL_DIRNAME,
 ) -> RunPaths:
@@ -149,6 +154,7 @@ def resolve_paths(
         outputs_dirname: Name of the outputs root directory under `work_dir`.
         data_dirname: Name of the prepared-data directory under `run_dir`.
         logs_dirname: Name of the logs directory under `run_dir`.
+        hpo_checkpoints_dirname: Name of the HPO checkpoint directory under `logs_dir`.
         model_dirname: Name of the model directory under `run_dir`.
         eval_dirname: Name of the evaluation directory under `run_dir`.
 
@@ -165,6 +171,7 @@ def resolve_paths(
     run_dir = resolved_work_dir / outputs_dirname / resolved_run_id
     data_dir = run_dir / data_dirname
     logs_dir = run_dir / logs_dirname
+    hpo_checkpoints_dir = logs_dir / hpo_checkpoints_dirname
     model_dir = run_dir / model_dirname
     eval_dir = run_dir / eval_dirname
 
@@ -177,6 +184,7 @@ def resolve_paths(
         raw_test_data_path=raw_test_data_path,
         data_dir=data_dir,
         logs_dir=logs_dir,
+        hpo_checkpoints_dir=hpo_checkpoints_dir,
         model_dir=model_dir,
         eval_dir=eval_dir,
         train_data_path=data_dir / "train.parquet",
