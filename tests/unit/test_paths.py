@@ -10,6 +10,7 @@ from tlmtc.meta import TrainRunMeta, write_run_meta
 from tlmtc.paths import (
     DEFAULT_DATA_DIRNAME,
     DEFAULT_EVAL_DIRNAME,
+    DEFAULT_HPO_CHECKPOINTS_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
     DEFAULT_MODEL_DIRNAME,
     DEFAULT_PREDICTION_OUTPUTS_DIRNAME,
@@ -135,6 +136,7 @@ class TestResolvePaths:
         assert paths.data_dir == expected_run_dir / DEFAULT_DATA_DIRNAME
         assert paths.eval_dir == expected_run_dir / DEFAULT_EVAL_DIRNAME
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
+        assert paths.hpo_checkpoints_dir == paths.logs_dir / DEFAULT_HPO_CHECKPOINTS_DIRNAME
         assert paths.model_dir == expected_run_dir / DEFAULT_MODEL_DIRNAME
 
         assert paths.train_data_path == paths.data_dir / "train.parquet"
@@ -250,6 +252,7 @@ class TestRunPaths:
         assert paths.data_dir.is_dir()
         assert paths.eval_dir.is_dir()
         assert paths.logs_dir.is_dir()
+        assert paths.hpo_checkpoints_dir.is_dir()
         assert paths.model_dir.is_dir()
 
     def test_ensure_dirs_does_not_create_raw_input_parent_dirs(self, tmp_path: Path) -> None:
