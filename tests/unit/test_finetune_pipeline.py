@@ -446,6 +446,10 @@ class TestTuneHyperparameters:
         assert isinstance(model_instance, torch.nn.Module)
         assert getattr(model_instance, "num_labels") == 2
 
+        training_args = kwargs["args"]
+
+        assert training_args.output_dir == str(pipeline.paths.hpo_checkpoints_dir)
+
     @pytest.mark.parametrize("scale_learning_rate", [False, True])
     def test_updates_runtime_training_hyperparameters_from_best_run(
         self,
@@ -572,6 +576,39 @@ class TestTuneHyperparameters:
         )
 
         emit_progress_mock.assert_any_call("HPO trial 4/4 started")
+
+    def test_uses_broadcast_hyperparameters_when_hpo_returns_none(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+    ):
+        """Ensure non-main DDP ranks apply rank-zero best hyperparameters after broadcast."""
+        pipeline = pipeline_with_tokenized_hpo
+
+        fake_trainer.hyperparameter_search.return_value = None
+        fake_trainer.hyperparameter_search.side_effect = None
+
+        broadcast_value = MagicMock(
+            return_value={
+                "learning_rate": 2e-4,
+                "lr_scheduler_type": "cosine",
+                "per_device_train_batch_size": 16,
+                "weight_decay": 0.02,
+                "num_train_epochs": 3,
+            }
+        )
+
+        pipeline.tune_hyperparameters(
+            trainer=lambda **_: fake_trainer,
+            broadcast_value=broadcast_value,
+        )
+
+        broadcast_value.assert_called_once_with(None)
+        assert pipeline.runtime_training.learning_rate == 2e-4
+        assert pipeline.runtime_training.lr_scheduler == "cosine"
+        assert pipeline.runtime_training.batch_size == 16
+        assert pipeline.runtime_training.weight_decay == 0.02
+        assert pipeline.runtime_training.train_epochs == 3
 
 
 class TestFineTunePretrained:

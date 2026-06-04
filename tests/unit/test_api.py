@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import dedent
 from typing import Literal
-from unittest.mock import MagicMock, call
+from unittest.mock import ANY, MagicMock, call
 
 import numpy as np
 import pandas as pd
@@ -341,7 +341,7 @@ def _assert_training_pipeline_call_order(pipelines: MockedPipelines) -> None:
         call.tokenize_data(),
     ]
     assert pipelines.finetune_pipeline.method_calls == [
-        call.tune_hyperparameters(),
+        call.tune_hyperparameters(broadcast_value=ANY),
         call.load_pretrained(),
         call.fine_tune_pretrained(),
         call.tune_thresholds(),
