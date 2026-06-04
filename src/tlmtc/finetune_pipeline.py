@@ -1,6 +1,6 @@
 """Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
-from tempfile import TemporaryDirectory
+from collections.abc import Callable
 from typing import Any, Protocol, Self
 
 import numpy as np
@@ -145,11 +145,14 @@ class FinetunePipeline:
     def tune_hyperparameters(
         self,
         trainer: TrainerFactory = WeightedTrainer,
+        broadcast_value: Callable[[dict[str, Any] | None], dict[str, Any]] | None = None,
     ) -> Self:
         """Run Optuna hyperparameter tuning on the proxy checkpoint.
 
         Args:
             trainer: Trainer-compatible factory used for hyperparameter search.
+            broadcast_value: Optional callable used to broadcast rank-zero best hyperparameters
+                    to all ranks after distributed Trainer HPO.
 
         Returns:
             Updated pipeline instance.
@@ -186,70 +189,74 @@ class FinetunePipeline:
 
         self.paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
-        with TemporaryDirectory() as output_dir:
-            model_init = make_model_init(
-                checkpoint=self.model.proxy_checkpoint,
-                num_labels=self.num_labels,
-                wrap_peft=self.workflow.wrap_peft,
-                lora_r=self.peft.lora_r,
-                lora_alpha=self.peft.lora_alpha,
-                lora_dropout=self.peft.lora_dropout,
-                lora_bias=self.peft.lora_bias,
+        model_init = make_model_init(
+            checkpoint=self.model.proxy_checkpoint,
+            num_labels=self.num_labels,
+            wrap_peft=self.workflow.wrap_peft,
+            lora_r=self.peft.lora_r,
+            lora_alpha=self.peft.lora_alpha,
+            lora_dropout=self.peft.lora_dropout,
+            lora_bias=self.peft.lora_bias,
+        )
+        compute_objective = make_compute_objective(best_model_metric=self.training.best_model_metric)
+        training_args = get_training_args(
+            logging_path=self.paths.hpo_checkpoints_dir,
+            batch_size=self.runtime_training.batch_size,
+            epochs=self.runtime_training.train_epochs,
+            weight_decay=self.runtime_training.weight_decay,
+            learning_rate=self.runtime_training.learning_rate,
+            lr_scheduler=self.runtime_training.lr_scheduler,
+            best_model_metric=self.training.best_model_metric,
+            use_cpu=self.hardware.use_cpu,
+        )
+        trainer_instance = suppress_trainer_console_callbacks(
+            trainer(
+                model=None,
+                args=training_args,
+                train_dataset=self.tokenized_dataset["train"],
+                eval_dataset=self.tokenized_dataset["validation"],
+                compute_metrics=compute_metrics,
+                class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
+                model_init=model_init,
             )
-            compute_objective = make_compute_objective(best_model_metric=self.training.best_model_metric)
-            training_args = get_training_args(
-                logging_path=output_dir,
-                batch_size=self.runtime_training.batch_size,
-                epochs=self.runtime_training.train_epochs,
-                weight_decay=self.runtime_training.weight_decay,
-                learning_rate=self.runtime_training.learning_rate,
-                lr_scheduler=self.runtime_training.lr_scheduler,
-                best_model_metric=self.training.best_model_metric,
-                use_cpu=self.hardware.use_cpu,
-            )
-            trainer_instance = suppress_trainer_console_callbacks(
-                trainer(
-                    model=None,
-                    args=training_args,
-                    train_dataset=self.tokenized_dataset["train"],
-                    eval_dataset=self.tokenized_dataset["validation"],
-                    compute_metrics=compute_metrics,
-                    class_weights=get_class_weights(train_data_path=self.paths.train_data_path),
-                    model_init=model_init,
-                )
-            )
+        )
 
-            emit_progress("Loading pretrained proxy transformer model")
+        emit_progress("Loading pretrained proxy transformer model")
 
-            emit_progress("Running hyperparameter optimization")
+        emit_progress("Running hyperparameter optimization")
 
-            best_run = trainer_instance.hyperparameter_search(
-                direction="maximize",
-                backend="optuna",
-                hp_space=hp_space_with_progress,
-                n_trials=self.hpo.tuning_trials,
-                study_name=study_name,
-                storage=study_storage,
-                compute_objective=compute_objective,
-                load_if_exists=True,
-                catch=(ValueError,),
-            )
+        best_run = trainer_instance.hyperparameter_search(
+            direction="maximize",
+            backend="optuna",
+            hp_space=hp_space_with_progress,
+            n_trials=self.hpo.tuning_trials,
+            study_name=study_name,
+            storage=study_storage,
+            compute_objective=compute_objective,
+            load_if_exists=True,
+            catch=(ValueError,),
+        )
         if isinstance(best_run, list):
             raise RuntimeError("Expected a single best run from single-objective HPO, but received a list.")
 
+        best_hyperparameters = best_run.hyperparameters if best_run is not None else None
+
+        if broadcast_value is not None:
+            best_hyperparameters = broadcast_value(best_hyperparameters)
+
         if self.workflow.scale_learning_rate:
             self.runtime_training.learning_rate = get_scaled_lr(
-                learning_rate=best_run.hyperparameters["learning_rate"],
+                learning_rate=best_hyperparameters["learning_rate"],
                 checkpoint=self.model.checkpoint,
                 proxy_checkpoint=self.model.proxy_checkpoint,
                 peft=self.workflow.wrap_peft,
             )
         else:
-            self.runtime_training.learning_rate = best_run.hyperparameters["learning_rate"]
-        self.runtime_training.lr_scheduler = best_run.hyperparameters["lr_scheduler_type"]
-        self.runtime_training.batch_size = best_run.hyperparameters["per_device_train_batch_size"]
-        self.runtime_training.weight_decay = best_run.hyperparameters["weight_decay"]
-        self.runtime_training.train_epochs = best_run.hyperparameters["num_train_epochs"]
+            self.runtime_training.learning_rate = best_hyperparameters["learning_rate"]
+        self.runtime_training.lr_scheduler = best_hyperparameters["lr_scheduler_type"]
+        self.runtime_training.batch_size = best_hyperparameters["per_device_train_batch_size"]
+        self.runtime_training.weight_decay = best_hyperparameters["weight_decay"]
+        self.runtime_training.train_epochs = best_hyperparameters["num_train_epochs"]
         return self
 
     def fine_tune_pretrained(
