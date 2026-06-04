@@ -290,7 +290,9 @@ def train_tlmtc(
         threshold=settings.threshold,
         hardware=settings.hardware,
     )
-    finetune_pipeline.tune_hyperparameters()
+    finetune_pipeline.tune_hyperparameters(
+        broadcast_value=distributed.broadcast_value,
+    )
     finetune_pipeline.load_pretrained()
     finetune_pipeline.fine_tune_pretrained()
     finetune_pipeline.tune_thresholds()
