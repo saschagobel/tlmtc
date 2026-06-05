@@ -952,12 +952,12 @@ class TestSavePretrained:
         with pytest.raises(RuntimeError, match="Instantiated Trainer after fine-tuning not found"):
             pipeline.save_pretrained()
 
-    def test_delegates_to_model_with_output_path(self, pipeline_factory, dummy_train_parquet):
-        """Ensure save_pretrained delegates to the underlying model with model_dir."""
+    def test_delegates_to_trainer_save_model_with_output_path(self, pipeline_factory, dummy_train_parquet):
+        """Ensure save_pretrained delegates model artifact writing to Trainer."""
         pipeline = pipeline_factory(dummy_train_parquet)
 
-        fake_model = MagicMock()
-        pipeline.updated_trainer = SimpleNamespace(model=fake_model)
+        fake_trainer = MagicMock()
+        pipeline.updated_trainer = fake_trainer
 
         assert pipeline.paths.model_dir.exists()
         assert list(pipeline.paths.model_dir.iterdir()) == []
@@ -965,4 +965,4 @@ class TestSavePretrained:
         result = pipeline.save_pretrained()
 
         assert result is pipeline
-        fake_model.save_pretrained.assert_called_once_with(pipeline.paths.model_dir)
+        fake_trainer.save_model.assert_called_once_with(str(pipeline.paths.model_dir))
