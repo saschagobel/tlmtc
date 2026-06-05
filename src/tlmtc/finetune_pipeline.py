@@ -343,7 +343,7 @@ class FinetunePipeline:
     def save_pretrained(
         self,
     ) -> Self:
-        """Save the fine-tuned model artifacts.
+        """Save the fine-tuned model artifacts through Hugging Face Trainer.
 
         Returns:
             Updated pipeline instance.
@@ -359,5 +359,5 @@ class FinetunePipeline:
 
         emit_progress("Saving model artifacts")
 
-        self.updated_trainer.model.save_pretrained(self.paths.model_dir)  # type: ignore[operator,union-attr]
+        self.updated_trainer.save_model(str(self.paths.model_dir))
         return self
