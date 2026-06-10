@@ -1,5 +1,6 @@
 """Training components for Hugging Face multi-label text classification."""
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Literal, Self
 
@@ -10,7 +11,14 @@ from peft import LoraConfig, PeftMixedModel, PeftModel, TaskType, get_peft_model
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 from sklearn.metrics import f1_score, roc_auc_score
 from torch import Tensor
-from transformers import AutoConfig, EvalPrediction, PreTrainedModel, Trainer, TrainingArguments
+from transformers import (
+    AutoConfig,
+    AutoModelForSequenceClassification,
+    EvalPrediction,
+    PreTrainedModel,
+    Trainer,
+    TrainingArguments,
+)
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
 from tlmtc.data_contracts import LABEL_PREFIX
@@ -176,6 +184,21 @@ def get_class_weights(
     return torch.tensor(pos_weights, dtype=torch.float)
 
 
+def get_num_labels(
+    train_data_path: str | Path,
+) -> int:
+    """Count label columns in a prepared multi-label training split.
+
+    Args:
+        train_data_path: Path to the prepared training split.
+
+    Returns:
+        Number of `label_*` columns.
+    """
+    train_data = pd.read_parquet(train_data_path)
+    return sum(1 for col in train_data.columns if col.startswith(LABEL_PREFIX))
+
+
 def multi_label_metrics(
     predictions: np.ndarray | torch.Tensor,
     labels: np.ndarray | torch.Tensor,
@@ -269,6 +292,58 @@ def wrap_model_with_peft(
         bias=lora_bias,
     )
     return get_peft_model(model, peft_config)
+
+
+def make_model_init(
+    checkpoint: str,
+    num_labels: int,
+    wrap_peft: bool,
+    lora_r: int,
+    lora_alpha: int,
+    lora_dropout: float,
+    lora_bias: Literal["none", "all", "lora_only"],
+) -> Callable[[object | None], PreTrainedModel | PeftModel | PeftMixedModel]:
+    """Create a Trainer-compatible model factory.
+
+    Args:
+        checkpoint: Pretrained model checkpoint identifier.
+        num_labels: Number of labels in the multi-label classification task.
+        wrap_peft: Whether to wrap the model with PEFT/LoRA adapters.
+        lora_r: LoRA rank.
+        lora_alpha: LoRA scaling factor.
+        lora_dropout: LoRA dropout probability.
+        lora_bias: LoRA bias handling mode.
+
+    Returns:
+        Factory accepted by Hugging Face Trainer as `model_init`.
+    """
+
+    def model_init(
+        _: object | None = None,
+    ) -> PreTrainedModel | PeftModel | PeftMixedModel:
+        """Initialize a fresh model.
+
+        The optional positional argument is accepted for Trainer hyperparameter search compatibility.
+        """
+        model = AutoModelForSequenceClassification.from_pretrained(
+            checkpoint,
+            num_labels=num_labels,
+            problem_type="multi_label_classification",
+            trust_remote_code=False,
+        )
+
+        if wrap_peft:
+            return wrap_model_with_peft(
+                model=model,
+                lora_r=lora_r,
+                lora_alpha=lora_alpha,
+                lora_dropout=lora_dropout,
+                lora_bias=lora_bias,
+            )
+
+        return model
+
+    return model_init
 
 
 class WeightedTrainer(Trainer):

@@ -13,8 +13,10 @@ from tlmtc.training import (
     WeightedTrainer,
     compute_metrics,
     get_class_weights,
+    get_num_labels,
     get_scaled_lr,
     infer_modules_to_save,
+    make_model_init,
     multi_label_metrics,
     wrap_model_with_peft,
 )
@@ -32,6 +34,21 @@ def base_test_model():
         num_labels=2,
     )
     return BertForSequenceClassification(config)
+
+
+@pytest.fixture
+def patched_model_loader(base_test_model, monkeypatch):
+    """Monkeypatch AutoModelForSequenceClassification.from_pretrained."""
+
+    def fake_from_pretrained(*_args, **_kwargs):
+        return base_test_model
+
+    monkeypatch.setattr(
+        "tlmtc.training.AutoModelForSequenceClassification.from_pretrained",
+        fake_from_pretrained,
+    )
+
+    return base_test_model
 
 
 class DummyModel(torch.nn.Module):
@@ -62,6 +79,22 @@ class DummyNestedHeadNames(torch.nn.Module):
             }
         )
         self.output = torch.nn.Linear(4, 2)
+
+
+def test_get_num_labels_counts_label_columns_from_train_split(tmp_path):
+    """Ensure get_num_labels counts prepared multi-label target columns."""
+    df = pd.DataFrame(
+        {
+            "text": ["a", "b", "c"],
+            "label_a": [1, 0, 1],
+            "label_b": [0, 1, 1],
+            "metadata": ["x", "y", "z"],
+        }
+    )
+    train_path = tmp_path / "train.parquet"
+    df.to_parquet(train_path, index=False)
+
+    assert get_num_labels(train_path) == 2
 
 
 def test_get_class_weights_computes_bce_pos_weights_from_train_split(tmp_path):
@@ -171,6 +204,32 @@ def test_wrap_peft_includes_inferred_modules_to_save(base_test_model):
     peft_config = wrapped.peft_config["default"]
 
     assert set(inferred_modules).issubset(set(peft_config.modules_to_save))
+
+
+@pytest.mark.parametrize("wrap_peft", [False, True])
+def test_make_sequence_classification_model_init_creates_base_or_peft_wrapped_models(
+    patched_model_loader,
+    wrap_peft,
+):
+    """Ensure model_init loads the base model and conditionally applies PEFT."""
+    model_init = make_model_init(
+        checkpoint="dummy",
+        num_labels=2,
+        wrap_peft=wrap_peft,
+        lora_r=4,
+        lora_alpha=8,
+        lora_dropout=0.1,
+        lora_bias="none",
+    )
+
+    assert callable(model_init)
+
+    model = model_init(object())
+
+    if wrap_peft:
+        assert hasattr(model, "peft_config")
+    else:
+        assert model is patched_model_loader
 
 
 def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path):

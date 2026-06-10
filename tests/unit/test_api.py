@@ -41,7 +41,6 @@ DATA_PIPELINE_METHODS: tuple[str, ...] = (
 )
 
 FINETUNE_PIPELINE_METHODS: tuple[str, ...] = (
-    "load_pretrained",
     "tune_hyperparameters",
     "fine_tune_pretrained",
     "tune_thresholds",
@@ -342,7 +341,6 @@ def _assert_training_pipeline_call_order(pipelines: MockedPipelines) -> None:
     ]
     assert pipelines.finetune_pipeline.method_calls == [
         call.tune_hyperparameters(broadcast_value=ANY),
-        call.load_pretrained(),
         call.fine_tune_pretrained(),
         call.tune_thresholds(),
         call.save_pretrained(),

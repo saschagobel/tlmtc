@@ -1,13 +1,11 @@
 """Optuna integration for Hugging Face hyperparameter tuning."""
 
 import math
-from typing import Any, Callable, Literal
+from typing import Any, Callable
 
 import optuna
-from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
 from tlmtc.settings import OptunaSpaceSettings
-from tlmtc.training import wrap_model_with_peft
 
 
 def optuna_hp_space(
@@ -53,58 +51,6 @@ def optuna_hp_space(
             space.epoch_high,
         ),
     }
-
-
-def make_model_init(
-    checkpoint: str,
-    num_labels: int,
-    wrap_peft: bool,
-    lora_r: int,
-    lora_alpha: int,
-    lora_dropout: float,
-    lora_bias: Literal["none", "all", "lora_only"],
-) -> Callable[[optuna.trial.Trial | None], PreTrainedModel]:
-    """Create a Trainer-compatible model factory for hyperparameter search.
-
-    Args:
-        checkpoint: Pretrained model checkpoint identifier
-        num_labels: Number of labels in the multi-label classification task.
-        wrap_peft: Whether to wrap the model with PEFT/LoRA adapters.
-        lora_r: LoRA rank.
-        lora_alpha: LoRA scaling factor.
-        lora_dropout: LoRA dropout probability.
-        lora_bias: LoRA bias handling mode.
-
-    Returns:
-        model_init: A function that initializes and returns a model instance during each Optuna trial.
-    """
-
-    def model_init(trial: optuna.trial.Trial | None = None) -> PreTrainedModel:
-        """Initialize a fresh sequence-classification model.
-
-        Args:
-            trial: Optional Optuna trial accepted for Trainer compatibility.
-
-        Returns:
-            Pretrained model configured for multi-label classification.
-        """
-        model = AutoModelForSequenceClassification.from_pretrained(
-            checkpoint,
-            num_labels=num_labels,
-            problem_type="multi_label_classification",
-            trust_remote_code=False,
-        )
-        if wrap_peft:
-            model = wrap_model_with_peft(
-                model=model,
-                lora_r=lora_r,
-                lora_alpha=lora_alpha,
-                lora_dropout=lora_dropout,
-                lora_bias=lora_bias,
-            )
-        return model
-
-    return model_init
 
 
 def make_compute_objective(

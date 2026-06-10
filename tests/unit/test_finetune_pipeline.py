@@ -239,99 +239,6 @@ def fake_trainer():
     return trainer
 
 
-class TestLoadPretrained:
-    """Test suite for FinetunePipeline.load_pretrained."""
-
-    @pytest.mark.parametrize("transfer_learning", [True, False])
-    def test_respects_transfer_learning_flag(
-        self,
-        pipeline_factory,
-        dummy_train_parquet,
-        monkeypatch,
-        transfer_learning,
-    ):
-        """Ensure load_pretrained skips or performs model loading based on transfer_learning."""
-        fake_model = SimpleNamespace()
-
-        mock_from_pretrained = MagicMock(return_value=fake_model)
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.AutoModelForSequenceClassification.from_pretrained",
-            mock_from_pretrained,
-        )
-
-        pipeline = pipeline_factory(
-            train_path=dummy_train_parquet,
-            wrap_peft=False,
-            transfer_learning=transfer_learning,
-        )
-
-        pipeline.load_pretrained()
-
-        if transfer_learning:
-            mock_from_pretrained.assert_called_once_with(
-                "dummy",
-                num_labels=2,
-                problem_type="multi_label_classification",
-                trust_remote_code=False,
-            )
-            assert pipeline.pretrained_model is fake_model
-            assert pipeline.num_labels == 2
-        else:
-            mock_from_pretrained.assert_not_called()
-            assert pipeline.pretrained_model is None
-            assert pipeline.num_labels is None
-
-    def test_raises_when_train_file_missing(self, pipeline_factory, tmp_path):
-        """Ensure that load_pretrained raises a RuntimeError when the train file is missing."""
-        missing_path = tmp_path / "train.parquet"
-        assert not missing_path.exists()
-
-        pipeline = pipeline_factory(train_path=missing_path)
-
-        with pytest.raises(RuntimeError, match="Train data not found"):
-            pipeline.load_pretrained()
-
-    @pytest.mark.parametrize("wrap_peft", [True, False])
-    def test_applies_peft_wrapping_conditionally(self, pipeline_factory, dummy_train_parquet, monkeypatch, wrap_peft):
-        """Ensure that load_pretrained applies PEFT wrapping only when wrap_peft is True."""
-        fake_model = SimpleNamespace(name="original")
-        fake_peft_model = SimpleNamespace(name="wrapped")
-
-        mock_from_pretrained = MagicMock(return_value=fake_model)
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.AutoModelForSequenceClassification.from_pretrained",
-            mock_from_pretrained,
-            raising=True,
-        )
-
-        wrap_mock = MagicMock(return_value=fake_peft_model)
-        monkeypatch.setattr("tlmtc.finetune_pipeline.wrap_model_with_peft", wrap_mock, raising=True)
-
-        pipeline = pipeline_factory(train_path=dummy_train_parquet, wrap_peft=wrap_peft)
-
-        pipeline.load_pretrained()
-
-        mock_from_pretrained.assert_called_once_with(
-            "dummy",
-            num_labels=2,
-            problem_type="multi_label_classification",
-            trust_remote_code=False,
-        )
-
-        if wrap_peft:
-            wrap_mock.assert_called_once_with(
-                model=fake_model,
-                lora_r=pipeline.peft.lora_r,
-                lora_alpha=pipeline.peft.lora_alpha,
-                lora_dropout=pipeline.peft.lora_dropout,
-                lora_bias=pipeline.peft.lora_bias,
-            )
-            assert pipeline.pretrained_model is fake_peft_model
-        else:
-            wrap_mock.assert_not_called()
-            assert pipeline.pretrained_model is fake_model
-
-
 @pytest.mark.usefixtures("patch_hf_hyperparameter_search", "patch_model_init")
 class TestTuneHyperparameters:
     """Test suite for FinetunePipeline.tune_hyperparameters."""
@@ -611,6 +518,7 @@ class TestTuneHyperparameters:
         assert pipeline.runtime_training.train_epochs == 3
 
 
+@pytest.mark.usefixtures("patch_model_init")
 class TestFineTunePretrained:
     """Test suite for FinetunePipeline.fine_tune_pretrained."""
 
@@ -632,8 +540,6 @@ class TestFineTunePretrained:
             transfer_learning=transfer_learning,
             hyperparameter_tuning=False,
         )
-        pipeline.pretrained_model = SimpleNamespace()
-        pipeline.num_labels = 2
 
         mock_get_class_weights = MagicMock(return_value=torch.ones(2))
         monkeypatch.setattr("tlmtc.finetune_pipeline.get_class_weights", mock_get_class_weights, raising=True)
@@ -666,23 +572,8 @@ class TestFineTunePretrained:
             tokenized_dataset=None,
             transfer_learning=True,
         )
-        pipeline.pretrained_model = SimpleNamespace()
-        pipeline.num_labels = 2
 
         with pytest.raises(RuntimeError, match="Tokenized dataset not found"):
-            pipeline.fine_tune_pretrained()
-
-    def test_requires_pretrained_model(self, pipeline_factory, dummy_train_parquet, tokenized_dataset):
-        """Ensure fine_tune_pretrained raises when no tokenized dataset is available."""
-        pipeline = pipeline_factory(
-            train_path=dummy_train_parquet,
-            tokenized_dataset=tokenized_dataset,
-            transfer_learning=True,
-        )
-        pipeline.pretrained_model = None
-        pipeline.num_labels = 2
-
-        with pytest.raises(RuntimeError, match="Pretrained model not loaded"):
             pipeline.fine_tune_pretrained()
 
     def test_instantiates_trainer_with_expected_arguments(
@@ -699,8 +590,6 @@ class TestFineTunePretrained:
             transfer_learning=True,
             hyperparameter_tuning=False,
         )
-        pipeline.pretrained_model = SimpleNamespace()
-        pipeline.num_labels = 2
 
         recorded: dict[str, Any] = {}
 
@@ -715,7 +604,13 @@ class TestFineTunePretrained:
         assert recorded["args"] == ()
         kwargs = recorded["kwargs"]
 
-        assert kwargs["model"] is pipeline.pretrained_model
+        assert kwargs["model"] is None
+        assert callable(kwargs["model_init"])
+
+        model_instance = kwargs["model_init"]()
+        assert isinstance(model_instance, torch.nn.Module)
+        assert getattr(model_instance, "num_labels") == 2
+
         assert kwargs["train_dataset"] is pipeline.tokenized_dataset["train"]
         assert kwargs["eval_dataset"] is pipeline.tokenized_dataset["validation"]
 
@@ -755,8 +650,6 @@ class TestFineTunePretrained:
             transfer_learning=True,
             hyperparameter_tuning=False,
         )
-        pipeline.pretrained_model = SimpleNamespace()
-        pipeline.num_labels = 2
 
         pipeline.runtime_training.learning_rate = 5e-5
         pipeline.runtime_training.train_epochs = 3
@@ -798,8 +691,6 @@ class TestFineTunePretrained:
             transfer_learning=True,
             hyperparameter_tuning=False,
         )
-        pipeline.pretrained_model = SimpleNamespace()
-        pipeline.num_labels = 2
 
         suppress_mock = MagicMock(side_effect=lambda trainer: trainer)
         monkeypatch.setattr(
