@@ -5,14 +5,12 @@ from typing import Any, Protocol, Self
 
 import numpy as np
 import optuna
-import pandas as pd
 import torch
 from datasets import DatasetDict
-from transformers import AutoModelForSequenceClassification, EarlyStoppingCallback, PreTrainedModel, Trainer
+from transformers import EarlyStoppingCallback, Trainer
 
-from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.evaluation import find_optimal_threshold
-from tlmtc.hpo import get_existing_trial_count, make_compute_objective, make_model_init, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, make_compute_objective, optuna_hp_space
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
@@ -29,9 +27,10 @@ from tlmtc.training import (
     WeightedTrainer,
     compute_metrics,
     get_class_weights,
+    get_num_labels,
     get_scaled_lr,
     get_training_args,
-    wrap_model_with_peft,
+    make_model_init,
 )
 
 
@@ -57,7 +56,6 @@ class FinetunePipeline:
         hpo: Hyperparameter optimization settings, including the resolved Optuna search space.
         threshold: Threshold optimization settings.
         hardware: Hardware settings controlling device selection.
-        pretrained_model: Loaded model instance before Trainer fine-tuning.
         updated_trainer: Trainer instance after fine-tuning.
         num_labels: Number of labels in the multi-label classification task.
         tuned_threshold: Global or per-label decision thresholds for multi-label prediction.
@@ -98,49 +96,9 @@ class FinetunePipeline:
         self.peft = peft
         self.threshold = threshold
         self.hardware = hardware
-        self.pretrained_model: PreTrainedModel | None = None
         self.updated_trainer: Trainer | None = None
         self.num_labels: int | None = None
         self.tuned_threshold: np.ndarray = np.array([0.5], dtype=float)
-
-    def load_pretrained(
-        self,
-    ) -> Self:
-        """Load the target sequence-classification model and optionally apply PEFT/LoRA.
-
-        Returns:
-            Updated pipeline instance.
-
-        Raises:
-            RuntimeError: If the prepared training split is missing.
-        """
-        if not self.workflow.transfer_learning:
-            return self
-
-        if not self.paths.train_data_path.exists():
-            raise RuntimeError("Train data not found. Run DataPipeline class first.")
-
-        emit_progress("Loading pretrained transformer model")
-
-        self.num_labels = sum(
-            1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
-        )
-        self.pretrained_model = AutoModelForSequenceClassification.from_pretrained(
-            self.model.checkpoint,
-            num_labels=self.num_labels,
-            problem_type="multi_label_classification",
-            trust_remote_code=False,
-        )
-
-        if self.workflow.wrap_peft:
-            self.pretrained_model = wrap_model_with_peft(  # type: ignore[assignment]
-                model=self.pretrained_model,
-                lora_r=self.peft.lora_r,
-                lora_alpha=self.peft.lora_alpha,
-                lora_dropout=self.peft.lora_dropout,
-                lora_bias=self.peft.lora_bias,
-            )
-        return self
 
     def tune_hyperparameters(
         self,
@@ -165,9 +123,7 @@ class FinetunePipeline:
         if self.tokenized_dataset is None:
             raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
         if self.num_labels is None:
-            self.num_labels = sum(
-                1 for col in pd.read_parquet(self.paths.train_data_path).columns if col.startswith(LABEL_PREFIX)
-            )
+            self.num_labels = get_num_labels(self.paths.train_data_path)
 
         study_name = f"{self.model.target_name.replace(' ', '_')}_optuna_study"
         study_storage = f"sqlite:///{self.paths.optuna_trials_path.as_posix()}"
@@ -263,7 +219,7 @@ class FinetunePipeline:
         self,
         trainer: TrainerFactory = WeightedTrainer,
     ) -> Self:
-        """Fine-tune the loaded target model on the training split.
+        """Fine-tune the target model on the training split.
 
         Args:
             trainer: Trainer-compatible factory used for fine-tuning.
@@ -278,8 +234,6 @@ class FinetunePipeline:
             return self
         if self.tokenized_dataset is None:
             raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
-        if self.pretrained_model is None:
-            raise RuntimeError("Pretrained model not loaded. Run load_pretrained() first.")
 
         emit_progress("Fine-tuning model")
 
@@ -293,9 +247,24 @@ class FinetunePipeline:
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
         )
+
+        if self.num_labels is None:
+            self.num_labels = get_num_labels(self.paths.train_data_path)
+
+        model_init = make_model_init(
+            checkpoint=self.model.checkpoint,
+            num_labels=self.num_labels,
+            wrap_peft=self.workflow.wrap_peft,
+            lora_r=self.peft.lora_r,
+            lora_alpha=self.peft.lora_alpha,
+            lora_dropout=self.peft.lora_dropout,
+            lora_bias=self.peft.lora_bias,
+        )
+
         trainer_instance = suppress_trainer_console_callbacks(
             trainer(
-                model=self.pretrained_model,
+                model=None,
+                model_init=model_init,
                 args=training_args,
                 train_dataset=self.tokenized_dataset["train"],
                 eval_dataset=self.tokenized_dataset["validation"],
