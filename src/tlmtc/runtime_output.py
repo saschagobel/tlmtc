@@ -16,6 +16,16 @@ PROGRESS_LOGGER_NAME: Final[str] = "tlmtc.progress"
 _PROGRESS_LOGGER = logging.getLogger(PROGRESS_LOGGER_NAME)
 
 
+def _drop_transformers_load_report(record: logging.LogRecord) -> bool:
+    """Drop noisy Transformers model-load reports."""
+    return "LOAD REPORT" not in record.getMessage()
+
+
+def _drop_transformers_mtime_warning(record: logging.LogRecord) -> bool:
+    """Drop benign Transformers checkpoint-ordering filesystem warnings."""
+    return "mtime may not be reliable on this filesystem" not in record.getMessage()
+
+
 def configure_runtime_output(
     verbosity: Literal["progress", "quiet"],
     *,
@@ -67,12 +77,17 @@ def _apply_third_party_suppression() -> None:
     transformers_logging.set_verbosity_error()
     transformers_logging.disable_progress_bar()
 
-    # Suppress benign Transformers checkpoint-ordering fallback noise on filesystems
-    # where checkpoint mtimes are not reliable
+    for logger_name in (
+        "transformers.modeling_utils",
+        "transformers.utils.loading_report",
+    ):
+        logger = logging.getLogger(logger_name)
+        if _drop_transformers_load_report not in logger.filters:
+            logger.addFilter(_drop_transformers_load_report)
+
     transformers_logger = logging.getLogger("transformers.trainer_utils")
-    transformers_logger.addFilter(
-        lambda record: "mtime may not be reliable on this filesystem" not in record.getMessage()
-    )
+    if _drop_transformers_mtime_warning not in transformers_logger.filters:
+        transformers_logger.addFilter(_drop_transformers_mtime_warning)
 
     datasets.logging.set_verbosity_error()
     datasets.disable_progress_bars()

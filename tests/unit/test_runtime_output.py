@@ -36,6 +36,27 @@ def restore_progress_logger() -> Iterator[None]:
     logger.disabled = old_disabled
 
 
+@pytest.fixture(autouse=True)
+def restore_third_party_loggers() -> Iterator[None]:
+    """Restore third-party logger filters after each test."""
+    logger_names = (
+        "transformers.modeling_utils",
+        "transformers.utils.loading_report",
+        "transformers.trainer_utils",
+    )
+
+    old_filters = {name: list(logging.getLogger(name).filters) for name in logger_names}
+    old_levels = {name: logging.getLogger(name).level for name in logger_names}
+
+    yield
+
+    for name in logger_names:
+        logger = logging.getLogger(name)
+        logger.filters.clear()
+        logger.filters.extend(old_filters[name])
+        logger.setLevel(old_levels[name])
+
+
 def test_configure_runtime_output_applies_suppression_and_configures_logger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -114,6 +135,31 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
         "hub_progress",
         ("optuna_logging", optuna.logging.WARNING),
     ]
+
+
+def test_apply_third_party_suppression_filters_transformers_load_reports() -> None:
+    """Ensure Transformers state-dict load reports are hidden as routine checkpoint noise."""
+    runtime_output._apply_third_party_suppression()
+
+    for logger_name in (
+        "transformers.modeling_utils",
+        "transformers.utils.loading_report",
+    ):
+        logger = logging.getLogger(logger_name)
+
+        assert runtime_output._drop_transformers_load_report in logger.filters
+        assert logger.filters.count(runtime_output._drop_transformers_load_report) == 1
+
+
+def test_apply_third_party_suppression_filters_transformers_mtime_warning() -> None:
+    """Ensure Transformers checkpoint mtime warnings are hidden without duplicate filters."""
+    runtime_output._apply_third_party_suppression()
+    runtime_output._apply_third_party_suppression()
+
+    logger = logging.getLogger("transformers.trainer_utils")
+
+    assert runtime_output._drop_transformers_mtime_warning in logger.filters
+    assert logger.filters.count(runtime_output._drop_transformers_mtime_warning) == 1
 
 
 @pytest.mark.parametrize(
