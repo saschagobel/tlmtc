@@ -3,7 +3,7 @@
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pandas as pd
 import pytest
@@ -443,7 +443,7 @@ class TestTuneHyperparameters:
         suppress_mock.assert_called_once_with(fake_trainer)
         fake_trainer.hyperparameter_search.assert_called_once()
 
-    def test_hpo_hp_space_emits_trial_progress(
+    def test_hpo_hp_space_emits_trial_progress_once_per_trial(
         self,
         pipeline_with_tokenized_hpo,
         fake_trainer,
@@ -469,20 +469,23 @@ class TestTuneHyperparameters:
 
         hp_space_fn = fake_trainer.hp_search_calls[0]["hp_space"]
 
-        hp_space_fn(
-            FixedTrial(
-                {
-                    "learning_rate": 1e-4,
-                    "per_device_train_batch_size": 8,
-                    "weight_decay": 0.01,
-                    "lr_scheduler_type": "linear",
-                    "num_train_epochs": 2,
-                },
-                number=3,
-            )
+        trial = FixedTrial(
+            {
+                "learning_rate": 1e-4,
+                "per_device_train_batch_size": 8,
+                "weight_decay": 0.01,
+                "lr_scheduler_type": "linear",
+                "num_train_epochs": 2,
+            },
+            number=3,
         )
 
+        hp_space_fn(trial)
+        hp_space_fn(trial)
+
         emit_progress_mock.assert_any_call("HPO trial 4/4 started")
+
+        assert emit_progress_mock.mock_calls.count(call("HPO trial 4/4 started")) == 1
 
     def test_uses_broadcast_hyperparameters_when_hpo_returns_none(
         self,
