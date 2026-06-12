@@ -340,7 +340,10 @@ def _assert_training_pipeline_call_order(pipelines: MockedPipelines) -> None:
         call.tokenize_data(),
     ]
     assert pipelines.finetune_pipeline.method_calls == [
-        call.tune_hyperparameters(broadcast_value=ANY),
+        call.tune_hyperparameters(
+            broadcast_value=ANY,
+            main_process_first=ANY,
+        ),
         call.fine_tune_pretrained(),
         call.tune_thresholds(),
         call.save_pretrained(),
