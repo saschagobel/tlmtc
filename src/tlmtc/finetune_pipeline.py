@@ -10,7 +10,7 @@ from datasets import DatasetDict
 from transformers import EarlyStoppingCallback, Trainer
 
 from tlmtc.evaluation import find_optimal_threshold
-from tlmtc.hpo import get_existing_trial_count, make_compute_objective, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, get_pruner_for_world_size, make_compute_objective, optuna_hp_space
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
@@ -191,6 +191,7 @@ class FinetunePipeline:
             compute_objective=compute_objective,
             load_if_exists=True,
             catch=(ValueError,),
+            pruner=get_pruner_for_world_size(trainer_instance.args.world_size),
         )
         if isinstance(best_run, list):
             raise RuntimeError("Expected a single best run from single-objective HPO, but received a list.")
