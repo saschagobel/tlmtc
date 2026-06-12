@@ -1,6 +1,7 @@
 """Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any, Protocol, Self
 
 import numpy as np
@@ -10,7 +11,7 @@ from datasets import DatasetDict
 from transformers import EarlyStoppingCallback, Trainer
 
 from tlmtc.evaluation import find_optimal_threshold
-from tlmtc.hpo import get_existing_trial_count, make_compute_objective, optuna_hp_space
+from tlmtc.hpo import ensure_study_and_get_existing_trial_count, make_compute_objective, optuna_hp_space
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
@@ -104,13 +105,16 @@ class FinetunePipeline:
         self,
         trainer: TrainerFactory = WeightedTrainer,
         broadcast_value: Callable[[dict[str, Any] | None], dict[str, Any]] | None = None,
+        main_process_first: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> Self:
         """Run Optuna hyperparameter tuning on the proxy checkpoint.
 
         Args:
             trainer: Trainer-compatible factory used for hyperparameter search.
             broadcast_value: Optional callable used to broadcast rank-zero best hyperparameters
-                    to all ranks after distributed Trainer HPO.
+                to all ranks after distributed Trainer HPO.
+            main_process_first: Optional context-manager factory used to coordinate
+                shared Optuna study creation before all ranks enter Trainer HPO.
 
         Returns:
             Updated pipeline instance.
@@ -128,10 +132,15 @@ class FinetunePipeline:
         study_name = f"{self.model.target_name.replace(' ', '_')}_optuna_study"
         study_storage = f"sqlite:///{self.paths.optuna_trials_path.as_posix()}"
 
-        existing_trials = get_existing_trial_count(
-            study_name=study_name,
-            storage=study_storage,
-        )
+        context = main_process_first() if main_process_first is not None else nullcontext()
+
+        with context:
+            existing_trials = ensure_study_and_get_existing_trial_count(
+                study_name=study_name,
+                storage=study_storage,
+                direction="maximize",
+            )
+
         total_trials = existing_trials + self.hpo.tuning_trials
 
         def hp_space_with_progress(
