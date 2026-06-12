@@ -18,7 +18,7 @@ _PROGRESS_LOGGER = logging.getLogger(PROGRESS_LOGGER_NAME)
 
 def _drop_transformers_load_report(record: logging.LogRecord) -> bool:
     """Drop noisy Transformers model-load reports."""
-    return " LOAD REPORT from:" not in record.getMessage()
+    return "LOAD REPORT" not in record.getMessage()
 
 
 def _drop_transformers_mtime_warning(record: logging.LogRecord) -> bool:
