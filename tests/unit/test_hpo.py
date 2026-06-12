@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from optuna.trial import FixedTrial
 
-from tlmtc.hpo import get_existing_trial_count, make_compute_objective, optuna_hp_space
+from tlmtc.hpo import ensure_study_and_get_existing_trial_count, make_compute_objective, optuna_hp_space
 from tlmtc.settings import OptunaSpaceSettings
 
 
@@ -84,28 +84,8 @@ def test_optuna_hp_space_keeps_learning_rate_unchanged_at_reference_batch_size()
     assert result["learning_rate"] == 5e-5
 
 
-def test_get_existing_trial_count_returns_zero_when_study_does_not_exist(monkeypatch) -> None:
-    """Return zero when the requested Optuna study is not yet persisted."""
-
-    def fake_load_study(*, study_name: str, storage: str):
-        raise KeyError("Record does not exist.")
-
-    monkeypatch.setattr(
-        "tlmtc.hpo.optuna.load_study",
-        fake_load_study,
-    )
-
-    assert (
-        get_existing_trial_count(
-            study_name="missing_study",
-            storage="sqlite:///dummy.db",
-        )
-        == 0
-    )
-
-
-def test_get_existing_trial_count_returns_number_of_persisted_trials(monkeypatch) -> None:
-    """Return the number of trials already stored for an existing Optuna study."""
+def test_ensure_study_and_get_existing_trial_count_creates_or_loads_study(monkeypatch) -> None:
+    """Create or load the Optuna study and return the trial count."""
     study = SimpleNamespace(
         trials=[
             SimpleNamespace(number=0),
@@ -113,19 +93,62 @@ def test_get_existing_trial_count_returns_number_of_persisted_trials(monkeypatch
             SimpleNamespace(number=2),
         ]
     )
+    calls: list[dict[str, object]] = []
 
-    def fake_load_study(*, study_name: str, storage: str):
+    def fake_create_study(*, study_name: str, storage: str, direction: str, load_if_exists: bool):
+        calls.append(
+            {
+                "study_name": study_name,
+                "storage": storage,
+                "direction": direction,
+                "load_if_exists": load_if_exists,
+            }
+        )
         return study
 
     monkeypatch.setattr(
-        "tlmtc.hpo.optuna.load_study",
-        fake_load_study,
+        "tlmtc.hpo.optuna.create_study",
+        fake_create_study,
     )
 
     assert (
-        get_existing_trial_count(
+        ensure_study_and_get_existing_trial_count(
             study_name="existing_study",
             storage="sqlite:///dummy.db",
+            direction="maximize",
         )
         == 3
     )
+
+    assert calls == [
+        {
+            "study_name": "existing_study",
+            "storage": "sqlite:///dummy.db",
+            "direction": "maximize",
+            "load_if_exists": True,
+        }
+    ]
+
+
+def test_ensure_study_and_get_existing_trial_count_defaults_to_maximize(monkeypatch) -> None:
+    """Use maximize as the default Optuna study direction."""
+    directions: list[str] = []
+
+    def fake_create_study(*, study_name: str, storage: str, direction: str, load_if_exists: bool):
+        directions.append(direction)
+        return SimpleNamespace(trials=[])
+
+    monkeypatch.setattr(
+        "tlmtc.hpo.optuna.create_study",
+        fake_create_study,
+    )
+
+    assert (
+        ensure_study_and_get_existing_trial_count(
+            study_name="new_study",
+            storage="sqlite:///dummy.db",
+        )
+        == 0
+    )
+
+    assert directions == ["maximize"]
