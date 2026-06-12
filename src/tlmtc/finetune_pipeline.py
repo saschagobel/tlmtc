@@ -134,10 +134,15 @@ class FinetunePipeline:
         )
         total_trials = existing_trials + self.hpo.tuning_trials
 
+        reported_trials: set[int] = set()
+
         def hp_space_with_progress(
             trial: optuna.trial.Trial,
         ) -> dict[str, Any]:
-            emit_progress(f"HPO trial {trial.number + 1}/{total_trials} started")
+            if trial.number not in reported_trials:
+                emit_progress(f"HPO trial {trial.number + 1}/{total_trials} started")
+                reported_trials.add(trial.number)
+
             return optuna_hp_space(
                 trial=trial,
                 space=self.hpo.optuna_space,
