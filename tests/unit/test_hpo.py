@@ -3,9 +3,10 @@
 import math
 from types import SimpleNamespace
 
+import optuna
 from optuna.trial import FixedTrial
 
-from tlmtc.hpo import get_existing_trial_count, make_compute_objective, optuna_hp_space
+from tlmtc.hpo import get_existing_trial_count, get_pruner_for_world_size, make_compute_objective, optuna_hp_space
 from tlmtc.settings import OptunaSpaceSettings
 
 
@@ -129,3 +130,15 @@ def test_get_existing_trial_count_returns_number_of_persisted_trials(monkeypatch
         )
         == 3
     )
+
+
+def test_get_pruner_for_world_size_keeps_default_pruner_for_single_process() -> None:
+    """Return None in single-process training to keep Optuna's default pruning behavior."""
+    assert get_pruner_for_world_size(1) is None
+
+
+def test_get_pruner_for_world_size_disables_pruning_for_distributed_training() -> None:
+    """Return a no-op pruner for distributed training to avoid pruning inside DDP collectives."""
+    pruner = get_pruner_for_world_size(2)
+
+    assert isinstance(pruner, optuna.pruners.NopPruner)
