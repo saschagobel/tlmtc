@@ -1,5 +1,6 @@
 """Tests for FinetunePipeline."""
 
+from contextlib import contextmanager
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -318,6 +319,48 @@ class TestTuneHyperparameters:
         assert hp_search_kwargs["load_if_exists"] is True
         assert hp_search_kwargs["catch"] == (ValueError,)
 
+    def test_initializes_optuna_study_inside_main_process_first(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure distributed HPO coordinates Optuna study creation before all-rank search."""
+        events: list[str] = []
+
+        @contextmanager
+        def fake_main_process_first():
+            events.append("enter_main_process_first")
+            yield
+            events.append("exit_main_process_first")
+
+        def fake_ensure_study(*_args, **_kwargs):
+            events.append("ensure_study")
+            return 0
+
+        def trainer_factory(*_args, **_kwargs):
+            events.append("create_trainer")
+            return fake_trainer
+
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.ensure_study_and_get_existing_trial_count",
+            fake_ensure_study,
+            raising=True,
+        )
+
+        pipeline_with_tokenized_hpo.tune_hyperparameters(
+            trainer=trainer_factory,
+            main_process_first=fake_main_process_first,
+        )
+
+        assert events[:4] == [
+            "enter_main_process_first",
+            "ensure_study",
+            "exit_main_process_first",
+            "create_trainer",
+        ]
+        fake_trainer.hyperparameter_search.assert_called_once()
+
     def test_instantiates_trainer_with_expected_arguments(
         self,
         pipeline_with_tokenized_hpo,
@@ -451,7 +494,7 @@ class TestTuneHyperparameters:
     ):
         """Ensure HPO hp_space emits per-trial progress."""
         monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.get_existing_trial_count",
+            "tlmtc.finetune_pipeline.ensure_study_and_get_existing_trial_count",
             MagicMock(return_value=3),
             raising=True,
         )
