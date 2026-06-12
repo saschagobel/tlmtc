@@ -1,7 +1,7 @@
 """Optuna integration for Hugging Face hyperparameter tuning."""
 
 import math
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import optuna
 
@@ -79,27 +79,27 @@ def make_compute_objective(
     return compute_objective
 
 
-def get_existing_trial_count(
+def ensure_study_and_get_existing_trial_count(
     study_name: str,
     storage: str,
+    direction: Literal["maximize", "minimize"] = "maximize",
 ) -> int:
-    """Count trials already persisted for an Optuna study.
+    """Create or load an Optuna study and return its existing trial count.
 
     Args:
         study_name: Optuna study name.
         storage: Optuna storage URL.
+        direction: Optimization direction.
 
     Returns:
-        Number of existing trials, or zero if the study does not exist.
+        Number of existing trials.
     """
-    try:
-        study = optuna.load_study(
-            study_name=study_name,
-            storage=storage,
-        )
-    except KeyError:
-        return 0
-
+    study = optuna.create_study(
+        study_name=study_name,
+        storage=storage,
+        direction=direction,
+        load_if_exists=True,
+    )
     return len(study.trials)
 
 
