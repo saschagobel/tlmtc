@@ -216,6 +216,8 @@ def fake_trainer():
     """Fake Trainer that records hyperparameter_search calls."""
     trainer = MagicMock()
 
+    trainer.args = SimpleNamespace(world_size=1)
+
     trainer.train.return_value = None
     trainer.evaluate.return_value = {"eval_f1_macro": 0.5}
     trainer.predict.return_value = SimpleNamespace(predictions=[[0.0]])
@@ -317,6 +319,7 @@ class TestTuneHyperparameters:
         assert callable(hp_search_kwargs["compute_objective"])
         assert hp_search_kwargs["load_if_exists"] is True
         assert hp_search_kwargs["catch"] == (ValueError,)
+        assert "pruner" in hp_search_kwargs
 
     def test_instantiates_trainer_with_expected_arguments(
         self,
@@ -516,6 +519,30 @@ class TestTuneHyperparameters:
         assert pipeline.runtime_training.batch_size == 16
         assert pipeline.runtime_training.weight_decay == 0.02
         assert pipeline.runtime_training.train_epochs == 3
+
+    def test_configures_hpo_pruner_from_trainer_world_size(
+        self,
+        pipeline_with_tokenized_hpo,
+        fake_trainer,
+        monkeypatch,
+    ):
+        """Ensure HPO passes a topology-aware Optuna pruner into hyperparameter_search."""
+        fake_trainer.args.world_size = 2
+        pruner = object()
+
+        get_pruner_mock = MagicMock(return_value=pruner)
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.get_pruner_for_world_size",
+            get_pruner_mock,
+            raising=True,
+        )
+
+        pipeline_with_tokenized_hpo.tune_hyperparameters(
+            trainer=lambda **_: fake_trainer,
+        )
+
+        get_pruner_mock.assert_called_once_with(2)
+        assert fake_trainer.hp_search_calls[0]["pruner"] is pruner
 
 
 @pytest.mark.usefixtures("patch_model_init")
