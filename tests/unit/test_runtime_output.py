@@ -116,6 +116,21 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
     ]
 
 
+def test_apply_third_party_suppression_suppresses_transformers_load_reports() -> None:
+    """Ensure Transformers state-dict load reports are hidden as routine checkpoint noise."""
+    logger = logging.getLogger("transformers.utils.loading_report")
+    old_level = logger.level
+
+    try:
+        logger.setLevel(logging.NOTSET)
+
+        runtime_output._apply_third_party_suppression()
+
+        assert logger.level == logging.ERROR
+    finally:
+        logger.setLevel(old_level)
+
+
 @pytest.mark.parametrize(
     ("verbosity", "is_main_process", "expected_stderr"),
     [
