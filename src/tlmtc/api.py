@@ -292,6 +292,7 @@ def train_tlmtc(
     )
     finetune_pipeline.tune_hyperparameters(
         broadcast_value=distributed.broadcast_value,
+        main_process_first=distributed.main_process_first,
     )
     finetune_pipeline.fine_tune_pretrained()
     finetune_pipeline.tune_thresholds()
