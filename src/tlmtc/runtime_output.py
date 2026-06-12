@@ -67,6 +67,8 @@ def _apply_third_party_suppression() -> None:
     transformers_logging.set_verbosity_error()
     transformers_logging.disable_progress_bar()
 
+    logging.getLogger("transformers.utils.loading_report").setLevel(logging.ERROR)
+
     # Suppress benign Transformers checkpoint-ordering fallback noise on filesystems
     # where checkpoint mtimes are not reliable
     transformers_logger = logging.getLogger("transformers.trainer_utils")
