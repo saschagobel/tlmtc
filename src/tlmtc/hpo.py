@@ -1,7 +1,7 @@
 """Optuna integration for Hugging Face hyperparameter tuning."""
 
 import math
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import optuna
 
@@ -79,43 +79,25 @@ def make_compute_objective(
     return compute_objective
 
 
-def get_existing_trial_count(
+def ensure_study_and_get_existing_trial_count(
     study_name: str,
     storage: str,
+    direction: Literal["maximize", "minimize"] = "maximize",
 ) -> int:
-    """Count trials already persisted for an Optuna study.
+    """Create or load an Optuna study and return its existing trial count.
 
     Args:
         study_name: Optuna study name.
         storage: Optuna storage URL.
+        direction: Optimization direction.
 
     Returns:
-        Number of existing trials, or zero if the study does not exist.
+        Number of existing trials.
     """
-    try:
-        study = optuna.load_study(
-            study_name=study_name,
-            storage=storage,
-        )
-    except KeyError:
-        return 0
-
+    study = optuna.create_study(
+        study_name=study_name,
+        storage=storage,
+        direction=direction,
+        load_if_exists=True,
+    )
     return len(study.trials)
-
-
-def get_pruner_for_world_size(
-    world_size: int,
-) -> optuna.pruners.BasePruner | None:
-    """Return a conservative Optuna pruner for the current training topology.
-
-    Args:
-        world_size: Number of processes participating in the training run.
-
-    Returns:
-        A no-op pruner for distributed training, otherwise `None` to keep
-        Optuna's default pruning behavior.
-    """
-    if world_size > 1:
-        return optuna.pruners.NopPruner()
-
-    return None
