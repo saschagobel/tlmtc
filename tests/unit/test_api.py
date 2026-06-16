@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from textwrap import dedent
 from typing import Literal
-from unittest.mock import ANY, MagicMock, call
+from unittest.mock import MagicMock, call
 
 import numpy as np
 import pandas as pd
@@ -160,6 +160,7 @@ def configure_runtime_output_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Mock distributed runtime context for API orchestration tests."""
     context = MagicMock()
+    context.is_distributed = False
     context.is_main_process = True
     context.resolve_run_id.side_effect = lambda run_id: run_id or "generated_run"
 
@@ -340,10 +341,7 @@ def _assert_training_pipeline_call_order(pipelines: MockedPipelines) -> None:
         call.tokenize_data(),
     ]
     assert pipelines.finetune_pipeline.method_calls == [
-        call.tune_hyperparameters(
-            broadcast_value=ANY,
-            main_process_first=ANY,
-        ),
+        call.tune_hyperparameters(),
         call.fine_tune_pretrained(),
         call.tune_thresholds(),
         call.save_pretrained(),
@@ -726,6 +724,23 @@ class TestTrainTlmtc:
         pipelines.evaluation_pipeline.render_tables.assert_not_called()
         pipelines.evaluation_pipeline.render_figures.assert_not_called()
         assert not result.paths.train_run_meta_path.exists()
+
+    def test_rejects_hpo_under_distributed_launch(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        distributed_context_mock.is_distributed = True
+        pipelines = _mock_successful_pipelines(monkeypatch)
+
+        with pytest.raises(RuntimeError, match="Hyperparameter tuning is not supported under distributed launch"):
+            api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="ddp_hpo")
+
+        pipelines.data_pipeline_cls.assert_not_called()
+        pipelines.finetune_pipeline_cls.assert_not_called()
+        pipelines.evaluation_pipeline_cls.assert_not_called()
 
 
 class TestPredictTlmtc:
