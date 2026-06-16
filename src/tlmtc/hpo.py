@@ -101,21 +101,3 @@ def ensure_study_and_get_existing_trial_count(
         load_if_exists=True,
     )
     return len(study.trials)
-
-
-def get_pruner_for_world_size(
-    world_size: int,
-) -> optuna.pruners.BasePruner | None:
-    """Return a conservative Optuna pruner for the current training topology.
-
-    Args:
-        world_size: Number of processes participating in the training run.
-
-    Returns:
-        A no-op pruner for distributed training, otherwise `None` to keep
-        Optuna's default pruning behavior.
-    """
-    if world_size > 1:
-        return optuna.pruners.NopPruner()
-
-    return None
