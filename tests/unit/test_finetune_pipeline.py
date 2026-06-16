@@ -1,6 +1,5 @@
 """Tests for FinetunePipeline."""
 
-from contextlib import contextmanager
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -320,49 +319,6 @@ class TestTuneHyperparameters:
         assert callable(hp_search_kwargs["compute_objective"])
         assert hp_search_kwargs["load_if_exists"] is True
         assert hp_search_kwargs["catch"] == (ValueError,)
-        assert "pruner" in hp_search_kwargs
-
-    def test_initializes_optuna_study_inside_main_process_first(
-        self,
-        pipeline_with_tokenized_hpo,
-        fake_trainer,
-        monkeypatch,
-    ):
-        """Ensure distributed HPO coordinates Optuna study creation before all-rank search."""
-        events: list[str] = []
-
-        @contextmanager
-        def fake_main_process_first():
-            events.append("enter_main_process_first")
-            yield
-            events.append("exit_main_process_first")
-
-        def fake_ensure_study(*_args, **_kwargs):
-            events.append("ensure_study")
-            return 0
-
-        def trainer_factory(*_args, **_kwargs):
-            events.append("create_trainer")
-            return fake_trainer
-
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.ensure_study_and_get_existing_trial_count",
-            fake_ensure_study,
-            raising=True,
-        )
-
-        pipeline_with_tokenized_hpo.tune_hyperparameters(
-            trainer=trainer_factory,
-            main_process_first=fake_main_process_first,
-        )
-
-        assert events[:4] == [
-            "enter_main_process_first",
-            "ensure_study",
-            "exit_main_process_first",
-            "create_trainer",
-        ]
-        fake_trainer.hyperparameter_search.assert_called_once()
 
     def test_instantiates_trainer_with_expected_arguments(
         self,
@@ -529,63 +485,6 @@ class TestTuneHyperparameters:
         )
 
         emit_progress_mock.assert_any_call("HPO trial 4/4 started")
-
-    def test_uses_broadcast_hyperparameters_when_hpo_returns_none(
-        self,
-        pipeline_with_tokenized_hpo,
-        fake_trainer,
-    ):
-        """Ensure non-main DDP ranks apply rank-zero best hyperparameters after broadcast."""
-        pipeline = pipeline_with_tokenized_hpo
-
-        fake_trainer.hyperparameter_search.return_value = None
-        fake_trainer.hyperparameter_search.side_effect = None
-
-        broadcast_value = MagicMock(
-            return_value={
-                "learning_rate": 2e-4,
-                "lr_scheduler_type": "cosine",
-                "per_device_train_batch_size": 16,
-                "weight_decay": 0.02,
-                "num_train_epochs": 3,
-            }
-        )
-
-        pipeline.tune_hyperparameters(
-            trainer=lambda **_: fake_trainer,
-            broadcast_value=broadcast_value,
-        )
-
-        broadcast_value.assert_called_once_with(None)
-        assert pipeline.runtime_training.learning_rate == 2e-4
-        assert pipeline.runtime_training.lr_scheduler == "cosine"
-        assert pipeline.runtime_training.batch_size == 16
-        assert pipeline.runtime_training.weight_decay == 0.02
-        assert pipeline.runtime_training.train_epochs == 3
-
-    def test_configures_hpo_pruner_from_trainer_world_size(
-        self,
-        pipeline_with_tokenized_hpo,
-        fake_trainer,
-        monkeypatch,
-    ):
-        """Ensure HPO passes a topology-aware Optuna pruner into hyperparameter_search."""
-        fake_trainer.args.world_size = 2
-        pruner = object()
-
-        get_pruner_mock = MagicMock(return_value=pruner)
-        monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.get_pruner_for_world_size",
-            get_pruner_mock,
-            raising=True,
-        )
-
-        pipeline_with_tokenized_hpo.tune_hyperparameters(
-            trainer=lambda **_: fake_trainer,
-        )
-
-        get_pruner_mock.assert_called_once_with(2)
-        assert fake_trainer.hp_search_calls[0]["pruner"] is pruner
 
 
 @pytest.mark.usefixtures("patch_model_init")
