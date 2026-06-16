@@ -3,12 +3,10 @@
 import math
 from types import SimpleNamespace
 
-import optuna
 from optuna.trial import FixedTrial
 
 from tlmtc.hpo import (
     ensure_study_and_get_existing_trial_count,
-    get_pruner_for_world_size,
     make_compute_objective,
     optuna_hp_space,
 )
@@ -88,18 +86,6 @@ def test_optuna_hp_space_keeps_learning_rate_unchanged_at_reference_batch_size()
     result = optuna_hp_space(trial, space)
 
     assert result["learning_rate"] == 5e-5
-
-
-def test_get_pruner_for_world_size_keeps_default_pruner_for_single_process() -> None:
-    """Return None in single-process training to keep Optuna's default pruning behavior."""
-    assert get_pruner_for_world_size(1) is None
-
-
-def test_get_pruner_for_world_size_disables_pruning_for_distributed_training() -> None:
-    """Return a no-op pruner for distributed training to avoid pruning inside DDP collectives."""
-    pruner = get_pruner_for_world_size(2)
-
-    assert isinstance(pruner, optuna.pruners.NopPruner)
 
 
 def test_ensure_study_and_get_existing_trial_count_creates_or_loads_study(monkeypatch) -> None:
