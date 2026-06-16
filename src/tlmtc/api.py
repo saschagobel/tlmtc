@@ -255,6 +255,13 @@ def train_tlmtc(
     )
     distributed.warn_if_multi_gpu_without_launcher(use_cpu=settings.hardware.use_cpu)
 
+    if distributed.is_distributed and settings.workflow.hyperparameter_tuning:
+        raise RuntimeError(
+            "Hyperparameter tuning is not supported under distributed launch. "
+            "Run HPO in a single-process run, then rerun distributed final training "
+            "with hyperparameter_tuning=False and the selected training settings."
+        )
+
     resolved_run_id = distributed.resolve_run_id(settings.run_id)
 
     paths = resolve_paths(
@@ -290,10 +297,7 @@ def train_tlmtc(
         threshold=settings.threshold,
         hardware=settings.hardware,
     )
-    finetune_pipeline.tune_hyperparameters(
-        broadcast_value=distributed.broadcast_value,
-        main_process_first=distributed.main_process_first,
-    )
+    finetune_pipeline.tune_hyperparameters()
     finetune_pipeline.fine_tune_pretrained()
     finetune_pipeline.tune_thresholds()
     finetune_pipeline.save_pretrained()
