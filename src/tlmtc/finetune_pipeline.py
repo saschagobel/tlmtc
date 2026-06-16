@@ -1,7 +1,5 @@
 """Fine-tuning pipeline for Hugging Face multi-label text classification."""
 
-from collections.abc import Callable
-from contextlib import AbstractContextManager, nullcontext
 from typing import Any, Protocol, Self
 
 import numpy as np
@@ -13,7 +11,6 @@ from transformers import EarlyStoppingCallback, Trainer
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import (
     ensure_study_and_get_existing_trial_count,
-    get_pruner_for_world_size,
     make_compute_objective,
     optuna_hp_space,
 )
@@ -109,17 +106,11 @@ class FinetunePipeline:
     def tune_hyperparameters(
         self,
         trainer: TrainerFactory = WeightedTrainer,
-        broadcast_value: Callable[[dict[str, Any] | None], dict[str, Any]] | None = None,
-        main_process_first: Callable[[], AbstractContextManager[None]] | None = None,
     ) -> Self:
         """Run Optuna hyperparameter tuning on the proxy checkpoint.
 
         Args:
             trainer: Trainer-compatible factory used for hyperparameter search.
-            broadcast_value: Optional callable used to broadcast rank-zero best hyperparameters
-                to all ranks after distributed Trainer HPO.
-            main_process_first: Optional context-manager factory used to coordinate
-                shared Optuna study creation before all ranks enter Trainer HPO.
 
         Returns:
             Updated pipeline instance.
@@ -137,14 +128,11 @@ class FinetunePipeline:
         study_name = f"{self.model.target_name.replace(' ', '_')}_optuna_study"
         study_storage = f"sqlite:///{self.paths.optuna_trials_path.as_posix()}"
 
-        context = main_process_first() if main_process_first is not None else nullcontext()
-
-        with context:
-            existing_trials = ensure_study_and_get_existing_trial_count(
-                study_name=study_name,
-                storage=study_storage,
-                direction="maximize",
-            )
+        existing_trials = ensure_study_and_get_existing_trial_count(
+            study_name=study_name,
+            storage=study_storage,
+            direction="maximize",
+        )
 
         total_trials = existing_trials + self.hpo.tuning_trials
 
@@ -156,8 +144,6 @@ class FinetunePipeline:
                 trial=trial,
                 space=self.hpo.optuna_space,
             )
-
-        self.paths.logs_dir.mkdir(parents=True, exist_ok=True)
 
         model_init = make_model_init(
             checkpoint=self.model.proxy_checkpoint,
@@ -205,15 +191,11 @@ class FinetunePipeline:
             compute_objective=compute_objective,
             load_if_exists=True,
             catch=(ValueError,),
-            pruner=get_pruner_for_world_size(trainer_instance.args.world_size),
         )
         if isinstance(best_run, list):
             raise RuntimeError("Expected a single best run from single-objective HPO, but received a list.")
 
-        best_hyperparameters = best_run.hyperparameters if best_run is not None else None
-
-        if broadcast_value is not None:
-            best_hyperparameters = broadcast_value(best_hyperparameters)
+        best_hyperparameters = best_run.hyperparameters
 
         if self.workflow.scale_learning_rate:
             self.runtime_training.learning_rate = get_scaled_lr(
