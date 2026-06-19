@@ -1,14 +1,19 @@
 """Tests for hpo helpers."""
 
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 from optuna.trial import FixedTrial
 
 from tlmtc.hpo import (
+    BestHyperparameters,
     ensure_study_and_get_existing_trial_count,
+    make_best_hyperparameters,
     make_compute_objective,
     optuna_hp_space,
+    read_best_hyperparameters,
+    write_best_hyperparameters,
 )
 from tlmtc.settings import OptunaSpaceSettings
 
@@ -86,6 +91,101 @@ def test_optuna_hp_space_keeps_learning_rate_unchanged_at_reference_batch_size()
     result = optuna_hp_space(trial, space)
 
     assert result["learning_rate"] == 5e-5
+
+
+def test_make_best_hyperparameters_converts_trainer_hpo_params() -> None:
+    """Convert raw Trainer HPO params into effective tlmtc hyperparameters."""
+    result = make_best_hyperparameters(
+        hpo_params={
+            "learning_rate": 3e-5,
+            "lr_scheduler_type": "cosine",
+            "per_device_train_batch_size": 8,
+            "weight_decay": 0.01,
+            "num_train_epochs": 4,
+        },
+        scale_learning_rate=False,
+        checkpoint="target-checkpoint",
+        proxy_checkpoint="proxy-checkpoint",
+        wrap_peft=True,
+    )
+
+    assert result == BestHyperparameters(
+        learning_rate=3e-5,
+        lr_scheduler="cosine",
+        batch_size=8,
+        weight_decay=0.01,
+        train_epochs=4,
+    )
+
+
+def test_make_best_hyperparameters_scales_learning_rate_when_requested(monkeypatch) -> None:
+    """Scale the selected proxy learning rate when final fine-tuning requires it."""
+    calls: list[dict[str, object]] = []
+
+    def fake_get_scaled_lr(
+        *,
+        learning_rate: float,
+        checkpoint: str,
+        proxy_checkpoint: str,
+        peft: bool,
+    ) -> float:
+        calls.append(
+            {
+                "learning_rate": learning_rate,
+                "checkpoint": checkpoint,
+                "proxy_checkpoint": proxy_checkpoint,
+                "peft": peft,
+            }
+        )
+        return 2e-5
+
+    monkeypatch.setattr("tlmtc.hpo.get_scaled_lr", fake_get_scaled_lr)
+
+    result = make_best_hyperparameters(
+        hpo_params={
+            "learning_rate": 4e-5,
+            "lr_scheduler_type": "linear",
+            "per_device_train_batch_size": 16,
+            "weight_decay": 0.0,
+            "num_train_epochs": 3,
+        },
+        scale_learning_rate=True,
+        checkpoint="target-checkpoint",
+        proxy_checkpoint="proxy-checkpoint",
+        wrap_peft=False,
+    )
+
+    assert result.learning_rate == 2e-5
+    assert result.lr_scheduler == "linear"
+    assert result.batch_size == 16
+    assert result.weight_decay == 0.0
+    assert result.train_epochs == 3
+
+    assert calls == [
+        {
+            "learning_rate": 4e-5,
+            "checkpoint": "target-checkpoint",
+            "proxy_checkpoint": "proxy-checkpoint",
+            "peft": False,
+        }
+    ]
+
+
+def test_best_hyperparameters_roundtrip_json_artifact(tmp_path: Path) -> None:
+    """Write and read selected HPO hyperparameters as a validated JSON artifact."""
+    path = tmp_path / "best_hyperparameters.json"
+    params = BestHyperparameters(
+        learning_rate=2e-5,
+        lr_scheduler="cosine",
+        batch_size=8,
+        weight_decay=0.01,
+        train_epochs=5,
+    )
+
+    write_best_hyperparameters(params=params, path=path)
+
+    assert path.is_file()
+    assert read_best_hyperparameters(path) == params
 
 
 def test_ensure_study_and_get_existing_trial_count_creates_or_loads_study(monkeypatch) -> None:

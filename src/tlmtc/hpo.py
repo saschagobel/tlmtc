@@ -1,11 +1,14 @@
 """Optuna integration for Hugging Face hyperparameter tuning."""
 
 import math
+from pathlib import Path
 from typing import Any, Callable, Literal
 
 import optuna
+from pydantic import BaseModel, ConfigDict, Field, PositiveInt
 
 from tlmtc.settings import OptunaSpaceSettings
+from tlmtc.training import get_scaled_lr
 
 
 def optuna_hp_space(
@@ -101,3 +104,97 @@ def ensure_study_and_get_existing_trial_count(
         load_if_exists=True,
     )
     return len(study.trials)
+
+
+class BestHyperparameters(BaseModel):
+    """Effective hyperparameters selected by HPO for final fine-tuning.
+
+    Attributes:
+        learning_rate: Effective learning rate used for final fine-tuning. If
+            learning-rate scaling is enabled, this stores the scaled target-checkpoint
+            learning rate rather than the raw proxy-HPO learning rate.
+        lr_scheduler: Learning-rate scheduler name used for final fine-tuning.
+        batch_size: Per-device train and evaluation batch size used for final fine-tuning.
+        weight_decay: Weight decay used for final fine-tuning.
+        train_epochs: Number of training epochs used for final fine-tuning.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    learning_rate: float = Field(..., gt=0.0)
+    lr_scheduler: str
+    batch_size: PositiveInt
+    weight_decay: float = Field(..., ge=0.0)
+    train_epochs: PositiveInt
+
+
+def make_best_hyperparameters(
+    hpo_params: dict[str, Any],
+    *,
+    scale_learning_rate: bool,
+    checkpoint: str,
+    proxy_checkpoint: str,
+    wrap_peft: bool,
+) -> BestHyperparameters:
+    """Convert raw Trainer/Optuna hyperparameters into effective training parameters.
+
+    Args:
+        hpo_params: Best hyperparameters returned by Hugging Face Trainer HPO.
+            Expected keys are `learning_rate`, `lr_scheduler_type`,
+            `per_device_train_batch_size`, `weight_decay`, and `num_train_epochs`.
+        scale_learning_rate: Whether to scale the proxy-selected learning rate for
+            final fine-tuning on the target checkpoint.
+        checkpoint: Target checkpoint used for final fine-tuning.
+        proxy_checkpoint: Proxy checkpoint used during hyperparameter optimization.
+        wrap_peft: Whether final fine-tuning uses PEFT/LoRA wrapping.
+
+    Returns:
+        Validated effective hyperparameters for final fine-tuning.
+    """
+    learning_rate = hpo_params["learning_rate"]
+
+    if scale_learning_rate:
+        learning_rate = get_scaled_lr(
+            learning_rate=learning_rate,
+            checkpoint=checkpoint,
+            proxy_checkpoint=proxy_checkpoint,
+            peft=wrap_peft,
+        )
+
+    return BestHyperparameters(
+        learning_rate=learning_rate,
+        lr_scheduler=hpo_params["lr_scheduler_type"],
+        batch_size=hpo_params["per_device_train_batch_size"],
+        weight_decay=hpo_params["weight_decay"],
+        train_epochs=hpo_params["num_train_epochs"],
+    )
+
+
+def write_best_hyperparameters(
+    params: BestHyperparameters,
+    path: Path,
+) -> None:
+    """Write selected HPO hyperparameters as a JSON artifact.
+
+    Args:
+        params: Effective selected hyperparameters to persist.
+        path: Destination JSON path.
+    """
+    path.write_text(
+        params.model_dump_json(indent=4),
+        encoding="utf-8",
+    )
+
+
+def read_best_hyperparameters(
+    path: Path,
+) -> BestHyperparameters:
+    """Read selected HPO hyperparameters from a JSON artifact.
+
+    Args:
+        path: Source JSON path.
+
+    Returns:
+        Validated effective hyperparameters selected by HPO.
+    """
+    return BestHyperparameters.model_validate_json(path.read_text(encoding="utf-8"))

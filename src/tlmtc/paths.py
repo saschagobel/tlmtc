@@ -16,6 +16,7 @@ DEFAULT_HPO_CHECKPOINTS_DIRNAME: Final[str] = "hpo_checkpoints"
 DEFAULT_MODEL_DIRNAME: Final[str] = "model"
 DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 TRAIN_RUN_META_FILENAME: Final[str] = "train_run_meta.json"
+BEST_HYPERPARAMETERS_FILENAME: Final[str] = "best_hyperparameters.json"
 
 RUN_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -71,6 +72,7 @@ class RunPaths:
         val_data_path: Path to the prepared validation split.
         test_data_path: Path to the prepared test split.
         optuna_trials_path: Path to the persisted Optuna study database.
+        best_hyperparameters_path: Path to the persisted effective hyperparameters selected by HPO.
         global_metrics_path: Path to the aggregate metrics JSON artifact.
         label_metrics_path: Path to the per-label metrics JSON artifact.
         global_metrics_table_path: Path to the aggregate metrics HTML table.
@@ -102,6 +104,7 @@ class RunPaths:
     test_data_path: Path
 
     optuna_trials_path: Path
+    best_hyperparameters_path: Path
 
     global_metrics_path: Path
     label_metrics_path: Path
@@ -179,7 +182,7 @@ def resolve_paths(
         work_dir=resolved_work_dir,
         run_dir=run_dir,
         run_id=run_id,
-        train_run_meta_path=run_dir / "train_run_meta.json",
+        train_run_meta_path=run_dir / TRAIN_RUN_META_FILENAME,
         raw_data_path=raw_data_path,
         raw_test_data_path=raw_test_data_path,
         data_dir=data_dir,
@@ -200,6 +203,7 @@ def resolve_paths(
         loss_plot_path=eval_dir / "loss_plot.pdf",
         objective_values_plot_path=eval_dir / "objective_values_plot.pdf",
         optuna_trials_path=logs_dir / "optuna_trials.db",
+        best_hyperparameters_path=logs_dir / BEST_HYPERPARAMETERS_FILENAME,
     )
 
 

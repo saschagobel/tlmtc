@@ -10,9 +10,13 @@ from transformers import EarlyStoppingCallback, Trainer
 
 from tlmtc.evaluation import find_optimal_threshold
 from tlmtc.hpo import (
+    BestHyperparameters,
     ensure_study_and_get_existing_trial_count,
+    make_best_hyperparameters,
     make_compute_objective,
     optuna_hp_space,
+    read_best_hyperparameters,
+    write_best_hyperparameters,
 )
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
@@ -31,7 +35,6 @@ from tlmtc.training import (
     compute_metrics,
     get_class_weights,
     get_num_labels,
-    get_scaled_lr,
     get_training_args,
     make_model_init,
 )
@@ -102,6 +105,17 @@ class FinetunePipeline:
         self.updated_trainer: Trainer | None = None
         self.num_labels: int | None = None
         self.tuned_threshold: np.ndarray = np.array([0.5], dtype=float)
+
+    def _apply_best_hyperparameters(
+        self,
+        params: BestHyperparameters,
+    ) -> None:
+        """Apply selected HPO hyperparameters to mutable runtime training state."""
+        self.runtime_training.learning_rate = params.learning_rate
+        self.runtime_training.lr_scheduler = params.lr_scheduler
+        self.runtime_training.batch_size = params.batch_size
+        self.runtime_training.weight_decay = params.weight_decay
+        self.runtime_training.train_epochs = params.train_epochs
 
     def tune_hyperparameters(
         self,
@@ -197,19 +211,21 @@ class FinetunePipeline:
 
         best_hyperparameters = best_run.hyperparameters
 
-        if self.workflow.scale_learning_rate:
-            self.runtime_training.learning_rate = get_scaled_lr(
-                learning_rate=best_hyperparameters["learning_rate"],
-                checkpoint=self.model.checkpoint,
-                proxy_checkpoint=self.model.proxy_checkpoint,
-                peft=self.workflow.wrap_peft,
-            )
-        else:
-            self.runtime_training.learning_rate = best_hyperparameters["learning_rate"]
-        self.runtime_training.lr_scheduler = best_hyperparameters["lr_scheduler_type"]
-        self.runtime_training.batch_size = best_hyperparameters["per_device_train_batch_size"]
-        self.runtime_training.weight_decay = best_hyperparameters["weight_decay"]
-        self.runtime_training.train_epochs = best_hyperparameters["num_train_epochs"]
+        selected_hyperparameters = make_best_hyperparameters(
+            hpo_params=best_hyperparameters,
+            scale_learning_rate=self.workflow.scale_learning_rate,
+            checkpoint=self.model.checkpoint,
+            proxy_checkpoint=self.model.proxy_checkpoint,
+            wrap_peft=self.workflow.wrap_peft,
+        )
+
+        self._apply_best_hyperparameters(selected_hyperparameters)
+
+        write_best_hyperparameters(
+            params=selected_hyperparameters,
+            path=self.paths.best_hyperparameters_path,
+        )
+
         return self
 
     def fine_tune_pretrained(
@@ -231,6 +247,10 @@ class FinetunePipeline:
             return self
         if self.tokenized_dataset is None:
             raise RuntimeError("Tokenized dataset not found. Run DataPipeline class first.")
+
+        if not self.workflow.hyperparameter_tuning and self.paths.best_hyperparameters_path.exists():
+            emit_progress("Loading selected HPO hyperparameters")
+            self._apply_best_hyperparameters(read_best_hyperparameters(self.paths.best_hyperparameters_path))
 
         emit_progress("Fine-tuning model")
 
