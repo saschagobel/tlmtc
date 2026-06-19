@@ -326,6 +326,7 @@ class TestBundleSettings:
         assert settings.proxy_checkpoint == "microsoft/deberta-v3-small"
         assert settings.checkpoint == "microsoft/deberta-v3-base"
         assert settings.sequence_length == 128
+        assert settings.trust_remote_code is False
 
     def test_model_settings_defaults_proxy_to_explicit_checkpoint(self) -> None:
         """ModelSettings should use an explicit checkpoint as proxy when proxy is omitted."""
@@ -339,10 +340,12 @@ class TestBundleSettings:
         settings = ModelSettings(
             checkpoint="custom/target",
             proxy_checkpoint="custom/proxy",
+            trust_remote_code=True,
         )
 
         assert settings.checkpoint == "custom/target"
         assert settings.proxy_checkpoint == "custom/proxy"
+        assert settings.trust_remote_code is True
 
     def test_split_settings_defaults(self) -> None:
         """SplitSettings should expose the package defaults."""
@@ -535,6 +538,7 @@ class TestRunSettings:
                 "raw_csv": "train.csv",
                 "model": {
                     "checkpoint": "microsoft/deberta-v3-large",
+                    "trust_remote_code": True,
                 },
                 "split": {
                     "validation_size": 0.2,
@@ -582,6 +586,7 @@ class TestRunSettings:
             "epoch_high": 25,
         }
         assert settings.runtime.verbosity == "progress"
+        assert settings.model.trust_remote_code is True
 
     def test_run_settings_resolve_prunes_unset_in_nested_overrides(self) -> None:
         """RunSettings.resolve should ignore nested override values explicitly marked as UNSET."""
