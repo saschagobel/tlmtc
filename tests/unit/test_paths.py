@@ -8,6 +8,7 @@ import pytest
 from tlmtc.data_contracts import InputMode
 from tlmtc.meta import TrainRunMeta, write_run_meta
 from tlmtc.paths import (
+    BEST_HYPERPARAMETERS_FILENAME,
     DEFAULT_DATA_DIRNAME,
     DEFAULT_EVAL_DIRNAME,
     DEFAULT_HPO_CHECKPOINTS_DIRNAME,
@@ -153,6 +154,7 @@ class TestResolvePaths:
         assert paths.loss_plot_path == paths.eval_dir / "loss_plot.pdf"
         assert paths.objective_values_plot_path == paths.eval_dir / "objective_values_plot.pdf"
         assert paths.optuna_trials_path == paths.logs_dir / "optuna_trials.db"
+        assert paths.best_hyperparameters_path == paths.logs_dir / BEST_HYPERPARAMETERS_FILENAME
 
     def test_resolves_raw_inputs_independently_from_work_dir(self, tmp_path: Path, monkeypatch) -> None:
         """Ensure relative raw input paths are resolved from cwd, not from work_dir."""
