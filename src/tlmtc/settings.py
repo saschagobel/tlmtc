@@ -142,6 +142,7 @@ class ModelSettings(BaseModel):
         proxy_checkpoint: Proxy checkpoint used during hyperparameter optimization.
         checkpoint: Target checkpoint used for final fine-tuning.
         sequence_length: Maximum tokenized sequence length.
+        trust_remote_code: Whether Hugging Face model, tokenizer, and config loading may execute custom remote code.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -150,6 +151,7 @@ class ModelSettings(BaseModel):
     proxy_checkpoint: str = "microsoft/deberta-v3-small"
     checkpoint: str = "microsoft/deberta-v3-base"
     sequence_length: PositiveInt = 128
+    trust_remote_code: bool = False
 
     @model_validator(mode="before")
     @classmethod
