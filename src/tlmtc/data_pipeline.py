@@ -245,7 +245,7 @@ class DataPipeline:
 
         tokenizer = AutoTokenizer.from_pretrained(
             self.model.checkpoint,
-            trust_remote_code=False,
+            trust_remote_code=self.model.trust_remote_code,
         )
 
         td = self.hf_dataset.map(

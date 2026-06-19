@@ -126,6 +126,7 @@ def get_scaled_lr(
     checkpoint: str,
     proxy_checkpoint: str,
     peft: bool,
+    trust_remote_code: bool,
 ) -> float:
     """Scale a proxy-tuned learning rate for a target checkpoint.
 
@@ -134,6 +135,7 @@ def get_scaled_lr(
         checkpoint: Target checkpoint identifier.
         proxy_checkpoint: Proxy checkpoint identifier.
         peft: Whether the target model uses PEFT/LoRA.
+        trust_remote_code: Whether Hugging Face config loading may execute custom remote code.
 
     Returns:
         Conservative target-checkpoint learning rate.
@@ -145,11 +147,11 @@ def get_scaled_lr(
 
     target_hidden_size = AutoConfig.from_pretrained(
         checkpoint,
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     ).hidden_size
     proxy_hidden_size = AutoConfig.from_pretrained(
         proxy_checkpoint,
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     ).hidden_size
 
     hidden_size_ratio = proxy_hidden_size / target_hidden_size
@@ -302,6 +304,7 @@ def make_model_init(
     lora_alpha: int,
     lora_dropout: float,
     lora_bias: Literal["none", "all", "lora_only"],
+    trust_remote_code: bool,
 ) -> Callable[[object | None], PreTrainedModel | PeftModel | PeftMixedModel]:
     """Create a Trainer-compatible model factory.
 
@@ -313,6 +316,7 @@ def make_model_init(
         lora_alpha: LoRA scaling factor.
         lora_dropout: LoRA dropout probability.
         lora_bias: LoRA bias handling mode.
+        trust_remote_code: Whether Hugging Face model loading may execute custom remote code.
 
     Returns:
         Factory accepted by Hugging Face Trainer as `model_init`.
@@ -329,7 +333,7 @@ def make_model_init(
             checkpoint,
             num_labels=num_labels,
             problem_type="multi_label_classification",
-            trust_remote_code=False,
+            trust_remote_code=trust_remote_code,
         )
 
         if wrap_peft:
