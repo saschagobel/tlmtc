@@ -37,7 +37,7 @@ In applied settings, text classification is rarely a simple single-label task or
 - End-to-end prediction workflow that reloads trained models, metadata, labels, and thresholds automatically
 - Automatic persistence and reuse of data splits, Optuna studies, trained models, thresholds, and run metadata
 - Highly configurable through a small workflow-oriented Python API and CLI
-- CPU and multi-GPU training and prediction support
+- CPU and DDP-safe multi-GPU training and prediction support
 
 ## Installation
 
