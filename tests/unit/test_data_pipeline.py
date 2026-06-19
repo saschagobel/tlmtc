@@ -130,6 +130,7 @@ def model_settings() -> ModelSettings:
         proxy_checkpoint="unused-here",
         checkpoint="tests/data/tiny_tokenizer",
         sequence_length=16,
+        trust_remote_code=True,
     )
 
 
@@ -669,7 +670,7 @@ class TestTokenizeData:
 
         tokenizer_loader.assert_called_once_with(
             dp.model.checkpoint,
-            trust_remote_code=False,
+            trust_remote_code=dp.model.trust_remote_code,
         )
 
         assert tokenize_batch_spy.call_count > 0

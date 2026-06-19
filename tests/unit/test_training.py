@@ -41,6 +41,7 @@ def patched_model_loader(base_test_model, monkeypatch):
     """Monkeypatch AutoModelForSequenceClassification.from_pretrained."""
 
     def fake_from_pretrained(*_args, **_kwargs):
+        assert _kwargs["trust_remote_code"] is True
         return base_test_model
 
     monkeypatch.setattr(
@@ -220,6 +221,7 @@ def test_make_sequence_classification_model_init_creates_base_or_peft_wrapped_mo
         lora_alpha=8,
         lora_dropout=0.1,
         lora_bias="none",
+        trust_remote_code=True,
     )
 
     assert callable(model_init)
@@ -253,6 +255,7 @@ def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft
         checkpoint=str(target_dir),
         proxy_checkpoint=str(proxy_dir),
         peft=False,
+        trust_remote_code=False,
     )
 
     scaled_peft = get_scaled_lr(
@@ -260,6 +263,7 @@ def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft
         checkpoint=str(target_dir),
         proxy_checkpoint=str(proxy_dir),
         peft=True,
+        trust_remote_code=False,
     )
 
     assert scaled_non_peft == pytest.approx(expected_non_peft)
