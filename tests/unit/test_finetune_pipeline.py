@@ -1,5 +1,6 @@
 """Tests for FinetunePipeline."""
 
+import json
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -391,7 +392,7 @@ class TestTuneHyperparameters:
         scaled_lr = 5e-5
         mock_get_scaled_lr = MagicMock(return_value=scaled_lr)
         monkeypatch.setattr(
-            "tlmtc.finetune_pipeline.get_scaled_lr",
+            "tlmtc.hpo.get_scaled_lr",
             mock_get_scaled_lr,
             raising=True,
         )
@@ -419,6 +420,14 @@ class TestTuneHyperparameters:
         assert pipeline.runtime_training.train_epochs == 2
 
         assert pipeline.training == original_training
+
+        selected = json.loads(pipeline.paths.best_hyperparameters_path.read_text(encoding="utf-8"))
+
+        assert selected["learning_rate"] == pytest.approx(pipeline.runtime_training.learning_rate)
+        assert selected["lr_scheduler"] == pipeline.runtime_training.lr_scheduler
+        assert selected["batch_size"] == pipeline.runtime_training.batch_size
+        assert selected["weight_decay"] == pipeline.runtime_training.weight_decay
+        assert selected["train_epochs"] == pipeline.runtime_training.train_epochs
 
     def test_suppresses_trainer_console_callbacks(
         self,
@@ -644,6 +653,108 @@ class TestFineTunePretrained:
         assert training_args.lr_scheduler_type == "cosine"
 
         assert training_args.metric_for_best_model == pipeline.training.best_model_metric
+
+    def test_reuses_persisted_hpo_hyperparameters_when_hpo_is_disabled(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        fake_trainer,
+    ):
+        """Ensure fine-tuning reuses selected HPO params from the same run when HPO is disabled."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=False,
+        )
+
+        pipeline.paths.best_hyperparameters_path.write_text(
+            json.dumps(
+                {
+                    "learning_rate": 7e-5,
+                    "lr_scheduler": "cosine",
+                    "batch_size": 8,
+                    "weight_decay": 0.03,
+                    "train_epochs": 4,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        recorded: dict[str, Any] = {}
+
+        def trainer_factory(*args, **kwargs):
+            recorded["args"] = args
+            recorded["kwargs"] = kwargs
+            return fake_trainer
+
+        pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        training_args = recorded["kwargs"]["args"]
+
+        assert pipeline.runtime_training.learning_rate == pytest.approx(7e-5)
+        assert pipeline.runtime_training.lr_scheduler == "cosine"
+        assert pipeline.runtime_training.batch_size == 8
+        assert pipeline.runtime_training.weight_decay == 0.03
+        assert pipeline.runtime_training.train_epochs == 4
+
+        assert training_args.learning_rate == pytest.approx(7e-5)
+        assert training_args.lr_scheduler_type == "cosine"
+        assert training_args.per_device_train_batch_size == 8
+        assert training_args.weight_decay == 0.03
+        assert training_args.num_train_epochs == 4
+
+    def test_does_not_reload_persisted_hpo_hyperparameters_when_hpo_is_enabled(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
+        fake_trainer,
+    ):
+        """Ensure full HPO-plus-fine-tuning runs use in-memory params, not persisted JSON reloads."""
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            transfer_learning=True,
+            hyperparameter_tuning=True,
+        )
+
+        pipeline.paths.best_hyperparameters_path.write_text(
+            json.dumps(
+                {
+                    "learning_rate": 9e-5,
+                    "lr_scheduler": "linear",
+                    "batch_size": 16,
+                    "weight_decay": 0.09,
+                    "train_epochs": 9,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        pipeline.runtime_training.learning_rate = 5e-5
+        pipeline.runtime_training.lr_scheduler = "cosine"
+        pipeline.runtime_training.batch_size = 8
+        pipeline.runtime_training.weight_decay = 0.02
+        pipeline.runtime_training.train_epochs = 3
+
+        recorded: dict[str, Any] = {}
+
+        def trainer_factory(*args, **kwargs):
+            recorded["args"] = args
+            recorded["kwargs"] = kwargs
+            return fake_trainer
+
+        pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        training_args = recorded["kwargs"]["args"]
+
+        assert training_args.learning_rate == pytest.approx(5e-5)
+        assert training_args.lr_scheduler_type == "cosine"
+        assert training_args.per_device_train_batch_size == 8
+        assert training_args.weight_decay == 0.02
+        assert training_args.num_train_epochs == 3
 
     def test_suppresses_trainer_console_callbacks_without_removing_early_stopping(
         self,
