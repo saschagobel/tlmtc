@@ -107,6 +107,7 @@ def test_make_best_hyperparameters_converts_trainer_hpo_params() -> None:
         checkpoint="target-checkpoint",
         proxy_checkpoint="proxy-checkpoint",
         wrap_peft=True,
+        trust_remote_code=False,
     )
 
     assert result == BestHyperparameters(
@@ -128,6 +129,7 @@ def test_make_best_hyperparameters_scales_learning_rate_when_requested(monkeypat
         checkpoint: str,
         proxy_checkpoint: str,
         peft: bool,
+        trust_remote_code: bool,
     ) -> float:
         calls.append(
             {
@@ -135,6 +137,7 @@ def test_make_best_hyperparameters_scales_learning_rate_when_requested(monkeypat
                 "checkpoint": checkpoint,
                 "proxy_checkpoint": proxy_checkpoint,
                 "peft": peft,
+                "trust_remote_code": trust_remote_code,
             }
         )
         return 2e-5
@@ -153,6 +156,7 @@ def test_make_best_hyperparameters_scales_learning_rate_when_requested(monkeypat
         checkpoint="target-checkpoint",
         proxy_checkpoint="proxy-checkpoint",
         wrap_peft=False,
+        trust_remote_code=True,
     )
 
     assert result.learning_rate == 2e-5
@@ -167,6 +171,7 @@ def test_make_best_hyperparameters_scales_learning_rate_when_requested(monkeypat
             "checkpoint": "target-checkpoint",
             "proxy_checkpoint": "proxy-checkpoint",
             "peft": False,
+            "trust_remote_code": True,
         }
     ]
 

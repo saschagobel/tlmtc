@@ -58,6 +58,7 @@ def pipeline_factory(tmp_path, base_search_space):
         tuning_trials: int = 1,
         model_checkpoint: str = "dummy",
         target_name: str = "dummy",
+        trust_remote_code: bool = True,
     ):
         paths = resolve_paths(
             raw_csv=tmp_path / "raw.csv",
@@ -73,6 +74,7 @@ def pipeline_factory(tmp_path, base_search_space):
             proxy_checkpoint="dummy_proxy",
             checkpoint=model_checkpoint,
             sequence_length=16,
+            trust_remote_code=trust_remote_code,
         )
 
         workflow = WorkflowSettings(
@@ -189,8 +191,10 @@ def patch_hf_hyperparameter_search(monkeypatch):
 @pytest.fixture
 def patch_model_init(monkeypatch):
     """Patch to replace make_model_init with a tiny torch model factory."""
+    calls: list[dict[str, Any]] = []
 
     def _fake_model_init(*_args, **kwargs):
+        calls.append(kwargs)
         num_labels = kwargs.get("num_labels", 2)
 
         class _Model(torch.nn.Module):
@@ -210,6 +214,8 @@ def patch_model_init(monkeypatch):
         _fake_model_init,
         raising=True,
     )
+
+    return calls
 
 
 @pytest.fixture
@@ -325,6 +331,7 @@ class TestTuneHyperparameters:
         self,
         pipeline_with_tokenized_hpo,
         fake_trainer,
+        patch_model_init,
     ):
         """Ensure tune_hyperparameters instantiates the Trainer with expected inputs."""
         pipeline = pipeline_with_tokenized_hpo
@@ -336,6 +343,9 @@ class TestTuneHyperparameters:
             return fake_trainer
 
         pipeline.tune_hyperparameters(trainer=trainer_factory)
+
+        assert patch_model_init[-1]["checkpoint"] == pipeline.model.proxy_checkpoint
+        assert patch_model_init[-1]["trust_remote_code"] is pipeline.model.trust_remote_code
 
         assert recorded, "Trainer was never instantiated by tune_hyperparameters"
         assert recorded["args"] == ()
@@ -409,6 +419,7 @@ class TestTuneHyperparameters:
                 checkpoint=pipeline.model.checkpoint,
                 proxy_checkpoint=pipeline.model.proxy_checkpoint,
                 peft=pipeline.workflow.wrap_peft,
+                trust_remote_code=pipeline.model.trust_remote_code,
             )
         else:
             assert pipeline.runtime_training.learning_rate == 1e-4
@@ -560,6 +571,7 @@ class TestFineTunePretrained:
         dummy_train_parquet,
         tokenized_dataset,
         fake_trainer,
+        patch_model_init,
     ):
         """Ensure fine_tune_pretrained instantiates Trainer with expected arguments."""
         pipeline = pipeline_factory(
@@ -577,6 +589,9 @@ class TestFineTunePretrained:
             return fake_trainer
 
         pipeline.fine_tune_pretrained(trainer=trainer_factory)
+
+        assert patch_model_init[-1]["checkpoint"] == pipeline.model.checkpoint
+        assert patch_model_init[-1]["trust_remote_code"] is pipeline.model.trust_remote_code
 
         assert recorded, "Trainer was never instantiated by fine_tune_pretrained"
         assert recorded["args"] == ()
