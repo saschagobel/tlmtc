@@ -553,6 +553,7 @@ class TestTrainTlmtc:
             model:
               target_name: Config Target
               sequence_length: 64
+              trust_remote_code: true
 
             split:
               random_seed: 123
@@ -579,6 +580,7 @@ class TestTrainTlmtc:
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["model"].target_name == "Config Target"
         assert data_kwargs["model"].sequence_length == 64
+        assert data_kwargs["model"].trust_remote_code is True
         assert data_kwargs["split"].random_seed == 123
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
@@ -600,6 +602,7 @@ class TestTrainTlmtc:
             model:
               target_name: Config Target
               sequence_length: 64
+              trust_remote_code: false
 
             training:
               batch_size: 4
@@ -620,6 +623,7 @@ class TestTrainTlmtc:
             sequence_length=32,
             batch_size=8,
             wrap_peft=True,
+            trust_remote_code=True,
         )
 
         assert result.paths.run_id == "explicit_run"
@@ -627,6 +631,7 @@ class TestTrainTlmtc:
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["model"].target_name == "Explicit Target"
         assert data_kwargs["model"].sequence_length == 32
+        assert data_kwargs["model"].trust_remote_code is True
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["training"].batch_size == 8
@@ -848,6 +853,7 @@ class TestPredictTlmtc:
             work_dir: {tmp_path.as_posix()}
             run_id: config_run
             batch_size: 4
+            trust_remote_code: false
             hardware:
               use_cpu: false
             """,
@@ -859,6 +865,7 @@ class TestPredictTlmtc:
             config_path=config_path,
             run_id="explicit_run",
             batch_size=8,
+            trust_remote_code=True,
             use_cpu=True,
         )
 
@@ -867,6 +874,12 @@ class TestPredictTlmtc:
         _, predict_kwargs = ops.predict_probabilities.call_args
         assert predict_kwargs["batch_size"] == 8
         assert predict_kwargs["use_cpu"] is True
+
+        _, tokenize_kwargs = ops.tokenize_prediction_dataset.call_args
+        assert tokenize_kwargs["trust_remote_code"] is True
+
+        _, load_model_kwargs = ops.load_prediction_model.call_args
+        assert load_model_kwargs["trust_remote_code"] is True
 
     def test_selects_latest_completed_training_run_when_run_id_is_omitted(
         self,

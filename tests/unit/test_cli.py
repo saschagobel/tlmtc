@@ -162,6 +162,7 @@ class TestTrainCliApp:
         assert "--optuna-space" in output
         assert "--use-cpu" in output
         assert "--verbosity" in output
+        assert "--trust-remote-co" in output
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -182,6 +183,25 @@ class TestTrainCliApp:
 
         assert result.exit_code == 0
         assert stub_train_tlmtc["kwargs"]["transfer_learning"] is expected
+
+    @pytest.mark.parametrize(
+        ("flag", "expected"),
+        [
+            ("--trust-remote-code", True),
+            ("--no-trust-remote-code", False),
+        ],
+    )
+    def test_train_trust_remote_code_flag_pair_parse_explicit_values(
+        self,
+        runner: CliRunner,
+        flag: str,
+        expected: bool,
+        stub_train_tlmtc: dict[str, Any],
+    ) -> None:
+        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", flag])
+
+        assert result.exit_code == 0
+        assert stub_train_tlmtc["kwargs"]["trust_remote_code"] is expected
 
     @pytest.mark.parametrize("verbosity", ["progress", "quiet"])
     def test_train_forwards_verbosity(
@@ -220,6 +240,7 @@ class TestTrainCliApp:
                 "--optuna-space",
                 '{"lr_low": 1e-5}',
                 "--no-hyperparameter-tuning",
+                "--trust-remote-code",
             ],
         )
         output = clean_cli_output(result.output)
@@ -232,6 +253,7 @@ class TestTrainCliApp:
         assert kwargs["optuna_space"] == {"lr_low": 1e-5}
         assert kwargs["hyperparameter_tuning"] is False
         assert kwargs["batch_size"] is UNSET
+        assert kwargs["trust_remote_code"] is True
         assert kwargs["threshold_type"] is UNSET
         assert kwargs["use_cpu"] is UNSET
 
@@ -263,6 +285,7 @@ class TestTrainCliApp:
         assert kwargs["raw_test_csv"] is UNSET
         assert kwargs["work_dir"] is UNSET
         assert kwargs["batch_size"] is UNSET
+        assert kwargs["trust_remote_code"] is UNSET
         assert kwargs["hyperparameter_tuning"] is UNSET
         assert kwargs["threshold_type"] is UNSET
         assert kwargs["optuna_space"] is UNSET
@@ -342,8 +365,28 @@ class TestPredictCliApp:
         assert "--prediction-csv" in output
         assert "--run-id" in output
         assert "--batch-size" in output
+        assert "--trust-remote-co" in output
         assert "--use-cpu" in output
         assert "--verbosity" in output
+
+    @pytest.mark.parametrize(
+        ("flag", "expected"),
+        [
+            ("--trust-remote-code", True),
+            ("--no-trust-remote-code", False),
+        ],
+    )
+    def test_predict_trust_remote_code_flag_pair_parse_explicit_values(
+        self,
+        runner: CliRunner,
+        flag: str,
+        expected: bool,
+        stub_predict_tlmtc: dict[str, Any],
+    ) -> None:
+        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv", flag])
+
+        assert result.exit_code == 0
+        assert stub_predict_tlmtc["kwargs"]["trust_remote_code"] is expected
 
     @pytest.mark.parametrize(
         "flag, expected",
@@ -405,6 +448,7 @@ class TestPredictCliApp:
                 "test-run",
                 "--batch-size",
                 "8",
+                "--trust-remote-code",
                 "--use-cpu",
             ],
         )
@@ -420,6 +464,7 @@ class TestPredictCliApp:
         assert kwargs["work_dir"] == "work"
         assert kwargs["run_id"] == "test-run"
         assert kwargs["batch_size"] == 8
+        assert kwargs["trust_remote_code"] is True
         assert kwargs["use_cpu"] is True
 
     def test_predict_forwards_config_path(
@@ -460,6 +505,7 @@ class TestPredictCliApp:
         assert kwargs["config_path"] is UNSET
         assert kwargs["run_id"] is UNSET
         assert kwargs["batch_size"] is UNSET
+        assert kwargs["trust_remote_code"] is UNSET
         assert kwargs["use_cpu"] is UNSET
         assert kwargs["verbosity"] is UNSET
 
