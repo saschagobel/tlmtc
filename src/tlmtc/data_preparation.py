@@ -242,6 +242,7 @@ def tokenize_prediction_dataset(
     checkpoint: str,
     input_mode: InputMode,
     sequence_length: int,
+    trust_remote_code: bool,
 ) -> Dataset:
     """Tokenize prediction inputs.
 
@@ -250,13 +251,14 @@ def tokenize_prediction_dataset(
         checkpoint: Checkpoint used to load the tokenizer.
         input_mode: Input mode persisted by the training run.
         sequence_length: Maximum tokenized sequence length.
+        trust_remote_code: Whether Hugging Face tokenizer loading may execute custom remote code.
 
     Returns:
         Tokenized prediction dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(
         checkpoint,
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     )
 
     tokenized_dataset = dataset.map(

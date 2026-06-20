@@ -443,6 +443,7 @@ def predict_tlmtc(
         checkpoint=meta.checkpoint,
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
+        trust_remote_code=settings.trust_remote_code,
     )
     emit_progress("Loading fine-tuned prediction model")
     model = load_prediction_model(
@@ -450,6 +451,7 @@ def predict_tlmtc(
         checkpoint=meta.checkpoint,
         num_labels=len(label_names),
         wrap_peft=meta.wrap_peft,
+        trust_remote_code=settings.trust_remote_code,
     )
     emit_progress("Running prediction")
     probabilities = predict_probabilities(
