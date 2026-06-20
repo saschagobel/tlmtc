@@ -701,6 +701,7 @@ class TestPredictionSettings:
         assert settings.hardware.use_cpu is False
         assert isinstance(settings.runtime, RuntimeSettings)
         assert settings.runtime.verbosity == "progress"
+        assert settings.trust_remote_code is False
 
     def test_prediction_settings_accepts_explicit_values(self, tmp_path: Path) -> None:
         """PredictionSettings should preserve explicit prediction runtime values."""
@@ -709,6 +710,7 @@ class TestPredictionSettings:
             work_dir=tmp_path / "workspace",
             run_id="manual-run",
             batch_size=64,
+            trust_remote_code=True,
             hardware={"use_cpu": True},
             runtime={"verbosity": "quiet"},
         )
@@ -717,6 +719,7 @@ class TestPredictionSettings:
         assert settings.work_dir == tmp_path / "workspace"
         assert settings.run_id == "manual-run"
         assert settings.batch_size == 64
+        assert settings.trust_remote_code is True
         assert settings.hardware.use_cpu is True
         assert settings.runtime.verbosity == "quiet"
 
@@ -728,6 +731,7 @@ class TestPredictionSettings:
                 "work_dir": "from-config-workdir",
                 "run_id": "from-config-run",
                 "batch_size": 16,
+                "trust_remote_code": True,
                 "runtime": {
                     "verbosity": "quiet",
                 },
@@ -746,6 +750,7 @@ class TestPredictionSettings:
         assert settings.run_id is None
         assert settings.batch_size == 16
         assert settings.hardware.use_cpu is True
+        assert settings.trust_remote_code is True
         assert settings.runtime.verbosity == "quiet"
 
     def test_prediction_settings_resolve_prunes_unset_values(self) -> None:
