@@ -325,6 +325,7 @@ def train_tlmtc(
             checkpoint=settings.model.checkpoint,
             proxy_checkpoint=settings.model.proxy_checkpoint,
             sequence_length=settings.model.sequence_length,
+            trust_remote_code=settings.model.trust_remote_code,
             input_mode=data_pipeline.input_mode,
             label_names=evaluation_pipeline.label_names,
             threshold_type=settings.threshold.threshold_type,
@@ -419,6 +420,14 @@ def predict_tlmtc(
         raise RuntimeError(
             "Prediction requires a training run with transfer_learning=True. "
             f"Run '{meta.run_id}' did not persist a fine-tuned prediction model."
+        )
+
+    if meta.trust_remote_code and not settings.trust_remote_code:
+        raise RuntimeError(
+            f"Prediction run '{meta.run_id}' was trained with trust_remote_code=True, "
+            "but prediction was started with trust_remote_code=False. "
+            "Re-run prediction with trust_remote_code=True or --trust-remote-code only if you trust "
+            f"the Hugging Face model repository or local model artifacts for '{meta.checkpoint}'."
         )
 
     input_mode = meta.input_mode
