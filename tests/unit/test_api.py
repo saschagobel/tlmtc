@@ -245,6 +245,7 @@ def _write_prediction_ready_train_run(
     thresholds: list[float] | None = None,
     transfer_learning: bool = True,
     wrap_peft: bool = False,
+    trust_remote_code: bool = False,
 ) -> None:
     """Write minimal training artifacts required by predict_tlmtc."""
     train_run_dir = work_dir / "train_outputs" / run_id
@@ -263,6 +264,7 @@ def _write_prediction_ready_train_run(
             checkpoint="test-checkpoint",
             proxy_checkpoint="test-proxy-checkpoint",
             sequence_length=16,
+            trust_remote_code=trust_remote_code,
             input_mode=input_mode,
             label_names=LABEL_NAMES if label_names is None else label_names,
             threshold_type=threshold_type,
@@ -369,6 +371,7 @@ def _assert_default_train_meta(path: Path) -> None:
     assert run_meta.threshold_optimization is True
     assert run_meta.scale_learning_rate is False
     assert run_meta.wrap_peft is True
+    assert run_meta.trust_remote_code is False
 
 
 def _assert_prediction_operations_called(
@@ -962,6 +965,29 @@ class TestPredictTlmtc:
                 prediction_csv,
                 work_dir=tmp_path,
                 run_id="data_only_run",
+            )
+
+        read_prediction_csv_mock.assert_not_called()
+
+    def test_rejects_remote_code_training_run_without_prediction_opt_in(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="remote_code_run",
+            trust_remote_code=True,
+        )
+        read_prediction_csv_mock = MagicMock()
+        monkeypatch.setattr(api_mod, "read_prediction_csv", read_prediction_csv_mock)
+
+        with pytest.raises(RuntimeError, match="trust_remote_code=True"):
+            api_mod.predict_tlmtc(
+                prediction_csv,
+                work_dir=tmp_path,
+                run_id="remote_code_run",
             )
 
         read_prediction_csv_mock.assert_not_called()

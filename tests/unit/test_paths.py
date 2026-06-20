@@ -30,6 +30,7 @@ def _write_train_run_meta(
     run_id: str,
     created_at: datetime,
     transfer_learning: bool = True,
+    trust_remote_code: bool = False,
 ) -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
     write_run_meta(
@@ -40,6 +41,7 @@ def _write_train_run_meta(
             checkpoint="checkpoint",
             proxy_checkpoint="proxy-checkpoint",
             sequence_length=128,
+            trust_remote_code=trust_remote_code,
             input_mode=InputMode.SINGLE_TEXT,
             label_names=["a", "b"],
             threshold_type="label",

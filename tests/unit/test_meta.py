@@ -20,6 +20,7 @@ def train_meta() -> TrainRunMeta:
         checkpoint="microsoft/deberta-v3-base",
         proxy_checkpoint="microsoft/deberta-v3-small",
         sequence_length=128,
+        trust_remote_code=True,
         input_mode=InputMode.SINGLE_TEXT,
         label_names=["routing", "compliance"],
         threshold_type="label",
@@ -43,6 +44,7 @@ class TestTrainRunMeta:
             checkpoint="microsoft/deberta-v3-base",
             proxy_checkpoint="microsoft/deberta-v3-small",
             sequence_length=256,
+            trust_remote_code=True,
             input_mode=InputMode.PAIRED_TEXT,
             label_names=["routing", "compliance"],
             threshold_type="global",
@@ -59,6 +61,7 @@ class TestTrainRunMeta:
         assert meta.checkpoint == "microsoft/deberta-v3-base"
         assert meta.proxy_checkpoint == "microsoft/deberta-v3-small"
         assert meta.sequence_length == 256
+        assert meta.trust_remote_code is True
         assert meta.input_mode is InputMode.PAIRED_TEXT
         assert meta.label_names == ["routing", "compliance"]
         assert meta.threshold_type == "global"
