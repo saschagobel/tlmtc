@@ -120,12 +120,12 @@ def train_tlmtc(
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
             hyperparameter tuning. Defaults to `"microsoft/deberta-v3-small"`. If `checkpoint`
             is supplied and `proxy_checkpoint` is omitted, the proxy checkpoint defaults to the
-            selected `checkpoint`. Loaded with `trust_remote_code=False`; checkpoints that require
-            custom remote code are not supported. Only use checkpoints you trust.
+            selected `checkpoint`. Loaded with the resolved `trust_remote_code` setting. Keep `trust_remote_code=False`
+            unless you trust the checkpoint repository.
         checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
-            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`. Loaded with `trust_remote_code=False`;
-            checkpoints that require custom remote code are not supported. Only use checkpoints and local model
-            directories you trust.
+            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`. Prediction reloads the trained model or
+            adapter artifacts using the resolved prediction `trust_remote_code` setting. Keep it disabled unless you
+            trust the saved artifacts and checkpoint repository.
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
         best_model_metric: Metric used to select the best model checkpoint. Supported values are
             `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
