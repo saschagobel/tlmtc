@@ -444,6 +444,7 @@ class PredictionSettings(ResolvableSettings):
     Attributes:
         prediction_csv: Path to the unlabeled prediction CSV.
         batch_size: Prediction batch size used for batched inference.
+        trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom remote code.
         use_cpu: Whether to force CPU execution.
     """
 
@@ -453,5 +454,6 @@ class PredictionSettings(ResolvableSettings):
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None
     batch_size: PositiveInt = 32
+    trust_remote_code: bool = False
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
