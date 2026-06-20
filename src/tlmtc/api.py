@@ -63,6 +63,7 @@ def train_tlmtc(
     proxy_checkpoint: str | Unset = UNSET,
     checkpoint: str | Unset = UNSET,
     sequence_length: int | Unset = UNSET,
+    trust_remote_code: bool | Unset = UNSET,
     best_model_metric: str | Unset = UNSET,
     batch_size: int | Unset = UNSET,
     train_epochs: int | Unset = UNSET,
@@ -120,13 +121,16 @@ def train_tlmtc(
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
             hyperparameter tuning. Defaults to `"microsoft/deberta-v3-small"`. If `checkpoint`
             is supplied and `proxy_checkpoint` is omitted, the proxy checkpoint defaults to the
-            selected `checkpoint`. Loaded with `trust_remote_code=False`; checkpoints that require
-            custom remote code are not supported. Only use checkpoints you trust.
+            selected `checkpoint`. Loaded with the resolved `trust_remote_code` setting. Keep `trust_remote_code=False`
+            unless you trust the checkpoint repository.
         checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
-            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`. Loaded with `trust_remote_code=False`;
-            checkpoints that require custom remote code are not supported. Only use checkpoints and local model
-            directories you trust.
+            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`. Prediction reloads the trained model or
+            adapter artifacts using the resolved prediction `trust_remote_code` setting. Keep it disabled unless you
+            trust the saved artifacts and checkpoint repository.
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
+        trust_remote_code: Whether Hugging Face tokenizer, config, and model loading may execute
+            custom remote code. Defaults to `False`. Only enable this for model repositories or
+            local model artifacts you trust.
         best_model_metric: Metric used to select the best model checkpoint. Supported values are
             `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
             `"roc_auc_macro"`.
@@ -203,6 +207,7 @@ def train_tlmtc(
                 "proxy_checkpoint": proxy_checkpoint,
                 "checkpoint": checkpoint,
                 "sequence_length": sequence_length,
+                "trust_remote_code": trust_remote_code,
             },
             "split": {
                 "validation_size": validation_size,
@@ -325,6 +330,7 @@ def train_tlmtc(
             checkpoint=settings.model.checkpoint,
             proxy_checkpoint=settings.model.proxy_checkpoint,
             sequence_length=settings.model.sequence_length,
+            trust_remote_code=settings.model.trust_remote_code,
             input_mode=data_pipeline.input_mode,
             label_names=evaluation_pipeline.label_names,
             threshold_type=settings.threshold.threshold_type,
@@ -349,6 +355,7 @@ def predict_tlmtc(
     config_path: str | Path | Unset = UNSET,
     run_id: str | None | Unset = UNSET,
     batch_size: int | Unset = UNSET,
+    trust_remote_code: bool | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
     verbosity: str | Unset = UNSET,
 ) -> PredictResult:
@@ -371,6 +378,9 @@ def predict_tlmtc(
             artifacts that require custom remote code are not supported. Only use saved model
             artifacts and adapters you trust.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
+        trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom
+            remote code during prediction. Defaults to `False`. Required for runs trained with
+            `trust_remote_code=True`; only enable it for artifacts and checkpoints you trust.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
         verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
             `"progress"`.
@@ -386,6 +396,7 @@ def predict_tlmtc(
             "work_dir": work_dir,
             "run_id": run_id,
             "batch_size": batch_size,
+            "trust_remote_code": trust_remote_code,
             "hardware": {
                 "use_cpu": use_cpu,
             },
@@ -421,6 +432,14 @@ def predict_tlmtc(
             f"Run '{meta.run_id}' did not persist a fine-tuned prediction model."
         )
 
+    if meta.trust_remote_code and not settings.trust_remote_code:
+        raise RuntimeError(
+            f"Prediction run '{meta.run_id}' was trained with trust_remote_code=True, "
+            "but prediction was started with trust_remote_code=False. "
+            "Re-run prediction with trust_remote_code=True or --trust-remote-code only if you trust "
+            f"the Hugging Face model repository or local model artifacts for '{meta.checkpoint}'."
+        )
+
     input_mode = meta.input_mode
     label_names = meta.label_names
 
@@ -443,6 +462,7 @@ def predict_tlmtc(
         checkpoint=meta.checkpoint,
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
+        trust_remote_code=settings.trust_remote_code,
     )
     emit_progress("Loading fine-tuned prediction model")
     model = load_prediction_model(
@@ -450,6 +470,7 @@ def predict_tlmtc(
         checkpoint=meta.checkpoint,
         num_labels=len(label_names),
         wrap_peft=meta.wrap_peft,
+        trust_remote_code=settings.trust_remote_code,
     )
     emit_progress("Running prediction")
     probabilities = predict_probabilities(

@@ -20,6 +20,7 @@ def load_prediction_model(
     checkpoint: str,
     num_labels: int,
     wrap_peft: bool,
+    trust_remote_code: bool,
 ) -> PreTrainedModel | PeftModel:
     """Load a trained prediction model from full-model or PEFT artifacts.
 
@@ -28,6 +29,7 @@ def load_prediction_model(
         checkpoint: Base checkpoint used when loading PEFT adapters.
         num_labels: Number of labels in the trained classification head.
         wrap_peft: Whether `model_dir` contains PEFT adapter artifacts.
+        trust_remote_code: Whether Hugging Face model loading may execute custom remote code.
 
     Returns:
         Loaded sequence-classification model.
@@ -39,7 +41,7 @@ def load_prediction_model(
             problem_type="multi_label_classification",
             low_cpu_mem_usage=True,
             torch_dtype="auto",
-            trust_remote_code=False,
+            trust_remote_code=trust_remote_code,
         )
         return PeftModel.from_pretrained(
             base_model,
@@ -51,7 +53,7 @@ def load_prediction_model(
         model_dir,
         low_cpu_mem_usage=True,
         torch_dtype="auto",
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     )
 
 

@@ -142,6 +142,7 @@ class ModelSettings(BaseModel):
         proxy_checkpoint: Proxy checkpoint used during hyperparameter optimization.
         checkpoint: Target checkpoint used for final fine-tuning.
         sequence_length: Maximum tokenized sequence length.
+        trust_remote_code: Whether Hugging Face model, tokenizer, and config loading may execute custom remote code.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -150,6 +151,7 @@ class ModelSettings(BaseModel):
     proxy_checkpoint: str = "microsoft/deberta-v3-small"
     checkpoint: str = "microsoft/deberta-v3-base"
     sequence_length: PositiveInt = 128
+    trust_remote_code: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -442,6 +444,7 @@ class PredictionSettings(ResolvableSettings):
     Attributes:
         prediction_csv: Path to the unlabeled prediction CSV.
         batch_size: Prediction batch size used for batched inference.
+        trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom remote code.
         use_cpu: Whether to force CPU execution.
     """
 
@@ -451,5 +454,6 @@ class PredictionSettings(ResolvableSettings):
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None
     batch_size: PositiveInt = 32
+    trust_remote_code: bool = False
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)

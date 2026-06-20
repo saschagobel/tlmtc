@@ -433,6 +433,7 @@ class TestTokenizePredictionDataset:
             checkpoint="test-checkpoint",
             input_mode=InputMode.SINGLE_TEXT,
             sequence_length=32,
+            trust_remote_code=False,
         )
 
         assert len(tokenizer.calls) == 1
@@ -463,7 +464,7 @@ class TestTokenizePredictionDataset:
             trust_remote_code: bool,
         ) -> RecordingTokenizer:
             assert checkpoint == "test-checkpoint"
-            assert trust_remote_code is False
+            assert trust_remote_code is True
             return tokenizer
 
         monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
@@ -480,6 +481,7 @@ class TestTokenizePredictionDataset:
             checkpoint="test-checkpoint",
             input_mode=InputMode.PAIRED_TEXT,
             sequence_length=64,
+            trust_remote_code=True,
         )
 
         assert len(tokenizer.calls) == 1

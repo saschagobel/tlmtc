@@ -22,6 +22,7 @@ class TrainRunMeta(BaseModel):
         checkpoint: Target checkpoint used for final fine-tuning.
         proxy_checkpoint: Proxy checkpoint used during hyperparameter tuning.
         sequence_length: Maximum tokenized sequence length used during training.
+        trust_remote_code: Whether training loaded Hugging Face artifacts with custom remote code enabled.
         input_mode: Text-input layout inferred from the training data.
         label_names: Ordered human-readable label names without the `label_` prefix.
         threshold_type: Thresholding mode used for the persisted decision thresholds.
@@ -42,6 +43,7 @@ class TrainRunMeta(BaseModel):
     checkpoint: str
     proxy_checkpoint: str
     sequence_length: PositiveInt
+    trust_remote_code: bool
 
     input_mode: InputMode | None
     label_names: list[str] | None

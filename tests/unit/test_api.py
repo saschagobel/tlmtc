@@ -245,6 +245,7 @@ def _write_prediction_ready_train_run(
     thresholds: list[float] | None = None,
     transfer_learning: bool = True,
     wrap_peft: bool = False,
+    trust_remote_code: bool = False,
 ) -> None:
     """Write minimal training artifacts required by predict_tlmtc."""
     train_run_dir = work_dir / "train_outputs" / run_id
@@ -263,6 +264,7 @@ def _write_prediction_ready_train_run(
             checkpoint="test-checkpoint",
             proxy_checkpoint="test-proxy-checkpoint",
             sequence_length=16,
+            trust_remote_code=trust_remote_code,
             input_mode=input_mode,
             label_names=LABEL_NAMES if label_names is None else label_names,
             threshold_type=threshold_type,
@@ -369,6 +371,7 @@ def _assert_default_train_meta(path: Path) -> None:
     assert run_meta.threshold_optimization is True
     assert run_meta.scale_learning_rate is False
     assert run_meta.wrap_peft is True
+    assert run_meta.trust_remote_code is False
 
 
 def _assert_prediction_operations_called(
@@ -378,6 +381,7 @@ def _assert_prediction_operations_called(
     input_mode: InputMode,
     batch_size: int,
     use_cpu: bool,
+    trust_remote_code: bool = False,
 ) -> None:
     """Assert predict_tlmtc wires prediction operations with resolved metadata and settings."""
     ops.read_prediction_csv.assert_called_once_with(
@@ -394,12 +398,14 @@ def _assert_prediction_operations_called(
         checkpoint="test-checkpoint",
         input_mode=input_mode,
         sequence_length=16,
+        trust_remote_code=trust_remote_code,
     )
     ops.load_prediction_model.assert_called_once_with(
         model_dir=result.paths.train_run_model_dir,
         checkpoint="test-checkpoint",
         num_labels=len(LABEL_NAMES),
         wrap_peft=False,
+        trust_remote_code=trust_remote_code,
     )
     ops.predict_probabilities.assert_called_once_with(
         model=ops.model,
@@ -547,6 +553,7 @@ class TestTrainTlmtc:
             model:
               target_name: Config Target
               sequence_length: 64
+              trust_remote_code: true
 
             split:
               random_seed: 123
@@ -573,6 +580,7 @@ class TestTrainTlmtc:
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["model"].target_name == "Config Target"
         assert data_kwargs["model"].sequence_length == 64
+        assert data_kwargs["model"].trust_remote_code is True
         assert data_kwargs["split"].random_seed == 123
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
@@ -594,6 +602,7 @@ class TestTrainTlmtc:
             model:
               target_name: Config Target
               sequence_length: 64
+              trust_remote_code: false
 
             training:
               batch_size: 4
@@ -614,6 +623,7 @@ class TestTrainTlmtc:
             sequence_length=32,
             batch_size=8,
             wrap_peft=True,
+            trust_remote_code=True,
         )
 
         assert result.paths.run_id == "explicit_run"
@@ -621,6 +631,7 @@ class TestTrainTlmtc:
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["model"].target_name == "Explicit Target"
         assert data_kwargs["model"].sequence_length == 32
+        assert data_kwargs["model"].trust_remote_code is True
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["training"].batch_size == 8
@@ -797,6 +808,7 @@ class TestPredictTlmtc:
             work_dir: {tmp_path.as_posix()}
             run_id: config_run
             batch_size: 4
+            trust_remote_code: true
             hardware:
               use_cpu: true
             """,
@@ -813,6 +825,12 @@ class TestPredictTlmtc:
         _, predict_kwargs = ops.predict_probabilities.call_args
         assert predict_kwargs["batch_size"] == 4
         assert predict_kwargs["use_cpu"] is True
+
+        _, tokenize_kwargs = ops.tokenize_prediction_dataset.call_args
+        assert tokenize_kwargs["trust_remote_code"] is True
+
+        _, load_model_kwargs = ops.load_prediction_model.call_args
+        assert load_model_kwargs["trust_remote_code"] is True
 
     def test_explicit_arguments_override_config_path_settings(
         self,
@@ -835,6 +853,7 @@ class TestPredictTlmtc:
             work_dir: {tmp_path.as_posix()}
             run_id: config_run
             batch_size: 4
+            trust_remote_code: false
             hardware:
               use_cpu: false
             """,
@@ -846,6 +865,7 @@ class TestPredictTlmtc:
             config_path=config_path,
             run_id="explicit_run",
             batch_size=8,
+            trust_remote_code=True,
             use_cpu=True,
         )
 
@@ -854,6 +874,12 @@ class TestPredictTlmtc:
         _, predict_kwargs = ops.predict_probabilities.call_args
         assert predict_kwargs["batch_size"] == 8
         assert predict_kwargs["use_cpu"] is True
+
+        _, tokenize_kwargs = ops.tokenize_prediction_dataset.call_args
+        assert tokenize_kwargs["trust_remote_code"] is True
+
+        _, load_model_kwargs = ops.load_prediction_model.call_args
+        assert load_model_kwargs["trust_remote_code"] is True
 
     def test_selects_latest_completed_training_run_when_run_id_is_omitted(
         self,
@@ -952,6 +978,29 @@ class TestPredictTlmtc:
                 prediction_csv,
                 work_dir=tmp_path,
                 run_id="data_only_run",
+            )
+
+        read_prediction_csv_mock.assert_not_called()
+
+    def test_rejects_remote_code_training_run_without_prediction_opt_in(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="remote_code_run",
+            trust_remote_code=True,
+        )
+        read_prediction_csv_mock = MagicMock()
+        monkeypatch.setattr(api_mod, "read_prediction_csv", read_prediction_csv_mock)
+
+        with pytest.raises(RuntimeError, match="trust_remote_code=True"):
+            api_mod.predict_tlmtc(
+                prediction_csv,
+                work_dir=tmp_path,
+                run_id="remote_code_run",
             )
 
         read_prediction_csv_mock.assert_not_called()

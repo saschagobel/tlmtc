@@ -135,6 +135,7 @@ def make_best_hyperparameters(
     checkpoint: str,
     proxy_checkpoint: str,
     wrap_peft: bool,
+    trust_remote_code: bool,
 ) -> BestHyperparameters:
     """Convert raw Trainer/Optuna hyperparameters into effective training parameters.
 
@@ -147,6 +148,7 @@ def make_best_hyperparameters(
         checkpoint: Target checkpoint used for final fine-tuning.
         proxy_checkpoint: Proxy checkpoint used during hyperparameter optimization.
         wrap_peft: Whether final fine-tuning uses PEFT/LoRA wrapping.
+        trust_remote_code: Whether Hugging Face config loading may execute custom remote code.
 
     Returns:
         Validated effective hyperparameters for final fine-tuning.
@@ -159,6 +161,7 @@ def make_best_hyperparameters(
             checkpoint=checkpoint,
             proxy_checkpoint=proxy_checkpoint,
             peft=wrap_peft,
+            trust_remote_code=trust_remote_code,
         )
 
     return BestHyperparameters(

@@ -159,6 +159,11 @@ def train_command(
         "--sequence-length",
         help="Maximum tokenized sequence length.",
     ),
+    trust_remote_code: bool | None = typer.Option(
+        None,
+        "--trust-remote-code/--no-trust-remote-code",
+        help="Allow Hugging Face model, tokenizer, and config loading to execute custom remote code.",
+    ),
     best_model_metric: str | None = typer.Option(
         None,
         "--best-model-metric",
@@ -268,6 +273,7 @@ def train_command(
         proxy_checkpoint=UNSET if proxy_checkpoint is None else proxy_checkpoint,
         checkpoint=UNSET if checkpoint is None else checkpoint,
         sequence_length=UNSET if sequence_length is None else sequence_length,
+        trust_remote_code=UNSET if trust_remote_code is None else trust_remote_code,
         best_model_metric=UNSET if best_model_metric is None else best_model_metric,
         batch_size=UNSET if batch_size is None else batch_size,
         train_epochs=UNSET if train_epochs is None else train_epochs,
@@ -316,6 +322,11 @@ def predict_command(
         "--batch-size",
         help="Prediction batch size used for batched inference.",
     ),
+    trust_remote_code: bool | None = typer.Option(
+        None,
+        "--trust-remote-code/--no-trust-remote-code",
+        help="Allow Hugging Face tokenizer and model loading to execute custom remote code during prediction.",
+    ),
     use_cpu: bool | None = typer.Option(
         None,
         "--use-cpu/--no-use-cpu",
@@ -336,6 +347,7 @@ def predict_command(
         config_path=UNSET if config_path is None else config_path,
         run_id=UNSET if run_id is None else run_id,
         batch_size=UNSET if batch_size is None else batch_size,
+        trust_remote_code=UNSET if trust_remote_code is None else trust_remote_code,
         use_cpu=UNSET if use_cpu is None else use_cpu,
         verbosity=UNSET if verbosity is None else verbosity,
     )

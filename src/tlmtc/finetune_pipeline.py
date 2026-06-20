@@ -167,6 +167,7 @@ class FinetunePipeline:
             lora_alpha=self.peft.lora_alpha,
             lora_dropout=self.peft.lora_dropout,
             lora_bias=self.peft.lora_bias,
+            trust_remote_code=self.model.trust_remote_code,
         )
         compute_objective = make_compute_objective(best_model_metric=self.training.best_model_metric)
         training_args = get_training_args(
@@ -217,6 +218,7 @@ class FinetunePipeline:
             checkpoint=self.model.checkpoint,
             proxy_checkpoint=self.model.proxy_checkpoint,
             wrap_peft=self.workflow.wrap_peft,
+            trust_remote_code=self.model.trust_remote_code,
         )
 
         self._apply_best_hyperparameters(selected_hyperparameters)
@@ -276,6 +278,7 @@ class FinetunePipeline:
             lora_alpha=self.peft.lora_alpha,
             lora_dropout=self.peft.lora_dropout,
             lora_bias=self.peft.lora_bias,
+            trust_remote_code=self.model.trust_remote_code,
         )
 
         trainer_instance = suppress_trainer_console_callbacks(
