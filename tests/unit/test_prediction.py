@@ -48,6 +48,7 @@ class TestLoadPredictionModel:
             checkpoint="base-checkpoint",
             num_labels=2,
             wrap_peft=False,
+            trust_remote_code=False,
         )
 
         assert result is loaded_model
@@ -79,6 +80,7 @@ class TestLoadPredictionModel:
             checkpoint="base-checkpoint",
             num_labels=3,
             wrap_peft=True,
+            trust_remote_code=True,
         )
 
         assert result is loaded_model
@@ -88,7 +90,7 @@ class TestLoadPredictionModel:
             problem_type="multi_label_classification",
             low_cpu_mem_usage=True,
             torch_dtype="auto",
-            trust_remote_code=False,
+            trust_remote_code=True,
         )
         peft_from_pretrained.assert_called_once_with(
             base_model,

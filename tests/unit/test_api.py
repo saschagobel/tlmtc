@@ -378,6 +378,7 @@ def _assert_prediction_operations_called(
     input_mode: InputMode,
     batch_size: int,
     use_cpu: bool,
+    trust_remote_code: bool = False,
 ) -> None:
     """Assert predict_tlmtc wires prediction operations with resolved metadata and settings."""
     ops.read_prediction_csv.assert_called_once_with(
@@ -394,12 +395,14 @@ def _assert_prediction_operations_called(
         checkpoint="test-checkpoint",
         input_mode=input_mode,
         sequence_length=16,
+        trust_remote_code=trust_remote_code,
     )
     ops.load_prediction_model.assert_called_once_with(
         model_dir=result.paths.train_run_model_dir,
         checkpoint="test-checkpoint",
         num_labels=len(LABEL_NAMES),
         wrap_peft=False,
+        trust_remote_code=trust_remote_code,
     )
     ops.predict_probabilities.assert_called_once_with(
         model=ops.model,
@@ -797,6 +800,7 @@ class TestPredictTlmtc:
             work_dir: {tmp_path.as_posix()}
             run_id: config_run
             batch_size: 4
+            trust_remote_code: true
             hardware:
               use_cpu: true
             """,
@@ -813,6 +817,12 @@ class TestPredictTlmtc:
         _, predict_kwargs = ops.predict_probabilities.call_args
         assert predict_kwargs["batch_size"] == 4
         assert predict_kwargs["use_cpu"] is True
+
+        _, tokenize_kwargs = ops.tokenize_prediction_dataset.call_args
+        assert tokenize_kwargs["trust_remote_code"] is True
+
+        _, load_model_kwargs = ops.load_prediction_model.call_args
+        assert load_model_kwargs["trust_remote_code"] is True
 
     def test_explicit_arguments_override_config_path_settings(
         self,
