@@ -63,6 +63,7 @@ def train_tlmtc(
     proxy_checkpoint: str | Unset = UNSET,
     checkpoint: str | Unset = UNSET,
     sequence_length: int | Unset = UNSET,
+    trust_remote_code: bool | Unset = UNSET,
     best_model_metric: str | Unset = UNSET,
     batch_size: int | Unset = UNSET,
     train_epochs: int | Unset = UNSET,
@@ -127,6 +128,9 @@ def train_tlmtc(
             adapter artifacts using the resolved prediction `trust_remote_code` setting. Keep it disabled unless you
             trust the saved artifacts and checkpoint repository.
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
+        trust_remote_code: Whether Hugging Face tokenizer, config, and model loading may execute
+            custom remote code. Defaults to `False`. Only enable this for model repositories or
+            local model artifacts you trust.
         best_model_metric: Metric used to select the best model checkpoint. Supported values are
             `"f1_micro"`, `"f1_macro"`, `"roc_auc_micro"`, and `"roc_auc_macro"`. Defaults to
             `"roc_auc_macro"`.
@@ -203,6 +207,7 @@ def train_tlmtc(
                 "proxy_checkpoint": proxy_checkpoint,
                 "checkpoint": checkpoint,
                 "sequence_length": sequence_length,
+                "trust_remote_code": trust_remote_code,
             },
             "split": {
                 "validation_size": validation_size,
@@ -350,6 +355,7 @@ def predict_tlmtc(
     config_path: str | Path | Unset = UNSET,
     run_id: str | None | Unset = UNSET,
     batch_size: int | Unset = UNSET,
+    trust_remote_code: bool | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
     verbosity: str | Unset = UNSET,
 ) -> PredictResult:
@@ -372,6 +378,9 @@ def predict_tlmtc(
             artifacts that require custom remote code are not supported. Only use saved model
             artifacts and adapters you trust.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
+        trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom
+            remote code during prediction. Defaults to `False`. Required for runs trained with
+            `trust_remote_code=True`; only enable it for artifacts and checkpoints you trust.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
         verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
             `"progress"`.
@@ -387,6 +396,7 @@ def predict_tlmtc(
             "work_dir": work_dir,
             "run_id": run_id,
             "batch_size": batch_size,
+            "trust_remote_code": trust_remote_code,
             "hardware": {
                 "use_cpu": use_cpu,
             },
