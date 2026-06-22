@@ -213,6 +213,7 @@ class TrainingSettings(BaseModel):
         lr_scheduler: Learning-rate scheduler name.
         best_model_metric: Model-selection metric.
         early_stopping_patience: Early stopping patience in epochs without improvement.
+        trainer_args: Additional Hugging Face TrainingArguments keyword arguments.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -224,6 +225,7 @@ class TrainingSettings(BaseModel):
     lr_scheduler: str = "linear"
     best_model_metric: Literal["f1_micro", "f1_macro", "roc_auc_micro", "roc_auc_macro"] = "roc_auc_macro"
     early_stopping_patience: PositiveInt = 10
+    trainer_args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ThresholdSettings(BaseModel):

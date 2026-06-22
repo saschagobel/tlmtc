@@ -12,10 +12,11 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from tlmtc.cli import app, parse_optuna_space
+from tlmtc.cli import app, parse_json_object
 from tlmtc.settings import UNSET
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*m")
+OPTUNA_JSON_OPTION = {"option_name": "--optuna-space", "example": '{"lr_low": 1e-5}'}
 
 
 def clean_cli_output(
@@ -85,16 +86,16 @@ def stub_predict_tlmtc(monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return calls
 
 
-class TestParseOptunaSpace:
-    """Test suite for parse_optuna_space()."""
+class TestParseJsonObject:
+    """Test suite for parse_json_object()."""
 
     def test_returns_unset_for_omitted_value(self) -> None:
         """Ensure omitted CLI values map to UNSET."""
-        assert parse_optuna_space(None) is UNSET
+        assert parse_json_object(None, **OPTUNA_JSON_OPTION) is UNSET
 
     def test_parses_json_object_from_string(self) -> None:
         """Ensure a JSON object string is parsed into a dict."""
-        parsed = parse_optuna_space('{"a": 1, "b": "x"}')
+        parsed = parse_json_object('{"a": 1, "b": "x"}', **OPTUNA_JSON_OPTION)
 
         assert parsed == {"a": 1, "b": "x"}
 
@@ -103,7 +104,7 @@ class TestParseOptunaSpace:
         fp = tmp_path / "space.json"
         fp.write_text('{"lr_low": 1e-5}', encoding="utf-8")
 
-        parsed = parse_optuna_space(f"@{fp}")
+        parsed = parse_json_object(f"@{fp}", **OPTUNA_JSON_OPTION)
 
         assert parsed == {"lr_low": 1e-5}
 
@@ -117,14 +118,14 @@ class TestParseOptunaSpace:
     def test_rejects_invalid_or_non_object_json(self, value: str, match: str) -> None:
         """Ensure invalid JSON and non-object JSON are rejected."""
         with pytest.raises(typer.BadParameter, match=match):
-            parse_optuna_space(value)
+            parse_json_object(value, **OPTUNA_JSON_OPTION)
 
     def test_rejects_missing_at_file(self, tmp_path: Path) -> None:
         """Ensure a missing '@file' path is rejected."""
         missing = tmp_path / "does_not_exist.json"
 
         with pytest.raises(typer.BadParameter, match=r"Could not read JSON file"):
-            parse_optuna_space(f"@{missing}")
+            parse_json_object(f"@{missing}", **OPTUNA_JSON_OPTION)
 
 
 class TestCliApp:
@@ -160,6 +161,7 @@ class TestTrainCliApp:
         assert result.exit_code == 0
         assert "--raw-csv" in output
         assert "--optuna-space" in output
+        assert "--trainer-args" in output
         assert "--use-cpu" in output
         assert "--verbosity" in output
         assert "--trust-remote-co" in output
@@ -239,6 +241,8 @@ class TestTrainCliApp:
                 "raw.csv",
                 "--optuna-space",
                 '{"lr_low": 1e-5}',
+                "--trainer-args",
+                '{"gradient_accumulation_steps": 4}',
                 "--no-hyperparameter-tuning",
                 "--trust-remote-code",
             ],
@@ -251,6 +255,7 @@ class TestTrainCliApp:
         kwargs = stub_train_tlmtc["kwargs"]
         assert kwargs["raw_csv"] == "raw.csv"
         assert kwargs["optuna_space"] == {"lr_low": 1e-5}
+        assert kwargs["trainer_args"] == {"gradient_accumulation_steps": 4}
         assert kwargs["hyperparameter_tuning"] is False
         assert kwargs["batch_size"] is UNSET
         assert kwargs["trust_remote_code"] is True
@@ -289,6 +294,7 @@ class TestTrainCliApp:
         assert kwargs["hyperparameter_tuning"] is UNSET
         assert kwargs["threshold_type"] is UNSET
         assert kwargs["optuna_space"] is UNSET
+        assert kwargs["trainer_args"] is UNSET
         assert kwargs["use_cpu"] is UNSET
         assert kwargs["verbosity"] is UNSET
 

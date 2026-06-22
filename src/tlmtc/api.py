@@ -79,6 +79,7 @@ def train_tlmtc(
     lora_bias: str | Unset = UNSET,
     early_stopping_patience: int | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
+    trainer_args: dict[str, Any] | Unset = UNSET,
     verbosity: str | Unset = UNSET,
 ) -> TrainResult:
     """Run the full multi-label text classification training workflow.
@@ -188,6 +189,10 @@ def train_tlmtc(
         early_stopping_patience: Early stopping patience in epochs without improvement. Defaults to
             `10`.
         use_cpu: Whether to force CPU execution. Defaults to `False`.
+        trainer_args: Additional Hugging Face TrainingArguments keyword arguments.
+            Keys already managed by tlmtc, such as batch size, epochs, learning rate,
+            output directory, model-selection settings, logging/reporting behavior,
+            and CPU selection, are rejected. Defaults to no additional arguments.
         verbosity: Runtime output mode. Supported values are `"progress"` and `"quiet"`. Defaults to
             `"progress"`.
 
@@ -229,6 +234,7 @@ def train_tlmtc(
                 "lr_scheduler": lr_scheduler,
                 "best_model_metric": best_model_metric,
                 "early_stopping_patience": early_stopping_patience,
+                "trainer_args": trainer_args,
             },
             "threshold": {
                 "threshold_type": threshold_type,

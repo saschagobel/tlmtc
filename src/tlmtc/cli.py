@@ -15,16 +15,21 @@ app = typer.Typer(
 )
 
 
-def parse_optuna_space(
+def parse_json_object(
     value: str | None,
+    *,
+    option_name: str,
+    example: str,
 ) -> dict[str, Any] | Unset:
-    """Parse an optional Optuna search-space override from JSON or an @file path.
+    """Parse an optional JSON object from JSON or an @file path.
 
     Args:
         value: JSON object string, @file path, or None when the CLI option is omitted.
+        option_name: CLI option name used in error messages.
+        example: Example JSON object shown when the parsed value is not an object.
 
     Returns:
-        Parsed Optuna search-space override, or UNSET for omitted CLI values.
+        Parsed JSON object, or UNSET for omitted CLI values.
 
     Raises:
         typer.BadParameter: If the value cannot be read, decoded, or parsed as a JSON object.
@@ -38,11 +43,12 @@ def parse_optuna_space(
         else:
             parsed = json.loads(value)
     except OSError as exc:
-        raise typer.BadParameter(f"Could not read JSON file: {value}") from exc
+        raise typer.BadParameter(f"Could not read JSON file for {option_name}: {value}") from exc
     except json.JSONDecodeError as exc:
-        raise typer.BadParameter("Expected a JSON object or @file.json.") from exc
+        raise typer.BadParameter(f"Expected a JSON object or @file.json for {option_name}.") from exc
+
     if not isinstance(parsed, dict):
-        raise typer.BadParameter("Expected a JSON object like '{\"lr_low\": 1e-5}'.")
+        raise typer.BadParameter(f"Expected a JSON object for {option_name}, for example: {example}.")
 
     return parsed
 
@@ -245,6 +251,14 @@ def train_command(
         "--use-cpu/--no-use-cpu",
         help="Force CPU execution.",
     ),
+    trainer_args: str | None = typer.Option(
+        None,
+        "--trainer-args",
+        help=(
+            "Additional Hugging Face TrainingArguments keyword arguments as JSON or @file.json. "
+            "Keys already managed by tlmtc are rejected."
+        ),
+    ),
     verbosity: str | None = typer.Option(
         None,
         "--verbosity",
@@ -282,13 +296,22 @@ def train_command(
         lr_scheduler=UNSET if lr_scheduler is None else lr_scheduler,
         best_threshold_metric=UNSET if best_threshold_metric is None else best_threshold_metric,
         tuning_trials=UNSET if tuning_trials is None else tuning_trials,
-        optuna_space=parse_optuna_space(optuna_space),
+        optuna_space=parse_json_object(
+            optuna_space,
+            option_name="--optuna-space",
+            example='{"lr_low": 1e-5}',
+        ),
         lora_r=UNSET if lora_r is None else lora_r,
         lora_alpha=UNSET if lora_alpha is None else lora_alpha,
         lora_dropout=UNSET if lora_dropout is None else lora_dropout,
         lora_bias=UNSET if lora_bias is None else lora_bias,
         early_stopping_patience=UNSET if early_stopping_patience is None else early_stopping_patience,
         use_cpu=UNSET if use_cpu is None else use_cpu,
+        trainer_args=parse_json_object(
+            trainer_args,
+            option_name="--trainer-args",
+            example='{"gradient_accumulation_steps": 2}',
+        ),
         verbosity=UNSET if verbosity is None else verbosity,
     )
 

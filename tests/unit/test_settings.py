@@ -376,6 +376,7 @@ class TestBundleSettings:
         assert settings.lr_scheduler == "linear"
         assert settings.best_model_metric == "roc_auc_macro"
         assert settings.early_stopping_patience == 10
+        assert settings.trainer_args == {}
 
     def test_threshold_settings_defaults(self) -> None:
         """ThresholdSettings should expose the package defaults."""
@@ -684,6 +685,35 @@ class TestRunSettings:
                 raw_csv="train.csv",
                 hpo={"optuna_space": "boom"},
             )
+
+    def test_run_settings_trainer_args_overrides_config_values(self, tmp_path: Path) -> None:
+        """Explicit trainer_args overrides should merge over config values."""
+        raw_csv = tmp_path / "raw.csv"
+
+        settings = RunSettings.resolve(
+            config={
+                "raw_csv": raw_csv,
+                "training": {
+                    "trainer_args": {
+                        "gradient_accumulation_steps": 2,
+                        "warmup_ratio": 0.1,
+                    }
+                },
+                "hpo": MINIMAL_HPO,
+            },
+            overrides={
+                "training": {
+                    "trainer_args": {
+                        "gradient_accumulation_steps": 4,
+                    }
+                }
+            },
+        )
+
+        assert settings.training.trainer_args == {
+            "gradient_accumulation_steps": 4,
+            "warmup_ratio": 0.1,
+        }
 
 
 class TestPredictionSettings:

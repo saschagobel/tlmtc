@@ -59,6 +59,7 @@ def pipeline_factory(tmp_path, base_search_space):
         model_checkpoint: str = "dummy",
         target_name: str = "dummy",
         trust_remote_code: bool = True,
+        trainer_args: dict[str, Any] | None = None,
     ):
         paths = resolve_paths(
             raw_csv=tmp_path / "raw.csv",
@@ -95,6 +96,7 @@ def pipeline_factory(tmp_path, base_search_space):
             lr_scheduler="linear",
             best_model_metric="f1_macro",
             early_stopping_patience=1,
+            trainer_args={} if trainer_args is None else trainer_args,
         )
 
         hpo = HpoSettings(
@@ -329,12 +331,19 @@ class TestTuneHyperparameters:
 
     def test_instantiates_trainer_with_expected_arguments(
         self,
-        pipeline_with_tokenized_hpo,
+        pipeline_factory,
+        dummy_train_parquet,
+        tokenized_dataset,
         fake_trainer,
         patch_model_init,
     ):
         """Ensure tune_hyperparameters instantiates the Trainer with expected inputs."""
-        pipeline = pipeline_with_tokenized_hpo
+        pipeline = pipeline_factory(
+            train_path=dummy_train_parquet,
+            tokenized_dataset=tokenized_dataset,
+            hyperparameter_tuning=True,
+            trainer_args={"gradient_accumulation_steps": 4},
+        )
         recorded: dict = {}
 
         def trainer_factory(*args, **kwargs):
@@ -369,6 +378,7 @@ class TestTuneHyperparameters:
         training_args = kwargs["args"]
 
         assert training_args.output_dir == str(pipeline.paths.hpo_checkpoints_dir)
+        assert training_args.gradient_accumulation_steps == 4
 
     @pytest.mark.parametrize("scale_learning_rate", [False, True])
     def test_updates_runtime_training_hyperparameters_from_best_run(
@@ -579,6 +589,7 @@ class TestFineTunePretrained:
             tokenized_dataset=tokenized_dataset,
             transfer_learning=True,
             hyperparameter_tuning=False,
+            trainer_args={"gradient_accumulation_steps": 4},
         )
 
         recorded: dict[str, Any] = {}
@@ -617,6 +628,7 @@ class TestFineTunePretrained:
         assert training_args.lr_scheduler_type == pipeline.runtime_training.lr_scheduler
         assert training_args.metric_for_best_model == pipeline.training.best_model_metric
         assert training_args.use_cpu == pipeline.hardware.use_cpu
+        assert training_args.gradient_accumulation_steps == 4
 
         assert callable(kwargs["compute_metrics"])
         assert isinstance(kwargs["class_weights"], torch.Tensor)
