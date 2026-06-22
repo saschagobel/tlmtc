@@ -179,6 +179,7 @@ class FinetunePipeline:
             lr_scheduler=self.runtime_training.lr_scheduler,
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
+            trainer_args=self.training.trainer_args,
         )
         trainer_instance = suppress_trainer_console_callbacks(
             trainer(
@@ -265,6 +266,7 @@ class FinetunePipeline:
             lr_scheduler=self.runtime_training.lr_scheduler,
             best_model_metric=self.training.best_model_metric,
             use_cpu=self.hardware.use_cpu,
+            trainer_args=self.training.trainer_args,
         )
 
         if self.num_labels is None:

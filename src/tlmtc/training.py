@@ -24,6 +24,30 @@ from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defin
 from tlmtc.data_contracts import LABEL_PREFIX
 from tlmtc.settings import TrainingSettings
 
+RESERVED_TRAINER_ARGS = frozenset(
+    {
+        "output_dir",
+        "logging_dir",
+        "eval_strategy",
+        "evaluation_strategy",
+        "save_strategy",
+        "save_total_limit",
+        "logging_strategy",
+        "per_device_train_batch_size",
+        "per_device_eval_batch_size",
+        "num_train_epochs",
+        "weight_decay",
+        "learning_rate",
+        "lr_scheduler_type",
+        "load_best_model_at_end",
+        "metric_for_best_model",
+        "greater_is_better",
+        "disable_tqdm",
+        "use_cpu",
+        "report_to",
+    }
+)
+
 SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE = (
     "classifier",
     "classification_head",
@@ -84,6 +108,7 @@ def get_training_args(
     lr_scheduler: str,
     best_model_metric: str,
     use_cpu: bool,
+    trainer_args: dict[str, Any],
 ) -> TrainingArguments:
     """Create Hugging Face TrainingArguments from effective training parameters.
 
@@ -96,29 +121,50 @@ def get_training_args(
         lr_scheduler: Learning-rate scheduler name.
         best_model_metric: Model-selection metric name as configured in training settings.
         use_cpu: Whether to force CPU execution.
+        trainer_args: Additional Hugging Face ``TrainingArguments`` keyword arguments
+            forwarded to the Trainer configuration. Arguments managed directly by
+            tlmtc, such as batch size, learning rate, output directory, evaluation
+            strategy, model-selection settings, and reporting behavior, are rejected.
 
     Returns:
         Configured TrainingArguments instance.
+
+    Raises:
+        ValueError: If ``trainer_args`` attempts to override tlmtc-managed
+            ``TrainingArguments``.
     """
-    return TrainingArguments(
-        output_dir=str(logging_path),
-        eval_strategy="epoch",
-        save_strategy="epoch",
-        save_total_limit=1,
-        logging_strategy="epoch",
-        per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        num_train_epochs=epochs,
-        weight_decay=weight_decay,
-        learning_rate=learning_rate,
-        lr_scheduler_type=lr_scheduler,
-        load_best_model_at_end=True,
-        metric_for_best_model=best_model_metric,
-        greater_is_better=True,
-        disable_tqdm=True,
-        use_cpu=use_cpu,
-        report_to="none",
-    )
+    overlapping_keys = RESERVED_TRAINER_ARGS.intersection(trainer_args)
+
+    if overlapping_keys:
+        overlapping = ", ".join(sorted(overlapping_keys))
+        raise ValueError(
+            f"trainer_args must not override tlmtc-managed TrainingArguments: {overlapping}. "
+            "Pass these settings via dedicated tlmtc arguments instead."
+        )
+
+    init_kwargs: dict[str, Any] = {
+        "output_dir": str(logging_path),
+        "eval_strategy": "epoch",
+        "save_strategy": "epoch",
+        "save_total_limit": 1,
+        "logging_strategy": "epoch",
+        "per_device_train_batch_size": batch_size,
+        "per_device_eval_batch_size": batch_size,
+        "num_train_epochs": epochs,
+        "weight_decay": weight_decay,
+        "learning_rate": learning_rate,
+        "lr_scheduler_type": lr_scheduler,
+        "load_best_model_at_end": True,
+        "metric_for_best_model": best_model_metric,
+        "greater_is_better": True,
+        "disable_tqdm": True,
+        "use_cpu": use_cpu,
+        "report_to": "none",
+    }
+
+    init_kwargs.update(trainer_args)
+
+    return TrainingArguments(**init_kwargs)
 
 
 def get_scaled_lr(
