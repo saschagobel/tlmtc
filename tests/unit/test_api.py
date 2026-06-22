@@ -455,7 +455,12 @@ class TestTrainTlmtc:
     ) -> None:
         pipelines = _mock_successful_pipelines(monkeypatch)
 
-        result = api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_123")
+        result = api_mod.train_tlmtc(
+            raw_csv,
+            work_dir=tmp_path,
+            run_id="run_123",
+            trainer_args={"gradient_accumulation_steps": 4},
+        )
 
         assert isinstance(result, api_mod.TrainResult)
         assert result.paths.run_id == "run_123"
@@ -472,6 +477,7 @@ class TestTrainTlmtc:
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["tokenized_dataset"] is pipelines.tokenized_dataset
         assert finetune_kwargs["paths"] == result.paths
+        assert finetune_kwargs["training"].trainer_args == {"gradient_accumulation_steps": 4}
 
         _, evaluation_kwargs = pipelines.evaluation_pipeline_cls.call_args
         assert evaluation_kwargs["tokenized_dataset"] is pipelines.tokenized_dataset

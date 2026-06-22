@@ -15,6 +15,7 @@ from tlmtc.training import (
     get_class_weights,
     get_num_labels,
     get_scaled_lr,
+    get_training_args,
     infer_modules_to_save,
     make_model_init,
     multi_label_metrics,
@@ -270,6 +271,49 @@ def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft
     assert scaled_peft == pytest.approx(expected_peft)
     assert scaled_peft > scaled_non_peft
     assert scaled_peft <= lr
+
+
+def test_get_training_args_forwards_unmanaged_trainer_args(tmp_path):
+    """Ensure unmanaged Trainer args are forwarded to Hugging Face TrainingArguments."""
+    args = get_training_args(
+        logging_path=tmp_path / "logs",
+        batch_size=2,
+        epochs=3,
+        weight_decay=0.01,
+        learning_rate=1e-4,
+        lr_scheduler="linear",
+        best_model_metric="f1_macro",
+        use_cpu=True,
+        trainer_args={"gradient_accumulation_steps": 4},
+    )
+
+    assert args.gradient_accumulation_steps == 4
+
+
+@pytest.mark.parametrize(
+    "reserved_key",
+    [
+        "output_dir",
+        "logging_dir",
+        "evaluation_strategy",
+        "learning_rate",
+        "report_to",
+    ],
+)
+def test_get_training_args_rejects_tlmtc_managed_trainer_args(tmp_path, reserved_key):
+    """Ensure trainer_args cannot override TrainingArguments owned by tlmtc."""
+    with pytest.raises(ValueError, match=reserved_key):
+        get_training_args(
+            logging_path=tmp_path / "logs",
+            batch_size=2,
+            epochs=3,
+            weight_decay=0.01,
+            learning_rate=1e-4,
+            lr_scheduler="linear",
+            best_model_metric="f1_macro",
+            use_cpu=True,
+            trainer_args={reserved_key: "override"},
+        )
 
 
 class TestTrainingRuntimeState:
