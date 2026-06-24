@@ -22,18 +22,23 @@ from tlmtc.runtime_output import emit_progress
 
 
 def df_preprocess(
-    df_path: Path,
+    data: Path | pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray, InputMode]:
-    """Load, clean, and validate a multi-label CSV for stratified splitting.
+    """Load, clean, and validate raw multi-label training data for stratified splitting.
 
     Args:
-        df_path: Path to a CSV with a required text column, optional paired-text column,
-            and binary label columns.
+        data: Path to a CSV, or a DataFrame with a required text column,
+            optional paired-text column, and binary label columns.
 
     Returns:
         Preprocessed DataFrame, label column names, text_values, label matrix, and inferred input mode.
     """
-    df = pd.read_csv(df_path).dropna().reset_index(drop=True)
+    if isinstance(data, Path):
+        df = pd.read_csv(data)
+    else:
+        df = data
+
+    df = df.dropna().reset_index(drop=True)
     df, label_cols, input_mode = validate_multilabel_frame(df)
 
     text_values = df[TEXT_COL].values
