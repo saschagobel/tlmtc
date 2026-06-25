@@ -42,6 +42,7 @@ class DataPipeline:
         paths: RunPaths,
         split: SplitSettings,
         model: ModelSettings,
+        labeled_data: pd.DataFrame | None,
     ) -> None:
         """Initialize the data pipeline.
 
@@ -49,10 +50,13 @@ class DataPipeline:
             paths: Run-specific filesystem layout for raw inputs and prepared split artifacts.
             split: Split configuration for validation/test partitioning and random seeding.
             model: Tokenization configuration, including checkpoint and sequence length.
+            labeled_data: Optional in-memory labeled data. When omitted, labeled data is loaded
+                from `paths.labeled_data_path`.
         """
         self.paths = paths
         self.split = split
         self.model = model
+        self.labeled_data = labeled_data
         self.input_mode: InputMode | None = None
         self.train_data: pd.DataFrame | None = None
         self.val_data: pd.DataFrame | None = None
@@ -112,10 +116,16 @@ class DataPipeline:
 
             return self
 
-        if not self.paths.raw_data_path.exists():
-            raise FileNotFoundError(f"Raw data not found at {self.paths.raw_data_path}.")
+        if self.labeled_data is None:
+            labeled_data = self.paths.labeled_data_path
+            assert labeled_data is not None
 
-        df, label_cols, text_values, label_matrix, input_mode = df_preprocess(self.paths.raw_data_path)
+            if not labeled_data.exists():
+                raise FileNotFoundError(f"Labeled data not found at {labeled_data}.")
+        else:
+            labeled_data = self.labeled_data
+
+        df, label_cols, text_values, label_matrix, input_mode = df_preprocess(labeled_data)
         self.input_mode = input_mode
 
         if self.paths.raw_test_data_path is not None:
@@ -125,14 +135,14 @@ class DataPipeline:
             df_test, label_cols_test, _, _, test_input_mode = df_preprocess(self.paths.raw_test_data_path)
             if label_cols != label_cols_test:
                 raise DataContractError(
-                    "Label column mismatch between raw_csv and raw_test_csv: "
-                    f"raw_csv has {label_cols}, raw_test_csv has {label_cols_test}."
+                    "Label column mismatch between labeled_data and raw_test_csv: "
+                    f"labeled_data has {label_cols}, raw_test_csv has {label_cols_test}."
                 )
 
             if self.input_mode is not test_input_mode:
                 raise DataContractError(
-                    "Input mode mismatch between raw_csv and raw_test_csv: "
-                    f"raw_csv is '{self.input_mode.value}', but raw_test_csv is '{test_input_mode.value}'."
+                    "Input mode mismatch between labeled_data and raw_test_csv: "
+                    f"labeled_data is '{self.input_mode.value}', but raw_test_csv is '{test_input_mode.value}'."
                 )
 
             validate_split_group_disjointness(df, df_test)
