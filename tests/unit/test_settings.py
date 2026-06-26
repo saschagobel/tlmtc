@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from textwrap import dedent
 
+import pandas as pd
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -484,9 +485,9 @@ class TestRunSettings:
 
     def test_run_settings_minimal_construction_uses_nested_defaults(self) -> None:
         """RunSettings should construct from the minimal required inputs and apply nested defaults."""
-        settings = RunSettings(raw_csv="train.csv")
+        settings = RunSettings(labeled_data="train.csv")
 
-        assert settings.raw_csv == Path("train.csv")
+        assert settings.labeled_data == Path("train.csv")
         assert settings.raw_test_csv is None
         assert settings.work_dir == Path.cwd()
         assert settings.run_id is None
@@ -513,18 +514,32 @@ class TestRunSettings:
         assert settings.hpo.tuning_trials == 10
         assert settings.hpo.optuna_space.model_dump(mode="python") == DEFAULT_OPTUNA_SPACE_PEFT
 
+    def test_run_settings_accepts_in_memory_labeled_dataframe(self) -> None:
+        """RunSettings should accept labeled data passed as an in-memory DataFrame."""
+        labeled_data = pd.DataFrame(
+            {
+                "text": ["a", "b"],
+                "label_a": [1, 0],
+                "label_b": [0, 1],
+            }
+        )
+
+        settings = RunSettings(labeled_data=labeled_data)
+
+        assert settings.labeled_data is labeled_data
+
     def test_run_settings_defaults_work_dir_to_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """RunSettings should default work_dir to the current working directory."""
         monkeypatch.chdir(tmp_path)
 
-        settings = RunSettings(raw_csv="train.csv")
+        settings = RunSettings(labeled_data="train.csv")
 
         assert settings.work_dir == tmp_path
 
     def test_run_settings_accepts_explicit_work_dir_and_run_id(self, tmp_path: Path) -> None:
         """RunSettings should preserve explicit work_dir and run_id values."""
         settings = RunSettings(
-            raw_csv="train.csv",
+            labeled_data="train.csv",
             work_dir=tmp_path / "workspace",
             run_id="manual-run",
         )
@@ -536,7 +551,7 @@ class TestRunSettings:
         """RunSettings.resolve should merge nested overrides while preserving untouched defaults."""
         settings = RunSettings.resolve(
             config={
-                "raw_csv": "train.csv",
+                "labeled_data": "train.csv",
                 "model": {
                     "checkpoint": "microsoft/deberta-v3-large",
                     "trust_remote_code": True,
@@ -570,7 +585,7 @@ class TestRunSettings:
             },
         )
 
-        assert settings.raw_csv == Path("train.csv")
+        assert settings.labeled_data == Path("train.csv")
         assert settings.model.target_name == "Target"
         assert settings.model.checkpoint == "microsoft/deberta-v3-large"
         assert settings.model.proxy_checkpoint == "microsoft/deberta-v3-large"
@@ -593,7 +608,7 @@ class TestRunSettings:
         """RunSettings.resolve should ignore nested override values explicitly marked as UNSET."""
         settings = RunSettings.resolve(
             config={
-                "raw_csv": "train.csv",
+                "labeled_data": "train.csv",
                 "model": {
                     "target_name": "My task",
                     "sequence_length": 256,
@@ -627,8 +642,8 @@ class TestRunSettings:
         assert settings.training.learning_rate == 1e-4
         assert settings.runtime.verbosity == "quiet"
 
-    def test_run_settings_requires_raw_csv(self) -> None:
-        """RunSettings should require raw_csv."""
+    def test_run_settings_requires_labeled_data(self) -> None:
+        """RunSettings should require labeled_data."""
         with pytest.raises(ValidationError):
             RunSettings(
                 hpo=MINIMAL_HPO,
@@ -636,7 +651,7 @@ class TestRunSettings:
 
     def test_run_settings_synthesizes_hpo_defaults_when_omitted(self) -> None:
         """RunSettings should synthesize HPO defaults when hpo is omitted."""
-        settings = RunSettings(raw_csv="train.csv")
+        settings = RunSettings(labeled_data="train.csv")
 
         assert settings.hpo.tuning_trials == 10
         assert isinstance(settings.hpo.optuna_space, OptunaSpaceSettings)
@@ -647,7 +662,7 @@ class TestRunSettings:
         [
             (
                 {
-                    "raw_csv": "train.csv",
+                    "labeled_data": "train.csv",
                     "hpo": MINIMAL_HPO,
                     "unknown": "boom",
                 },
@@ -655,7 +670,7 @@ class TestRunSettings:
             ),
             (
                 {
-                    "raw_csv": "train.csv",
+                    "labeled_data": "train.csv",
                     "model": {"unknown": "boom"},
                     "hpo": MINIMAL_HPO,
                 },
@@ -671,7 +686,7 @@ class TestRunSettings:
     def test_run_settings_preserves_full_explicit_optuna_space(self) -> None:
         """RunSettings should preserve a fully specified explicit Optuna space."""
         settings = RunSettings(
-            raw_csv="train.csv",
+            labeled_data="train.csv",
             hpo=MINIMAL_HPO,
         )
 
@@ -682,17 +697,17 @@ class TestRunSettings:
         """RunSettings should reject non-mapping Optuna-space overrides before merge."""
         with pytest.raises(TypeError, match="hpo.optuna_space must be a mapping"):
             RunSettings(
-                raw_csv="train.csv",
+                labeled_data="train.csv",
                 hpo={"optuna_space": "boom"},
             )
 
     def test_run_settings_trainer_args_overrides_config_values(self, tmp_path: Path) -> None:
         """Explicit trainer_args overrides should merge over config values."""
-        raw_csv = tmp_path / "raw.csv"
+        labeled_data = tmp_path / "labeled.csv"
 
         settings = RunSettings.resolve(
             config={
-                "raw_csv": raw_csv,
+                "labeled_data": labeled_data,
                 "training": {
                     "trainer_args": {
                         "gradient_accumulation_steps": 2,
