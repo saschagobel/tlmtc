@@ -132,7 +132,7 @@ Fine-tune a model:
 from tlmtc import train_tlmtc
 
 train_tlmtc(
-    "paired_example.csv",
+    labeled_data="paired_example.csv",
     target_name="Requirements Evidence Alignment",
     checkpoint="google/bert_uncased_L-2_H-128_A-2",
     tuning_trials=5,
@@ -160,7 +160,7 @@ predict_tlmtc(
 
 ```bash
 tlmtc train \
-  --raw-csv paired_example.csv \
+  --labeled-data paired_example.csv \
   --target-name "Requirements Evidence Alignment" \
   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
   --tuning-trials 5 \
@@ -176,7 +176,7 @@ tlmtc predict \
 <details>
 <summary><strong>Try your own data</strong></summary>
 
-Your training CSV must include:
+Your labeled data must include:
 
 - a `text` column
 - at least two binary `label_`-prefixed columns
