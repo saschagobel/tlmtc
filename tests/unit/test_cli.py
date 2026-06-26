@@ -159,7 +159,7 @@ class TestTrainCliApp:
         output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "--raw-csv" in output
+        assert "--labeled-data" in output
         assert "--optuna-space" in output
         assert "--trainer-args" in output
         assert "--use-cpu" in output
@@ -181,7 +181,7 @@ class TestTrainCliApp:
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure train boolean flag pairs set the expected boolean value."""
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", flag])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", flag])
 
         assert result.exit_code == 0
         assert stub_train_tlmtc["kwargs"]["transfer_learning"] is expected
@@ -200,7 +200,7 @@ class TestTrainCliApp:
         expected: bool,
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", flag])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", flag])
 
         assert result.exit_code == 0
         assert stub_train_tlmtc["kwargs"]["trust_remote_code"] is expected
@@ -217,7 +217,7 @@ class TestTrainCliApp:
             runner,
             [
                 "train",
-                "--raw-csv",
+                "--labeled-data",
                 "raw.csv",
                 "--verbosity",
                 verbosity,
@@ -237,7 +237,7 @@ class TestTrainCliApp:
             runner,
             [
                 "train",
-                "--raw-csv",
+                "--labeled-data",
                 "raw.csv",
                 "--optuna-space",
                 '{"lr_low": 1e-5}',
@@ -253,7 +253,7 @@ class TestTrainCliApp:
         assert "Run completed: tlmtc_outputs/test-run" in output
 
         kwargs = stub_train_tlmtc["kwargs"]
-        assert kwargs["raw_csv"] == "raw.csv"
+        assert kwargs["labeled_data"] == "raw.csv"
         assert kwargs["optuna_space"] == {"lr_low": 1e-5}
         assert kwargs["trainer_args"] == {"gradient_accumulation_steps": 4}
         assert kwargs["hyperparameter_tuning"] is False
@@ -268,11 +268,11 @@ class TestTrainCliApp:
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure --config-path is forwarded to train_tlmtc."""
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--config-path", "config.yaml"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", "--config-path", "config.yaml"])
 
         assert result.exit_code == 0
         kwargs = stub_train_tlmtc["kwargs"]
-        assert kwargs["raw_csv"] == "raw.csv"
+        assert kwargs["labeled_data"] == "raw.csv"
         assert kwargs["config_path"] == "config.yaml"
 
     def test_train_omitted_optional_args_are_forwarded_as_unset(
@@ -281,12 +281,12 @@ class TestTrainCliApp:
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure omitted optional flags preserve layered settings semantics via UNSET."""
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv"])
 
         assert result.exit_code == 0
 
         kwargs = stub_train_tlmtc["kwargs"]
-        assert kwargs["raw_csv"] == "raw.csv"
+        assert kwargs["labeled_data"] == "raw.csv"
         assert kwargs["raw_test_csv"] is UNSET
         assert kwargs["work_dir"] is UNSET
         assert kwargs["batch_size"] is UNSET
@@ -308,14 +308,14 @@ class TestTrainCliApp:
         fp = tmp_path / "space.json"
         fp.write_text('{"batch_sizes": [8, 16]}', encoding="utf-8")
 
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", f"@{fp}"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", "--optuna-space", f"@{fp}"])
 
         assert result.exit_code == 0
         assert stub_train_tlmtc["kwargs"]["optuna_space"] == {"batch_sizes": [8, 16]}
 
     def test_train_rejects_invalid_optuna_space_json(self, runner: CliRunner) -> None:
         """Ensure --optuna-space rejects invalid JSON values."""
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "not-json"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", "--optuna-space", "not-json"])
         output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
@@ -323,20 +323,20 @@ class TestTrainCliApp:
 
     def test_train_rejects_non_object_optuna_space_json(self, runner: CliRunner) -> None:
         """Ensure --optuna-space rejects JSON values that are not objects."""
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv", "--optuna-space", "[1, 2]"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", "--optuna-space", "[1, 2]"])
         output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
         assert "Expected a JSON object" in output
 
-    def test_train_requires_raw_csv(self, runner: CliRunner) -> None:
+    def test_train_requires_labeled_data(self, runner: CliRunner) -> None:
         """Ensure train exits with a usage error when required args are missing."""
         result = invoke_cli(runner, ["train"])
         output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
         assert "Missing option" in output
-        assert "--raw-csv" in output
+        assert "--labeled-data" in output
 
     def test_train_propagates_downstream_exception(
         self,
@@ -352,7 +352,7 @@ class TestTrainCliApp:
         stub.train_tlmtc = _boom  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
 
-        result = invoke_cli(runner, ["train", "--raw-csv", "raw.csv"])
+        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv"])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)

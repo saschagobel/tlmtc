@@ -142,15 +142,15 @@ def pipeline_instance_factory(
 ) -> Callable[..., DataPipeline]:
     """Factory for DataPipeline instances using in-test RunPaths."""
 
-    def _factory(*, raw_csv: Path, raw_test_csv: Path | None) -> DataPipeline:
+    def _factory(*, labeled_data: Path, raw_test_csv: Path | None) -> DataPipeline:
         paths = resolve_paths(
-            raw_csv=raw_csv,
+            labeled_data=labeled_data,
             raw_test_csv=raw_test_csv,
             work_dir=tmp_path,
             run_id="test-run",
         ).ensure_dirs()
 
-        return DataPipeline(paths=paths, split=split_settings, model=model_settings)
+        return DataPipeline(paths=paths, split=split_settings, model=model_settings, labeled_data=None)
 
     return _factory
 
@@ -168,7 +168,7 @@ class TestSplitData:
     ):
         """Ensure split_data produces correct train/val/test partitions under all tuning and raw-test scenarios."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv if use_raw_test else None,
         )
 
@@ -192,17 +192,53 @@ class TestSplitData:
         else:
             assert len(train_df) + len(val_df) + len(test_df) == len(pd.read_csv(sample_raw_csv))
 
-    def test_raises_error_when_raw_data_missing(self, tmp_path: Path, pipeline_instance_factory: Callable):
-        """Ensure split_data raises FileNotFoundError when raw_data_path does not exist."""
+    def test_raises_error_when_labeled_data_missing(self, tmp_path: Path, pipeline_instance_factory: Callable):
+        """Ensure split_data raises FileNotFoundError when labeled_data_path does not exist."""
         missing_raw = tmp_path / "does_not_exist.csv"
 
         dp = pipeline_instance_factory(
-            raw_csv=missing_raw,
+            labeled_data=missing_raw,
             raw_test_csv=None,
         )
 
         with pytest.raises(FileNotFoundError):
             dp.split_data()
+
+    def test_splits_in_memory_labeled_data_correctly(
+        self,
+        tmp_path: Path,
+        sample_raw_csv: Path,
+        split_settings: SplitSettings,
+        model_settings: ModelSettings,
+    ) -> None:
+        """Ensure split_data accepts labeled data passed as an in-memory DataFrame."""
+        labeled_data = pd.read_csv(sample_raw_csv)
+        paths = resolve_paths(
+            labeled_data=None,
+            raw_test_csv=None,
+            work_dir=tmp_path,
+            run_id="test-run",
+        ).ensure_dirs()
+        dp = DataPipeline(
+            paths=paths,
+            split=split_settings,
+            model=model_settings,
+            labeled_data=labeled_data,
+        )
+
+        dp.split_data()
+
+        assert dp.paths.labeled_data_path is None
+        assert dp.input_mode is InputMode.SINGLE_TEXT
+        assert dp.paths.train_data_path.exists()
+        assert dp.paths.val_data_path.exists()
+        assert dp.paths.test_data_path.exists()
+
+        train_df = pd.read_parquet(dp.paths.train_data_path)
+        val_df = pd.read_parquet(dp.paths.val_data_path)
+        test_df = pd.read_parquet(dp.paths.test_data_path)
+
+        assert len(train_df) + len(val_df) + len(test_df) == len(labeled_data)
 
     def test_raises_error_when_explicit_raw_test_data_missing(
         self,
@@ -213,7 +249,7 @@ class TestSplitData:
         missing_raw_test = tmp_path / "missing_raw_test.csv"
 
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=missing_raw_test,
         )
 
@@ -238,11 +274,11 @@ class TestSplitData:
         df_test.to_csv(mismatched_test_path, index=False)
 
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=mismatched_test_path,
         )
 
-        with pytest.raises(DataContractError, match="Label column mismatch between raw_csv and raw_test_csv"):
+        with pytest.raises(DataContractError, match="Label column mismatch between labeled_data and raw_test_csv"):
             dp.split_data()
 
     def test_sets_paired_text_input_mode_when_text_pair_is_present(
@@ -253,7 +289,7 @@ class TestSplitData:
     ) -> None:
         """Ensure split_data records paired-text mode when text_pair is present."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_paired_raw_csv,
+            labeled_data=sample_paired_raw_csv,
             raw_test_csv=sample_paired_raw_test_csv,
         )
 
@@ -277,11 +313,11 @@ class TestSplitData:
     ) -> None:
         """Ensure split_data rejects single-text train data with paired-text test data."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_paired_raw_test_csv,
         )
 
-        with pytest.raises(DataContractError, match="Input mode mismatch between raw_csv and raw_test_csv"):
+        with pytest.raises(DataContractError, match="Input mode mismatch between labeled_data and raw_test_csv"):
             dp.split_data()
 
     def test_validates_persisted_split_input_modes_when_reusing_cached_splits(
@@ -291,7 +327,7 @@ class TestSplitData:
     ) -> None:
         """Ensure cached persisted splits are revalidated before reuse."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=None,
         )
         dp.split_data()
@@ -301,7 +337,7 @@ class TestSplitData:
         test_df.to_parquet(dp.paths.test_data_path, index=False)
 
         resumed_dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=None,
         )
 
@@ -327,7 +363,7 @@ class TestSplitData:
         raw_test_df.to_csv(raw_test_grouped_csv, index=False)
 
         dp = pipeline_instance_factory(
-            raw_csv=raw_grouped_csv,
+            labeled_data=raw_grouped_csv,
             raw_test_csv=raw_test_grouped_csv,
         )
 
@@ -341,7 +377,7 @@ class TestSplitData:
     ) -> None:
         """Ensure cached split artifacts are rejected when split groups overlap."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=None,
         )
         dp.split_data()
@@ -362,7 +398,7 @@ class TestSplitData:
         test_df.to_parquet(dp.paths.test_data_path, index=False)
 
         resumed_dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=None,
         )
 
@@ -381,7 +417,7 @@ class TestGetMultiHot:
     ):
         """Ensure get_multi_hot_vectors converts label_* columns into multi-hot vectors for all dataset splits."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -406,7 +442,7 @@ class TestGetMultiHot:
     ):
         """Ensure get_multi_hot_vectors raises RuntimeError when invoked before split_data initializes splits."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -421,7 +457,7 @@ class TestGetMultiHot:
     ) -> None:
         """Ensure paired-text inputs keep text_pair when labels are converted to multi-hot vectors."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_paired_raw_csv,
+            labeled_data=sample_paired_raw_csv,
             raw_test_csv=sample_paired_raw_test_csv,
         )
 
@@ -448,7 +484,7 @@ class TestCreateHFDataset:
     ):
         """Ensure create_hf_dataset builds the expected DatasetDict with correct splits and feature schema."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -478,7 +514,7 @@ class TestCreateHFDataset:
     ):
         """Ensure create_hf_dataset raises RuntimeError when train/test DataFrames are not yet initialized."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -493,7 +529,7 @@ class TestCreateHFDataset:
     ):
         """Ensure create_hf_dataset raises RuntimeError when called before multi-hot labels are generated."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -510,7 +546,7 @@ class TestCreateHFDataset:
     ) -> None:
         """Ensure create_hf_dataset includes text_pair in paired-text mode."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_paired_raw_csv,
+            labeled_data=sample_paired_raw_csv,
             raw_test_csv=sample_paired_raw_test_csv,
         )
 
@@ -547,7 +583,7 @@ class TestTokenizeData:
     ):
         """Ensure tokenize_data raises RuntimeError when invoked before create_hf_dataset."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -564,7 +600,7 @@ class TestTokenizeData:
     ) -> None:
         """Ensure tokenize_data raises RuntimeError when input mode has not been inferred."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -582,7 +618,7 @@ class TestTokenizeData:
     ):
         """Ensure properly tokenized DatasetDict with tensors for input_ids, attention_mask, and labels."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -614,7 +650,7 @@ class TestTokenizeData:
     ):
         """Ensure tokenize_data preserves the number of examples in each split."""
         dp = pipeline_instance_factory(
-            raw_csv=sample_raw_csv,
+            labeled_data=sample_raw_csv,
             raw_test_csv=sample_raw_test_csv,
         )
 
@@ -661,7 +697,7 @@ class TestTokenizeData:
         )
 
         dp = pipeline_instance_factory(
-            raw_csv=sample_paired_raw_csv,
+            labeled_data=sample_paired_raw_csv,
             raw_test_csv=sample_paired_raw_test_csv,
         )
 

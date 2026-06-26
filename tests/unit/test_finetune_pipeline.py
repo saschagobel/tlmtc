@@ -62,7 +62,7 @@ def pipeline_factory(tmp_path, base_search_space):
         trainer_args: dict[str, Any] | None = None,
     ):
         paths = resolve_paths(
-            raw_csv=tmp_path / "raw.csv",
+            labeled_data=tmp_path / "labeled.csv",
             raw_test_csv=tmp_path / "raw_test.csv",
             work_dir=tmp_path,
             run_id="test-run",

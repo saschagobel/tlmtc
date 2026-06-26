@@ -21,7 +21,7 @@ from tlmtc.settings import ModelSettings, TrainingSettings, WorkflowSettings
 def paths(tmp_path: Path) -> RunPaths:
     """Create run paths with persisted train/test label splits."""
     run_paths = resolve_paths(
-        raw_csv=tmp_path / "raw.csv",
+        labeled_data=tmp_path / "labeled.csv",
         raw_test_csv=None,
         work_dir=tmp_path,
         run_id="test-run",
