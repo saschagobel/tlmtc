@@ -177,7 +177,7 @@ def tiny_checkpoint_dir(tmp_path: Path) -> Path:
 
 def _train_tiny_model(
     *,
-    raw_csv: Path,
+    labeled_data: Path,
     tiny_checkpoint_dir: Path,
     work_dir: Path,
     run_id: str,
@@ -185,7 +185,7 @@ def _train_tiny_model(
 ) -> RunPaths:
     """Train a tiny local model and return its training paths."""
     result = train_tlmtc(
-        raw_csv=raw_csv,
+        labeled_data=labeled_data,
         work_dir=work_dir,
         run_id=run_id,
         checkpoint=str(tiny_checkpoint_dir),
@@ -312,7 +312,7 @@ def test_predict_tlmtc_runs_end_to_end_with_tiny_local_model(
     prediction_csv = request.getfixturevalue(prediction_csv_fixture)
 
     train_paths = _train_tiny_model(
-        raw_csv=raw_csv,
+        labeled_data=raw_csv,
         tiny_checkpoint_dir=tiny_checkpoint_dir,
         work_dir=tmp_path,
         run_id=run_id,
@@ -349,7 +349,7 @@ def test_predict_tlmtc_uses_latest_training_run_when_run_id_is_omitted(
 ) -> None:
     """Run predict_tlmtc with implicit latest-run selection."""
     source_paths = _train_tiny_model(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         tiny_checkpoint_dir=tiny_checkpoint_dir,
         work_dir=tmp_path,
         run_id="integration_prediction_older",
@@ -396,7 +396,7 @@ def test_tlmtc_predict_cli_runs_end_to_end_with_tiny_local_model(
 ) -> None:
     """Run the tlmtc predict CLI end to end with a tiny local model."""
     train_paths = _train_tiny_model(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         tiny_checkpoint_dir=tiny_checkpoint_dir,
         work_dir=tmp_path,
         run_id="integration_prediction_cli",
@@ -446,7 +446,7 @@ def test_tlmtc_predict_cli_quiet_runtime_mode_suppresses_progress_output(
 ) -> None:
     """Run the tlmtc predict CLI with quiet runtime verbosity."""
     train_paths = _train_tiny_model(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         tiny_checkpoint_dir=tiny_checkpoint_dir,
         work_dir=tmp_path,
         run_id="integration_prediction_cli_quiet",
