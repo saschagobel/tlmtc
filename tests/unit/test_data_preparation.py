@@ -65,6 +65,32 @@ class TestDfPreprocess:
         np.testing.assert_array_equal(X, np.array(["a", "c"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
 
+    def test_accepts_dataframe_drops_missing_rows_and_extracts_arrays(self) -> None:
+        df_in = pd.DataFrame(
+            {
+                "text": ["a", None, "c"],
+                "label_1": [1, 0, 0],
+                "label_2": [0, 1, 1],
+            }
+        )
+
+        df, label_cols, X, y, input_mode = df_preprocess(df_in)
+
+        assert label_cols == ["label_1", "label_2"]
+        assert input_mode is InputMode.SINGLE_TEXT
+        pd.testing.assert_frame_equal(
+            df,
+            pd.DataFrame(
+                {
+                    "text": ["a", "c"],
+                    "label_1": [1, 0],
+                    "label_2": [0, 1],
+                }
+            ),
+        )
+        np.testing.assert_array_equal(X, np.array(["a", "c"]))
+        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
+
     def test_preserves_optional_text_pair_column(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "data.csv"
         df_in = pd.DataFrame(

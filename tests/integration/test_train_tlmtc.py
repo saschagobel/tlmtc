@@ -223,8 +223,10 @@ def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
     monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
+    labeled_data = pd.read_csv(raw_multilabel_csv)
+
     result = train_tlmtc(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=labeled_data,
         work_dir=tmp_path,
         run_id="integration_smoke",
         checkpoint=str(tiny_checkpoint_dir),
@@ -243,6 +245,7 @@ def test_train_tlmtc_runs_end_to_end_with_tiny_local_model(
     )
 
     assert result.paths.run_id == "integration_smoke"
+    assert result.paths.labeled_data_path is None
     assert_common_training_artifacts(result.paths)
 
     train_meta = read_run_meta(result.paths.train_run_meta_path)
@@ -263,7 +266,7 @@ def test_train_tlmtc_runs_end_to_end_with_paired_text_input(
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
     result = train_tlmtc(
-        raw_csv=raw_paired_multilabel_csv,
+        labeled_data=raw_paired_multilabel_csv,
         work_dir=tmp_path,
         run_id="integration_paired_text",
         checkpoint=str(tiny_checkpoint_dir),
@@ -297,7 +300,7 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
     result = train_tlmtc(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         work_dir=tmp_path,
         run_id="integration_hpo",
         checkpoint=str(tiny_checkpoint_dir),
@@ -349,7 +352,7 @@ def test_train_tlmtc_runs_peft_with_tiny_local_model(
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
     result = train_tlmtc(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         work_dir=tmp_path,
         run_id="integration_peft",
         checkpoint=str(tiny_checkpoint_dir),
@@ -394,7 +397,7 @@ def test_tlmtc_train_cli_runs_end_to_end_with_tiny_local_model(
         app,
         [
             "train",
-            "--raw-csv",
+            "--labeled-data",
             str(raw_multilabel_csv),
             "--work-dir",
             str(tmp_path),
@@ -425,7 +428,7 @@ def test_tlmtc_train_cli_runs_end_to_end_with_tiny_local_model(
     )
 
     paths = resolve_paths(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         raw_test_csv=None,
         work_dir=tmp_path,
         run_id="integration_cli",
@@ -456,7 +459,7 @@ def test_tlmtc_train_cli_quiet_runtime_mode_suppresses_progress_output(
         app,
         [
             "train",
-            "--raw-csv",
+            "--labeled-data",
             str(raw_multilabel_csv),
             "--work-dir",
             str(tmp_path),
@@ -489,7 +492,7 @@ def test_tlmtc_train_cli_quiet_runtime_mode_suppresses_progress_output(
     )
 
     paths = resolve_paths(
-        raw_csv=raw_multilabel_csv,
+        labeled_data=raw_multilabel_csv,
         raw_test_csv=None,
         work_dir=tmp_path,
         run_id="integration_cli_quiet",

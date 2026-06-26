@@ -473,6 +473,8 @@ class TestTrainTlmtc:
 
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["paths"] == result.paths
+        assert data_kwargs["labeled_data"] is None
+        assert result.paths.labeled_data_path == raw_csv.resolve()
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["tokenized_dataset"] is pipelines.tokenized_dataset
@@ -487,6 +489,27 @@ class TestTrainTlmtc:
 
         _assert_training_pipeline_call_order(pipelines)
         _assert_default_train_meta(result.paths.train_run_meta_path)
+
+    def test_accepts_in_memory_labeled_dataframe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+    ) -> None:
+        pipelines = _mock_successful_pipelines(monkeypatch)
+        labeled_data = pd.read_csv(raw_csv)
+
+        result = api_mod.train_tlmtc(
+            labeled_data,
+            work_dir=tmp_path,
+            run_id="run_123",
+        )
+
+        _, data_kwargs = pipelines.data_pipeline_cls.call_args
+        assert result.paths.labeled_data_path is None
+        assert data_kwargs["labeled_data"] is labeled_data
+
+        _assert_training_pipeline_call_order(pipelines)
 
     def test_uses_distributed_resolved_run_id_when_run_id_is_omitted(
         self,

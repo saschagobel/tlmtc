@@ -75,15 +75,15 @@ def main(
 
 @app.command("train")
 def train_command(
-    raw_csv: str = typer.Option(
+    labeled_data: str = typer.Option(
         ...,
-        "--raw-csv",
-        help="Path to the raw multi-label CSV with text, label_* columns, and optional text_pair.",
+        "--labeled-data",
+        help="Path to labeled multi-label data with text, label_* columns, and optional text_pair.",
     ),
     raw_test_csv: str | None = typer.Option(
         None,
         "--raw-test-csv",
-        help="Path to a separate raw test CSV. If omitted, a test split is created from --raw-csv.",
+        help="Path to a separate raw test CSV. If omitted, a test split is created from --labeled-data.",
     ),
     work_dir: str | None = typer.Option(
         None,
@@ -269,7 +269,7 @@ def train_command(
     from tlmtc.api import train_tlmtc
 
     result = train_tlmtc(
-        raw_csv=raw_csv,
+        labeled_data=labeled_data,
         raw_test_csv=UNSET if raw_test_csv is None else raw_test_csv,
         work_dir=UNSET if work_dir is None else work_dir,
         config_path=UNSET if config_path is None else config_path,

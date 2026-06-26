@@ -61,7 +61,7 @@ class RunPaths:
         run_dir: Root output directory for the training run.
         run_id: Run identifier used to name the output directory.
         train_run_meta_path: Path to the persisted training-run metadata sidecar.
-        raw_data_path: Resolved path to the raw training CSV.
+        labeled_data_path: Resolved path to the labeled training data, or None for in-memory labeled data.
         raw_test_data_path: Resolved path to the optional raw test CSV.
         data_dir: Directory for prepared dataset split artifacts.
         logs_dir: Directory for training logs and HPO artifacts.
@@ -90,7 +90,7 @@ class RunPaths:
 
     train_run_meta_path: Path
 
-    raw_data_path: Path
+    labeled_data_path: Path | None
     raw_test_data_path: Path | None
 
     data_dir: Path
@@ -136,7 +136,7 @@ class RunPaths:
 
 def resolve_paths(
     *,
-    raw_csv: Path,
+    labeled_data: Path | None,
     raw_test_csv: Path | None,
     work_dir: Path,
     run_id: str,
@@ -150,7 +150,7 @@ def resolve_paths(
     """Resolve input and artifact paths for a tlmtc training run.
 
     Args:
-        raw_csv: Path to the raw training CSV.
+        labeled_data: Path to the labeled training data, or None for in-memory labeled data.
         raw_test_csv: Optional path to a raw test CSV.
         work_dir: Base directory used to resolve inputs and contain run outputs.
         run_id: Run identifier used to name the output directory.
@@ -166,7 +166,7 @@ def resolve_paths(
     """
     resolved_work_dir = work_dir.expanduser().resolve()
 
-    raw_data_path = raw_csv.expanduser().resolve()
+    labeled_data_path = None if labeled_data is None else labeled_data.expanduser().resolve()
     raw_test_data_path = None if raw_test_csv is None else raw_test_csv.expanduser().resolve()
 
     resolved_run_id = validate_run_id(run_id)
@@ -183,7 +183,7 @@ def resolve_paths(
         run_dir=run_dir,
         run_id=run_id,
         train_run_meta_path=run_dir / TRAIN_RUN_META_FILENAME,
-        raw_data_path=raw_data_path,
+        labeled_data_path=labeled_data_path,
         raw_test_data_path=raw_test_data_path,
         data_dir=data_dir,
         logs_dir=logs_dir,

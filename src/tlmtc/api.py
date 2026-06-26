@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.data_preparation import create_prediction_dataset, read_prediction_csv, tokenize_prediction_dataset
 from tlmtc.distributed import DistributedContext
@@ -44,7 +46,7 @@ class PredictResult:
 
 
 def train_tlmtc(
-    raw_csv: str | Path,
+    labeled_data: str | Path | pd.DataFrame,
     *,
     raw_test_csv: str | Path | Unset = UNSET,
     work_dir: str | Path | Unset = UNSET,
@@ -89,10 +91,10 @@ def train_tlmtc(
     workflow flags.
 
     Args:
-        raw_csv: Path to the raw multi-label training CSV. The file must contain a `text` column,
-            at least two binary `label_*` columns, and optionally a `text_pair` column.
+        labeled_data: Path to labeled multi-label training data, or an in-memory DataFrame. The data must contain
+            a `text` column, at least two binary `label_*` columns, and optionally a `text_pair` column.
         raw_test_csv: Path to a separate raw test CSV. If omitted, a test split is created
-            from `raw_csv` using `test_size`. Defaults to no separate test CSV.
+            from `labeled_data` using `test_size`. Defaults to no separate test CSV.
         work_dir: Base directory for resolving inputs and writing run artifacts. Defaults to the
             current working directory.
         config_path: Path to a YAML configuration file. Defaults to no configuration file.
@@ -203,7 +205,7 @@ def train_tlmtc(
         config=load_config_file(config_path) if isinstance(config_path, (str, Path)) else None,
         env=None,
         overrides={
-            "raw_csv": raw_csv,
+            "labeled_data": labeled_data,
             "raw_test_csv": raw_test_csv,
             "work_dir": work_dir,
             "run_id": run_id,
@@ -276,7 +278,7 @@ def train_tlmtc(
     resolved_run_id = distributed.resolve_run_id(settings.run_id)
 
     paths = resolve_paths(
-        raw_csv=settings.raw_csv,
+        labeled_data=settings.labeled_data if isinstance(settings.labeled_data, Path) else None,
         raw_test_csv=settings.raw_test_csv,
         work_dir=settings.work_dir,
         run_id=resolved_run_id,
@@ -290,6 +292,7 @@ def train_tlmtc(
         paths=paths,
         split=settings.split,
         model=settings.model,
+        labeled_data=settings.labeled_data if isinstance(settings.labeled_data, pd.DataFrame) else None,
     )
     with distributed.main_process_first():
         data_pipeline.split_data()
