@@ -167,7 +167,7 @@ tlmtc train \
   --use-cpu
 
 tlmtc predict \
-  --prediction-csv paired_example_unlabeled.csv \
+  --unlabeled-data paired_example_unlabeled.csv \
   --use-cpu
 ```
 
@@ -185,7 +185,7 @@ Add a `text_pair` column for paired-input classification. **tlmtc** detects and 
 
 Add a `split_group` column when semantically related rows must not cross train, validation, and test splits.
 
-For prediction, provide an unlabeled CSV with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
+For prediction, provide unlabeled data with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
 
 </details>
 
