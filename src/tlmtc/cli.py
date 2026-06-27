@@ -320,10 +320,10 @@ def train_command(
 
 @app.command("predict")
 def predict_command(
-    prediction_csv: str = typer.Option(
+    unlabeled_data: str = typer.Option(
         ...,
-        "--prediction-csv",
-        help="Path to the unlabeled prediction CSV with text and, if required by the training run, text_pair.",
+        "--unlabeled-data",
+        help="Path to unlabeled prediction data with text and, if required by the training run, text_pair.",
     ),
     work_dir: str | None = typer.Option(
         None,
@@ -365,7 +365,7 @@ def predict_command(
     from tlmtc.api import predict_tlmtc
 
     result = predict_tlmtc(
-        prediction_csv=prediction_csv,
+        unlabeled_data=unlabeled_data,
         work_dir=UNSET if work_dir is None else work_dir,
         config_path=UNSET if config_path is None else config_path,
         run_id=UNSET if run_id is None else run_id,
