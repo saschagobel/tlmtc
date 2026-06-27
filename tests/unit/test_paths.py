@@ -355,7 +355,7 @@ class TestResolvePredictionPaths:
         )
 
         paths = resolve_prediction_paths(
-            input_csv=input_csv,
+            unlabeled_data=input_csv,
             work_dir=work_dir,
             run_id="run123",
         )
@@ -365,7 +365,7 @@ class TestResolvePredictionPaths:
 
         assert paths.work_dir == expected_work_dir
         assert paths.run_id == "run123"
-        assert paths.input_data_path == input_csv.resolve()
+        assert paths.unlabeled_data_path == input_csv.resolve()
         assert paths.train_outputs_dir == expected_work_dir / DEFAULT_TRAIN_OUTPUTS_DIRNAME
         assert paths.train_run_dir == run_dir.resolve()
         assert paths.train_run_meta_path == run_dir.resolve() / TRAIN_RUN_META_FILENAME
@@ -374,6 +374,23 @@ class TestResolvePredictionPaths:
         assert paths.prediction_run_dir == expected_prediction_run_dir
         assert paths.probabilities_path == expected_prediction_run_dir / "probabilities.csv"
         assert paths.predictions_path == expected_prediction_run_dir / "predictions.csv"
+
+    def test_preserves_in_memory_unlabeled_data_as_none(self, tmp_path: Path) -> None:
+        """Ensure in-memory unlabeled data does not synthesize an input path."""
+        work_dir = tmp_path / "workspace"
+        _make_prediction_source_run(
+            work_dir,
+            run_id="run123",
+            created_at=datetime.now(UTC),
+        )
+
+        paths = resolve_prediction_paths(
+            unlabeled_data=None,
+            work_dir=work_dir,
+            run_id="run123",
+        )
+
+        assert paths.unlabeled_data_path is None
 
     def test_resolves_latest_run_id_when_run_id_is_none(self, tmp_path: Path) -> None:
         """Ensure omitted run_id selects the latest completed training run."""
@@ -394,7 +411,7 @@ class TestResolvePredictionPaths:
         )
 
         paths = resolve_prediction_paths(
-            input_csv=input_csv,
+            unlabeled_data=input_csv,
             work_dir=work_dir,
             run_id=None,
         )
@@ -415,7 +432,7 @@ class TestResolvePredictionPaths:
         )
 
         paths = resolve_prediction_paths(
-            input_csv=input_csv,
+            unlabeled_data=input_csv,
             work_dir=work_dir,
             run_id="run123",
         )
@@ -429,20 +446,8 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="`work_dir` does not exist"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=tmp_path / "missing-workspace",
-                run_id="run123",
-            )
-
-    def test_fails_when_prediction_input_csv_does_not_exist(self, tmp_path: Path) -> None:
-        """Ensure missing prediction input fails before path construction succeeds."""
-        work_dir = tmp_path / "workspace"
-        work_dir.mkdir()
-
-        with pytest.raises(FileNotFoundError, match="Unlabeled prediction input CSV does not exist"):
-            resolve_prediction_paths(
-                input_csv=tmp_path / "missing.csv",
-                work_dir=work_dir,
                 run_id="run123",
             )
 
@@ -455,7 +460,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="No tlmtc training outputs found"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="run123",
             )
@@ -469,7 +474,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="Requested tlmtc training run not found"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="missing-run",
             )
@@ -487,7 +492,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="Training run metadata not found"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="run123",
             )
@@ -507,7 +512,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="Training model directory not found"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="run123",
             )
@@ -528,7 +533,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(FileNotFoundError, match="Training model directory is empty"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="run123",
             )
@@ -542,7 +547,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(ValueError, match="run_id must be a safe path segment"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id="../outside",
             )
@@ -562,7 +567,7 @@ class TestResolvePredictionPaths:
 
         with pytest.raises(ValueError, match="run_id must be a safe path segment"):
             resolve_prediction_paths(
-                input_csv=input_csv,
+                unlabeled_data=input_csv,
                 work_dir=work_dir,
                 run_id=None,
             )
@@ -584,7 +589,7 @@ class TestPredictionPaths:
         )
 
         paths = resolve_prediction_paths(
-            input_csv=input_csv,
+            unlabeled_data=input_csv,
             work_dir=work_dir,
             run_id="run123",
         )

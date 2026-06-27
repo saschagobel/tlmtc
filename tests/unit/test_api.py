@@ -76,7 +76,7 @@ class MockedPipelines:
 class MockedPredictionOps:
     """Mocked prediction operations and sentinel state."""
 
-    read_prediction_csv: MagicMock
+    read_prediction_data: MagicMock
     create_prediction_dataset: MagicMock
     tokenize_prediction_dataset: MagicMock
     load_prediction_model: MagicMock
@@ -308,20 +308,20 @@ def _mock_prediction_operations(
     model = object()
     probability_values = PROBABILITIES if probabilities is None else probabilities
 
-    read_prediction_csv_mock = MagicMock(return_value=input_df)
+    read_prediction_data_mock = MagicMock(return_value=input_df)
     create_prediction_dataset_mock = MagicMock(return_value=prediction_dataset)
     tokenize_prediction_dataset_mock = MagicMock(return_value=tokenized_dataset)
     load_prediction_model_mock = MagicMock(return_value=model)
     predict_probabilities_mock = MagicMock(return_value=probability_values)
 
-    monkeypatch.setattr(api_mod, "read_prediction_csv", read_prediction_csv_mock)
+    monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
     monkeypatch.setattr(api_mod, "create_prediction_dataset", create_prediction_dataset_mock)
     monkeypatch.setattr(api_mod, "tokenize_prediction_dataset", tokenize_prediction_dataset_mock)
     monkeypatch.setattr(api_mod, "load_prediction_model", load_prediction_model_mock)
     monkeypatch.setattr(api_mod, "predict_probabilities", predict_probabilities_mock)
 
     return MockedPredictionOps(
-        read_prediction_csv=read_prediction_csv_mock,
+        read_prediction_data=read_prediction_data_mock,
         create_prediction_dataset=create_prediction_dataset_mock,
         tokenize_prediction_dataset=tokenize_prediction_dataset_mock,
         load_prediction_model=load_prediction_model_mock,
@@ -384,8 +384,8 @@ def _assert_prediction_operations_called(
     trust_remote_code: bool = False,
 ) -> None:
     """Assert predict_tlmtc wires prediction operations with resolved metadata and settings."""
-    ops.read_prediction_csv.assert_called_once_with(
-        df_path=result.paths.input_data_path,
+    ops.read_prediction_data.assert_called_once_with(
+        data=result.paths.unlabeled_data_path,
         expected_input_mode=input_mode,
     )
 
@@ -820,6 +820,33 @@ class TestPredictTlmtc:
         )
         _assert_prediction_outputs(result=result, ops=ops)
 
+    def test_accepts_in_memory_unlabeled_dataframe(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="run_123",
+        )
+        ops = _mock_prediction_operations(monkeypatch)
+        unlabeled_data = pd.read_csv(prediction_csv)
+
+        result = api_mod.predict_tlmtc(
+            unlabeled_data,
+            work_dir=tmp_path,
+            run_id="run_123",
+            use_cpu=True,
+        )
+
+        assert result.paths.unlabeled_data_path is None
+        ops.read_prediction_data.assert_called_once_with(
+            data=unlabeled_data,
+            expected_input_mode=InputMode.SINGLE_TEXT,
+        )
+        _assert_prediction_outputs(result=result, ops=ops)
+
     def test_resolves_selected_settings_from_config_path(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -999,8 +1026,8 @@ class TestPredictTlmtc:
             run_id="data_only_run",
             transfer_learning=False,
         )
-        read_prediction_csv_mock = MagicMock()
-        monkeypatch.setattr(api_mod, "read_prediction_csv", read_prediction_csv_mock)
+        read_prediction_data_mock = MagicMock()
+        monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
 
         with pytest.raises(RuntimeError, match="transfer_learning=True"):
             api_mod.predict_tlmtc(
@@ -1009,7 +1036,7 @@ class TestPredictTlmtc:
                 run_id="data_only_run",
             )
 
-        read_prediction_csv_mock.assert_not_called()
+        read_prediction_data_mock.assert_not_called()
 
     def test_rejects_remote_code_training_run_without_prediction_opt_in(
         self,
@@ -1022,8 +1049,8 @@ class TestPredictTlmtc:
             run_id="remote_code_run",
             trust_remote_code=True,
         )
-        read_prediction_csv_mock = MagicMock()
-        monkeypatch.setattr(api_mod, "read_prediction_csv", read_prediction_csv_mock)
+        read_prediction_data_mock = MagicMock()
+        monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
 
         with pytest.raises(RuntimeError, match="trust_remote_code=True"):
             api_mod.predict_tlmtc(
@@ -1032,7 +1059,7 @@ class TestPredictTlmtc:
                 run_id="remote_code_run",
             )
 
-        read_prediction_csv_mock.assert_not_called()
+        read_prediction_data_mock.assert_not_called()
 
     def test_configures_runtime_output_from_explicit_argument(
         self,

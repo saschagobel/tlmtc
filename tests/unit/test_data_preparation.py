@@ -13,7 +13,7 @@ from tlmtc.data_preparation import (
     df_preprocess,
     df_save,
     df_split,
-    read_prediction_csv,
+    read_prediction_data,
     tokenize_batch,
     tokenize_prediction_dataset,
 )
@@ -146,8 +146,8 @@ class TestDfPreprocess:
             df_preprocess(csv_path)
 
 
-class TestReadPredictionCsv:
-    """Test suite for reading unlabeled prediction CSV inputs."""
+class TestReadPredictionData:
+    """Test suite for reading unlabeled prediction data."""
 
     def test_reads_csv_and_validates_prediction_frame(
         self,
@@ -177,8 +177,40 @@ class TestReadPredictionCsv:
             validate_frame,
         )
 
-        result = read_prediction_csv(
-            df_path=csv_path,
+        result = read_prediction_data(
+            data=csv_path,
+            expected_input_mode=InputMode.SINGLE_TEXT,
+        )
+
+        pd.testing.assert_frame_equal(result, df_validated)
+
+    def test_accepts_dataframe_and_validates_prediction_frame(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        df_in = pd.DataFrame(
+            {
+                TEXT_COL: ["first text", "second text"],
+                "external_id": ["a", "b"],
+            }
+        )
+        df_validated = df_in.assign(validated=True)
+
+        def validate_frame(
+            df: pd.DataFrame,
+            expected_input_mode: InputMode,
+        ) -> pd.DataFrame:
+            pd.testing.assert_frame_equal(df, df_in)
+            assert expected_input_mode is InputMode.SINGLE_TEXT
+            return df_validated
+
+        monkeypatch.setattr(
+            "tlmtc.data_preparation.validate_prediction_frame",
+            validate_frame,
+        )
+
+        result = read_prediction_data(
+            data=df_in,
             expected_input_mode=InputMode.SINGLE_TEXT,
         )
 
