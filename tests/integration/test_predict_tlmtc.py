@@ -323,8 +323,10 @@ def test_predict_tlmtc_runs_end_to_end_with_tiny_local_model(
     assert train_meta.input_mode is expected_input_mode
     assert train_meta.label_names == ["a", "b"]
 
+    unlabeled_data = pd.read_csv(prediction_csv) if expected_input_mode is InputMode.SINGLE_TEXT else prediction_csv
+
     result = predict_tlmtc(
-        prediction_csv=prediction_csv,
+        unlabeled_data=unlabeled_data,
         work_dir=tmp_path,
         run_id=train_paths.run_id,
         batch_size=2,
@@ -334,6 +336,9 @@ def test_predict_tlmtc_runs_end_to_end_with_tiny_local_model(
     assert result.paths.run_id == run_id
     assert result.paths.train_run_dir == train_paths.run_dir
     assert result.paths.train_run_model_dir == train_paths.model_dir
+    assert result.paths.unlabeled_data_path == (
+        None if expected_input_mode is InputMode.SINGLE_TEXT else prediction_csv.resolve()
+    )
     assert_prediction_artifacts(
         paths=result.paths,
         input_csv=prediction_csv,
@@ -373,7 +378,7 @@ def test_predict_tlmtc_uses_latest_training_run_when_run_id_is_omitted(
     )
 
     result = predict_tlmtc(
-        prediction_csv=prediction_csv,
+        unlabeled_data=prediction_csv,
         work_dir=tmp_path,
         batch_size=2,
         use_cpu=True,
@@ -408,7 +413,7 @@ def test_tlmtc_predict_cli_runs_end_to_end_with_tiny_local_model(
         app,
         [
             "predict",
-            "--prediction-csv",
+            "--unlabeled-data",
             str(prediction_csv),
             "--work-dir",
             str(tmp_path),
@@ -421,7 +426,7 @@ def test_tlmtc_predict_cli_runs_end_to_end_with_tiny_local_model(
     )
 
     paths = resolve_prediction_paths(
-        input_csv=prediction_csv,
+        unlabeled_data=prediction_csv,
         work_dir=tmp_path,
         run_id=train_paths.run_id,
     )
@@ -458,7 +463,7 @@ def test_tlmtc_predict_cli_quiet_runtime_mode_suppresses_progress_output(
         app,
         [
             "predict",
-            "--prediction-csv",
+            "--unlabeled-data",
             str(prediction_csv),
             "--work-dir",
             str(tmp_path),
@@ -473,7 +478,7 @@ def test_tlmtc_predict_cli_quiet_runtime_mode_suppresses_progress_output(
     )
 
     paths = resolve_prediction_paths(
-        input_csv=prediction_csv,
+        unlabeled_data=prediction_csv,
         work_dir=tmp_path,
         run_id=train_paths.run_id,
     )

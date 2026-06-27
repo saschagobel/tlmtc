@@ -445,15 +445,15 @@ class PredictionSettings(ResolvableSettings):
     """Resolved top-level settings for a tlmtc prediction run.
 
     Attributes:
-        prediction_csv: Path to the unlabeled prediction CSV.
+        unlabeled_data: Path to unlabeled prediction data, or an in-memory unlabeled DataFrame.
         batch_size: Prediction batch size used for batched inference.
         trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom remote code.
         use_cpu: Whether to force CPU execution.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    prediction_csv: Path
+    unlabeled_data: Path | pd.DataFrame
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None
     batch_size: PositiveInt = 32

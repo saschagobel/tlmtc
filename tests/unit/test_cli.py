@@ -368,7 +368,7 @@ class TestPredictCliApp:
         output = clean_cli_output(result.output)
 
         assert result.exit_code == 0
-        assert "--prediction-csv" in output
+        assert "--unlabeled-data" in output
         assert "--run-id" in output
         assert "--batch-size" in output
         assert "--trust-remote-co" in output
@@ -389,7 +389,7 @@ class TestPredictCliApp:
         expected: bool,
         stub_predict_tlmtc: dict[str, Any],
     ) -> None:
-        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv", flag])
+        result = invoke_cli(runner, ["predict", "--unlabeled-data", "prediction.csv", flag])
 
         assert result.exit_code == 0
         assert stub_predict_tlmtc["kwargs"]["trust_remote_code"] is expected
@@ -409,7 +409,7 @@ class TestPredictCliApp:
         stub_predict_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure predict boolean flag pairs set the expected boolean value."""
-        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv", flag])
+        result = invoke_cli(runner, ["predict", "--unlabeled-data", "prediction.csv", flag])
 
         assert result.exit_code == 0
         assert stub_predict_tlmtc["kwargs"]["use_cpu"] is expected
@@ -426,7 +426,7 @@ class TestPredictCliApp:
             runner,
             [
                 "predict",
-                "--prediction-csv",
+                "--unlabeled-data",
                 "prediction.csv",
                 "--verbosity",
                 verbosity,
@@ -446,7 +446,7 @@ class TestPredictCliApp:
             runner,
             [
                 "predict",
-                "--prediction-csv",
+                "--unlabeled-data",
                 "prediction.csv",
                 "--work-dir",
                 "work",
@@ -466,7 +466,7 @@ class TestPredictCliApp:
         assert "Predictions: prediction_outputs/test-run/predictions.csv" in output
 
         kwargs = stub_predict_tlmtc["kwargs"]
-        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["unlabeled_data"] == "prediction.csv"
         assert kwargs["work_dir"] == "work"
         assert kwargs["run_id"] == "test-run"
         assert kwargs["batch_size"] == 8
@@ -483,7 +483,7 @@ class TestPredictCliApp:
             runner,
             [
                 "predict",
-                "--prediction-csv",
+                "--unlabeled-data",
                 "prediction.csv",
                 "--config-path",
                 "config.yaml",
@@ -492,7 +492,7 @@ class TestPredictCliApp:
 
         assert result.exit_code == 0
         kwargs = stub_predict_tlmtc["kwargs"]
-        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["unlabeled_data"] == "prediction.csv"
         assert kwargs["config_path"] == "config.yaml"
 
     def test_predict_omitted_optional_args_are_forwarded_as_unset(
@@ -501,12 +501,12 @@ class TestPredictCliApp:
         stub_predict_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure omitted predict flags preserve layered settings semantics via UNSET."""
-        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv"])
+        result = invoke_cli(runner, ["predict", "--unlabeled-data", "prediction.csv"])
 
         assert result.exit_code == 0
 
         kwargs = stub_predict_tlmtc["kwargs"]
-        assert kwargs["prediction_csv"] == "prediction.csv"
+        assert kwargs["unlabeled_data"] == "prediction.csv"
         assert kwargs["work_dir"] is UNSET
         assert kwargs["config_path"] is UNSET
         assert kwargs["run_id"] is UNSET
@@ -515,14 +515,14 @@ class TestPredictCliApp:
         assert kwargs["use_cpu"] is UNSET
         assert kwargs["verbosity"] is UNSET
 
-    def test_predict_requires_prediction_csv(self, runner: CliRunner) -> None:
+    def test_predict_requires_unlabeled_data(self, runner: CliRunner) -> None:
         """Ensure predict exits with a usage error when required args are missing."""
         result = invoke_cli(runner, ["predict"])
         output = clean_cli_output(result.output)
 
         assert result.exit_code != 0
         assert "Missing option" in output
-        assert "--prediction-csv" in output
+        assert "--unlabeled-data" in output
 
     def test_predict_propagates_downstream_exception(
         self,
@@ -538,7 +538,7 @@ class TestPredictCliApp:
         stub.predict_tlmtc = _boom  # type: ignore[attr-defined]
         monkeypatch.setitem(sys.modules, "tlmtc.api", stub)
 
-        result = invoke_cli(runner, ["predict", "--prediction-csv", "prediction.csv"])
+        result = invoke_cli(runner, ["predict", "--unlabeled-data", "prediction.csv"])
 
         assert result.exit_code != 0
         assert isinstance(result.exception, RuntimeError)

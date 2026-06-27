@@ -46,20 +46,24 @@ def df_preprocess(
     return df, label_cols, text_values, label_matrix, input_mode
 
 
-def read_prediction_csv(
-    df_path: Path,
+def read_prediction_data(
+    data: Path | pd.DataFrame,
     expected_input_mode: InputMode,
 ) -> pd.DataFrame:
-    """Load and validate an unlabeled prediction CSV.
+    """Load and validate unlabeled prediction data.
 
     Args:
-        df_path: Path to an unlabeled CSV with the text columns required by the trained model.
+        data: Path to an unlabeled CSV, or a DataFrame with the text columns required by the trained model.
         expected_input_mode: Input mode persisted by the training run.
 
     Returns:
         Validated prediction DataFrame with original columns preserved.
     """
-    df = pd.read_csv(df_path)
+    if isinstance(data, Path):
+        df = pd.read_csv(data)
+    else:
+        df = data
+
     return validate_prediction_frame(df=df, expected_input_mode=expected_input_mode)
 
 

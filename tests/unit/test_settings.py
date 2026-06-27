@@ -735,10 +735,10 @@ class TestPredictionSettings:
     """Tests for top-level prediction settings construction and layered overrides."""
 
     def test_prediction_settings_minimal_construction_uses_defaults(self) -> None:
-        """PredictionSettings should construct from the required prediction CSV and apply defaults."""
-        settings = PredictionSettings(prediction_csv="predict.csv")
+        """PredictionSettings should construct from the required unlabeled data and apply defaults."""
+        settings = PredictionSettings(unlabeled_data="predict.csv")
 
-        assert settings.prediction_csv == Path("predict.csv")
+        assert settings.unlabeled_data == Path("predict.csv")
         assert settings.work_dir == Path.cwd()
         assert settings.run_id is None
         assert settings.batch_size == 32
@@ -748,10 +748,23 @@ class TestPredictionSettings:
         assert settings.runtime.verbosity == "progress"
         assert settings.trust_remote_code is False
 
+    def test_prediction_settings_accepts_in_memory_unlabeled_dataframe(self) -> None:
+        """PredictionSettings should accept unlabeled data passed as an in-memory DataFrame."""
+        unlabeled_data = pd.DataFrame(
+            {
+                "text": ["a", "b"],
+                "external_id": ["one", "two"],
+            }
+        )
+
+        settings = PredictionSettings(unlabeled_data=unlabeled_data)
+
+        assert settings.unlabeled_data is unlabeled_data
+
     def test_prediction_settings_accepts_explicit_values(self, tmp_path: Path) -> None:
         """PredictionSettings should preserve explicit prediction runtime values."""
         settings = PredictionSettings(
-            prediction_csv=tmp_path / "predict.csv",
+            unlabeled_data=tmp_path / "predict.csv",
             work_dir=tmp_path / "workspace",
             run_id="manual-run",
             batch_size=64,
@@ -760,7 +773,7 @@ class TestPredictionSettings:
             runtime={"verbosity": "quiet"},
         )
 
-        assert settings.prediction_csv == tmp_path / "predict.csv"
+        assert settings.unlabeled_data == tmp_path / "predict.csv"
         assert settings.work_dir == tmp_path / "workspace"
         assert settings.run_id == "manual-run"
         assert settings.batch_size == 64
@@ -772,7 +785,7 @@ class TestPredictionSettings:
         """PredictionSettings.resolve should merge prediction overrides while preserving defaults."""
         settings = PredictionSettings.resolve(
             config={
-                "prediction_csv": "from-config.csv",
+                "unlabeled_data": "from-config.csv",
                 "work_dir": "from-config-workdir",
                 "run_id": "from-config-run",
                 "batch_size": 16,
@@ -782,7 +795,7 @@ class TestPredictionSettings:
                 },
             },
             overrides={
-                "prediction_csv": "from-override.csv",
+                "unlabeled_data": "from-override.csv",
                 "run_id": None,
                 "hardware": {
                     "use_cpu": True,
@@ -790,7 +803,7 @@ class TestPredictionSettings:
             },
         )
 
-        assert settings.prediction_csv == Path("from-override.csv")
+        assert settings.unlabeled_data == Path("from-override.csv")
         assert settings.work_dir == Path("from-config-workdir")
         assert settings.run_id is None
         assert settings.batch_size == 16
@@ -802,7 +815,7 @@ class TestPredictionSettings:
         """PredictionSettings.resolve should ignore override values explicitly marked as UNSET."""
         settings = PredictionSettings.resolve(
             config={
-                "prediction_csv": "predict.csv",
+                "unlabeled_data": "predict.csv",
                 "work_dir": "configured-workdir",
                 "run_id": "configured-run",
                 "batch_size": 64,
@@ -826,15 +839,15 @@ class TestPredictionSettings:
             },
         )
 
-        assert settings.prediction_csv == Path("predict.csv")
+        assert settings.unlabeled_data == Path("predict.csv")
         assert settings.work_dir == Path("configured-workdir")
         assert settings.run_id == "configured-run"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
         assert settings.runtime.verbosity == "quiet"
 
-    def test_prediction_settings_requires_prediction_csv(self) -> None:
-        """PredictionSettings should require prediction_csv."""
+    def test_prediction_settings_requires_unlabeled_data(self) -> None:
+        """PredictionSettings should require unlabeled_data."""
         with pytest.raises(ValidationError):
             PredictionSettings()
 
@@ -842,7 +855,7 @@ class TestPredictionSettings:
         """PredictionSettings should reject non-positive prediction batch sizes."""
         with pytest.raises(ValidationError, match="batch_size"):
             PredictionSettings(
-                prediction_csv="predict.csv",
+                unlabeled_data="predict.csv",
                 batch_size=0,
             )
 
@@ -851,21 +864,21 @@ class TestPredictionSettings:
         [
             (
                 {
-                    "prediction_csv": "predict.csv",
+                    "unlabeled_data": "predict.csv",
                     "unknown": "boom",
                 },
                 "unknown",
             ),
             (
                 {
-                    "prediction_csv": "predict.csv",
+                    "unlabeled_data": "predict.csv",
                     "hardware": {"unknown": "boom"},
                 },
                 "unknown",
             ),
             (
                 {
-                    "prediction_csv": "predict.csv",
+                    "unlabeled_data": "predict.csv",
                     "runtime": {"unknown": "boom"},
                 },
                 "unknown",
