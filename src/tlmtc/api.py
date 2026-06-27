@@ -7,7 +7,7 @@ from typing import Any
 import pandas as pd
 
 from tlmtc.data_pipeline import DataPipeline
-from tlmtc.data_preparation import create_prediction_dataset, read_prediction_csv, tokenize_prediction_dataset
+from tlmtc.data_preparation import create_prediction_dataset, read_prediction_data, tokenize_prediction_dataset
 from tlmtc.distributed import DistributedContext
 from tlmtc.evaluation_pipeline import EvaluationPipeline
 from tlmtc.finetune_pipeline import FinetunePipeline
@@ -358,7 +358,7 @@ def train_tlmtc(
 
 
 def predict_tlmtc(
-    prediction_csv: str | Path,
+    unlabeled_data: str | Path | pd.DataFrame,
     *,
     work_dir: str | Path | Unset = UNSET,
     config_path: str | Path | Unset = UNSET,
@@ -375,8 +375,8 @@ def predict_tlmtc(
     and binary prediction artifacts.
 
     Args:
-        prediction_csv: Path to the unlabeled prediction CSV. The file must contain a `text`
-            column and, for models trained with paired-text inputs, a `text_pair` column.
+        unlabeled_data: Path to unlabeled prediction data, or an in-memory DataFrame. The data must contain
+            a `text` column and, for models trained with paired-text inputs, a `text_pair` column.
             Prediction artifacts preserve input text columns unchanged.
         work_dir: Base directory for resolving inputs, reading training artifacts, and writing
             prediction artifacts. Defaults to the current working directory.
@@ -401,7 +401,7 @@ def predict_tlmtc(
         config=load_config_file(config_path) if isinstance(config_path, (str, Path)) else None,
         env=None,
         overrides={
-            "prediction_csv": prediction_csv,
+            "unlabeled_data": unlabeled_data,
             "work_dir": work_dir,
             "run_id": run_id,
             "batch_size": batch_size,
@@ -424,7 +424,7 @@ def predict_tlmtc(
     emit_progress("Starting prediction run")
 
     paths = resolve_prediction_paths(
-        input_csv=settings.prediction_csv,
+        unlabeled_data=settings.unlabeled_data if isinstance(settings.unlabeled_data, Path) else None,
         work_dir=settings.work_dir,
         run_id=settings.run_id,
     )
@@ -457,8 +457,11 @@ def predict_tlmtc(
 
     emit_progress("Reading prediction inputs")
 
-    input_df = read_prediction_csv(
-        df_path=paths.input_data_path,
+    assert isinstance(settings.unlabeled_data, pd.DataFrame) or paths.unlabeled_data_path is not None
+    input_df = read_prediction_data(
+        data=(
+            settings.unlabeled_data if isinstance(settings.unlabeled_data, pd.DataFrame) else paths.unlabeled_data_path
+        ),
         expected_input_mode=input_mode,
     )
     prediction_dataset = create_prediction_dataset(

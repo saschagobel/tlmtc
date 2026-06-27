@@ -228,7 +228,7 @@ class PredictionPaths:
     Attributes:
         work_dir: Existing base directory containing tlmtc training outputs.
         run_id: Training-run identifier used as the prediction source.
-        input_data_path: Resolved path to the unlabeled prediction input CSV.
+        unlabeled_data_path: Resolved path to unlabeled prediction data, or None for in-memory unlabeled data.
         train_outputs_dir: Directory containing all training runs.
         train_run_dir: Existing training-run directory consumed for prediction.
         train_run_meta_path: Path to the required training-run metadata.
@@ -241,7 +241,7 @@ class PredictionPaths:
     work_dir: Path
     run_id: str
 
-    input_data_path: Path
+    unlabeled_data_path: Path | None
 
     train_outputs_dir: Path
     train_run_dir: Path
@@ -298,7 +298,7 @@ def find_latest_train_run_id(
 
 def resolve_prediction_paths(
     *,
-    input_csv: Path,
+    unlabeled_data: Path | None,
     work_dir: Path,
     run_id: str | None,
     train_outputs_dirname: str = DEFAULT_TRAIN_OUTPUTS_DIRNAME,
@@ -311,7 +311,7 @@ def resolve_prediction_paths(
     and writes prediction artifacts under `prediction_outputs/<run_id>/`.
 
     Args:
-        input_csv: Path to the unlabeled prediction input CSV.
+        unlabeled_data: Path to unlabeled prediction data, or None for in-memory unlabeled data.
         work_dir: Existing base directory containing tlmtc training outputs.
         run_id: Optional training-run identifier. If omitted, the latest completed
             training run is selected from persisted training metadata.
@@ -323,7 +323,7 @@ def resolve_prediction_paths(
         Resolved path bundle for prediction.
 
     Raises:
-        FileNotFoundError: If the work directory, prediction input CSV, training
+        FileNotFoundError: If the work directory, unlabeled prediction input CSV, training
             outputs directory, selected training run, training metadata, or model
             artifact directory is missing.
     """
@@ -331,9 +331,7 @@ def resolve_prediction_paths(
     if not resolved_work_dir.is_dir():
         raise FileNotFoundError(f"`work_dir` does not exist: {resolved_work_dir}")
 
-    input_data_path = input_csv.expanduser().resolve()
-    if not input_data_path.is_file():
-        raise FileNotFoundError(f"Unlabeled prediction input CSV does not exist: {input_data_path}")
+    unlabeled_data_path = None if unlabeled_data is None else unlabeled_data.expanduser().resolve()
 
     train_outputs_dir = resolved_work_dir / train_outputs_dirname
     if not train_outputs_dir.is_dir():
@@ -373,7 +371,7 @@ def resolve_prediction_paths(
     return PredictionPaths(
         work_dir=resolved_work_dir,
         run_id=resolved_run_id,
-        input_data_path=input_data_path,
+        unlabeled_data_path=unlabeled_data_path,
         train_outputs_dir=train_outputs_dir,
         train_run_dir=train_run_dir,
         train_run_meta_path=train_run_meta_path,
