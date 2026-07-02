@@ -73,6 +73,11 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
 
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -85,16 +90,16 @@ jobs:
           cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Check lockfile is current
         run: uv lock --check
 
       - name: Install test dependencies
-        run: uv sync --group test --extra full --frozen
+        run: uv sync --python ${{ matrix.python-version }} --group test --extra full --frozen
 
       - name: Run unit tests
-        run: uv run pytest -q -m "not integration"
+        run: uv run --python ${{ matrix.python-version }} --frozen pytest -q -m "not integration"
 
   build:
     name: Build package
@@ -119,5 +124,4 @@ jobs:
 
       - name: Build package
         run: uv build
-
 
