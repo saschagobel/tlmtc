@@ -15,6 +15,7 @@
   <a href="https://github.com/saschagobel/tlmtc/blob/main/LICENSE.md"><img alt="License" src="https://img.shields.io/github/license/saschagobel/tlmtc"></a>
   <a href="https://github.com/saschagobel/tlmtc/actions"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/saschagobel/tlmtc/ci.yml?label=ci"></a>
   <a href="https://pypi.org/project/tlmtc/"><img alt="PyPI" src="https://img.shields.io/pypi/v/tlmtc?label=pypi"></a>
+  <a href="https://pypi.org/project/tlmtc/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/tlmtc"></a>
 </p>
 
 **tlmtc** (**T**ransfer **L**earning for **M**ulti-label **T**ext **C**lassification) is an opinionated Python package that provides production-ready, end-to-end workflows for fine-tuning pretrained encoder-only transformer models for robust multi-label text classification.
