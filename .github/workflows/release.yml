@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -46,16 +51,16 @@ jobs:
           cache-dependency-glob: "uv.lock"
 
       - name: Set up Python
-        run: uv python install ${{ env.PYTHON_VERSION }}
+        run: uv python install ${{ matrix.python-version }}
 
       - name: Check lockfile is current
         run: uv lock --check
 
       - name: Install dependencies
-        run: uv sync --frozen --extra full --group test
+        run: uv sync --python ${{ matrix.python-version }} --frozen --extra full --group test
 
       - name: Run integration tests
-        run: uv run --frozen pytest -m integration
+        run: uv run --python ${{ matrix.python-version }} --frozen pytest -m integration
 
   build:
     name: Build package
