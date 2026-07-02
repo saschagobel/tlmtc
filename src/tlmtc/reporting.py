@@ -1,5 +1,7 @@
 """Reporting tables and figures for multi-label text classification evaluation."""
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from html import escape
 from pathlib import Path
 
@@ -28,10 +30,17 @@ REPORT_FONT_STACK = [
     "DejaVu Sans",
 ]
 
-FONT_CFG = {
-    "font.family": "sans-serif",
-    "font.sans-serif": REPORT_FONT_STACK,
-}
+
+@contextmanager
+def report_font_context() -> Iterator[None]:
+    """Temporarily apply the report font stack to Matplotlib figures."""
+    with rc_context(
+        rc={
+            "font.family": "sans-serif",
+            "font.sans-serif": REPORT_FONT_STACK,
+        }
+    ):
+        yield
 
 
 def escape_report_text(
@@ -319,7 +328,7 @@ def make_roc_curves_plot(
     num_labels = len(label_names)
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
-    with rc_context(rc=FONT_CFG):
+    with report_font_context():
         cmap = LinearSegmentedColormap.from_list(
             "roc_label_range",
             ["#3366CC", "#B39DDB"],
@@ -390,7 +399,7 @@ def make_cooccurrence_heatmaps_plot(
     """
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
-    with rc_context(rc=FONT_CFG):
+    with report_font_context():
         cmap = LinearSegmentedColormap.from_list(
             "cooccurrence_range",
             ["#FFFFFF", "#3366CC"],
@@ -475,7 +484,7 @@ def make_loss_curves_plot(
     """
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
-    with rc_context(rc=FONT_CFG):
+    with report_font_context():
         fig, ax = plt.subplots(figsize=(8, 5))
 
         ax.plot(
@@ -550,7 +559,7 @@ def make_objective_values_plot(
     )
     model_name = checkpoint.rsplit("/", maxsplit=1)[-1]
 
-    with rc_context(rc=FONT_CFG):
+    with report_font_context():
         fig, ax = plt.subplots(figsize=(8, 5))
 
         ax.plot(
