@@ -950,12 +950,26 @@ class TestSavePretrained:
         with pytest.raises(RuntimeError, match="Instantiated Trainer after fine-tuning not found"):
             pipeline.save_pretrained()
 
-    def test_delegates_to_trainer_save_model_with_output_path(self, pipeline_factory, dummy_train_parquet):
-        """Ensure save_pretrained delegates model artifact writing to Trainer."""
-        pipeline = pipeline_factory(dummy_train_parquet)
+    def test_delegates_model_and_tokenizer_artifact_writes(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        monkeypatch,
+    ):
+        """Ensure save_pretrained writes model and tokenizer artifacts."""
+        pipeline = pipeline_factory(
+            dummy_train_parquet,
+            model_checkpoint="dummy-checkpoint",
+            trust_remote_code=True,
+        )
 
         fake_trainer = MagicMock()
         pipeline.updated_trainer = fake_trainer
+        save_tokenizer_mock = MagicMock()
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.save_tokenizer_artifacts",
+            save_tokenizer_mock,
+        )
 
         assert pipeline.paths.model_dir.exists()
         assert list(pipeline.paths.model_dir.iterdir()) == []
@@ -964,3 +978,8 @@ class TestSavePretrained:
 
         assert result is pipeline
         fake_trainer.save_model.assert_called_once_with(str(pipeline.paths.model_dir))
+        save_tokenizer_mock.assert_called_once_with(
+            checkpoint="dummy-checkpoint",
+            model_dir=pipeline.paths.model_dir,
+            trust_remote_code=True,
+        )
