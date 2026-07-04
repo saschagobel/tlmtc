@@ -37,6 +37,7 @@ from tlmtc.training import (
     get_num_labels,
     get_training_args,
     make_model_init,
+    save_tokenizer_artifacts,
 )
 
 
@@ -351,4 +352,9 @@ class FinetunePipeline:
         emit_progress("Saving model artifacts")
 
         self.updated_trainer.save_model(str(self.paths.model_dir))
+        save_tokenizer_artifacts(
+            checkpoint=self.model.checkpoint,
+            model_dir=self.paths.model_dir,
+            trust_remote_code=self.model.trust_remote_code,
+        )
         return self

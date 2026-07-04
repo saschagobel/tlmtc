@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-from transformers import BertConfig, BertForSequenceClassification, BertTokenizer
+from transformers import AutoTokenizer, BertConfig, BertForSequenceClassification, BertTokenizer
 from typer.testing import CliRunner
 
 from tlmtc.api import train_tlmtc
@@ -151,6 +151,13 @@ def assert_saved_model_exists(model_dir: Path) -> None:
     assert has_full_model_artifacts(model_dir) or has_peft_adapter_artifacts(model_dir)
 
 
+def assert_tokenizer_artifacts_exist(model_dir: Path) -> None:
+    """Assert that tokenizer artifacts can be reloaded from the saved model directory."""
+    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    tokenized = tokenizer("alpha policy text", padding=True, truncation=True)
+    assert tokenized["input_ids"]
+
+
 def assert_peft_adapter_exists(model_dir: Path) -> None:
     """Assert that PEFT adapter artifacts were saved."""
     assert has_peft_adapter_artifacts(model_dir)
@@ -164,6 +171,7 @@ def assert_common_training_artifacts(paths: RunPaths) -> None:
 
     assert paths.model_dir.exists()
     assert_saved_model_exists(paths.model_dir)
+    assert_tokenizer_artifacts_exist(paths.model_dir)
 
     assert paths.global_metrics_path.exists()
     assert paths.label_metrics_path.exists()

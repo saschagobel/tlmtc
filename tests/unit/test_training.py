@@ -19,6 +19,7 @@ from tlmtc.training import (
     infer_modules_to_save,
     make_model_init,
     multi_label_metrics,
+    save_tokenizer_artifacts,
     wrap_model_with_peft,
 )
 
@@ -314,6 +315,36 @@ def test_get_training_args_rejects_tlmtc_managed_trainer_args(tmp_path, reserved
             use_cpu=True,
             trainer_args={reserved_key: "override"},
         )
+
+
+def test_save_tokenizer_artifacts_loads_checkpoint_and_writes_to_model_dir(tmp_path, monkeypatch):
+    """Ensure tokenizer artifacts are persisted next to saved model artifacts."""
+    calls = {}
+
+    class DummyTokenizer:
+        def save_pretrained(self, model_dir):
+            calls["saved_model_dir"] = model_dir
+
+    def fake_from_pretrained(checkpoint, *, trust_remote_code):
+        calls["checkpoint"] = checkpoint
+        calls["trust_remote_code"] = trust_remote_code
+        return DummyTokenizer()
+
+    monkeypatch.setattr("tlmtc.training.AutoTokenizer.from_pretrained", fake_from_pretrained)
+
+    model_dir = tmp_path / "model"
+
+    save_tokenizer_artifacts(
+        checkpoint="dummy-checkpoint",
+        model_dir=model_dir,
+        trust_remote_code=True,
+    )
+
+    assert calls == {
+        "checkpoint": "dummy-checkpoint",
+        "trust_remote_code": True,
+        "saved_model_dir": model_dir,
+    }
 
 
 class TestTrainingRuntimeState:

@@ -14,6 +14,7 @@ from torch import Tensor
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
+    AutoTokenizer,
     EvalPrediction,
     PreTrainedModel,
     Trainer,
@@ -394,6 +395,25 @@ def make_model_init(
         return model
 
     return model_init
+
+
+def save_tokenizer_artifacts(
+    checkpoint: str,
+    model_dir: str | Path,
+    trust_remote_code: bool,
+) -> None:
+    """Save tokenizer artifacts alongside persisted model artifacts.
+
+    Args:
+        checkpoint: Hugging Face checkpoint identifier or local path used for training.
+        model_dir: Directory containing the saved model or adapter artifacts.
+        trust_remote_code: Whether Hugging Face tokenizer loading may execute custom remote code.
+    """
+    tokenizer = AutoTokenizer.from_pretrained(
+        checkpoint,
+        trust_remote_code=trust_remote_code,
+    )
+    tokenizer.save_pretrained(model_dir)
 
 
 class WeightedTrainer(Trainer):
