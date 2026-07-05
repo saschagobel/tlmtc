@@ -18,6 +18,7 @@ from tlmtc.hpo import (
     read_best_hyperparameters,
     write_best_hyperparameters,
 )
+from tlmtc.onnx_backend import export_onnx_model
 from tlmtc.paths import RunPaths
 from tlmtc.runtime_output import emit_progress, suppress_trainer_console_callbacks
 from tlmtc.settings import (
@@ -357,4 +358,17 @@ class FinetunePipeline:
             model_dir=self.paths.model_dir,
             trust_remote_code=self.model.trust_remote_code,
         )
+        if self.workflow.export_onnx:
+            if self.num_labels is None:
+                self.num_labels = get_num_labels(self.paths.train_data_path)
+
+            emit_progress("Exporting ONNX model artifacts")
+            export_onnx_model(
+                model_dir=self.paths.model_dir,
+                onnx_model_dir=self.paths.onnx_model_dir,
+                checkpoint=self.model.checkpoint,
+                num_labels=self.num_labels,
+                wrap_peft=self.workflow.wrap_peft,
+                trust_remote_code=self.model.trust_remote_code,
+            )
         return self
