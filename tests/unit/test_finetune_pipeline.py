@@ -54,6 +54,7 @@ def pipeline_factory(tmp_path, base_search_space):
         hyperparameter_tuning: bool = False,
         threshold_optimization: bool = False,
         scale_learning_rate: bool = False,
+        export_onnx: bool = False,
         optuna_space=None,
         tuning_trials: int = 1,
         model_checkpoint: str = "dummy",
@@ -84,6 +85,7 @@ def pipeline_factory(tmp_path, base_search_space):
             transfer_learning=transfer_learning,
             scale_learning_rate=scale_learning_rate,
             wrap_peft=wrap_peft,
+            export_onnx=export_onnx,
         )
 
         peft = PeftSettings(lora_r=1, lora_alpha=1, lora_dropout=0.1, lora_bias="none")
@@ -966,9 +968,14 @@ class TestSavePretrained:
         fake_trainer = MagicMock()
         pipeline.updated_trainer = fake_trainer
         save_tokenizer_mock = MagicMock()
+        export_onnx_mock = MagicMock()
         monkeypatch.setattr(
             "tlmtc.finetune_pipeline.save_tokenizer_artifacts",
             save_tokenizer_mock,
+        )
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.export_onnx_model",
+            export_onnx_mock,
         )
 
         assert pipeline.paths.model_dir.exists()
@@ -981,5 +988,51 @@ class TestSavePretrained:
         save_tokenizer_mock.assert_called_once_with(
             checkpoint="dummy-checkpoint",
             model_dir=pipeline.paths.model_dir,
+            trust_remote_code=True,
+        )
+        export_onnx_mock.assert_not_called()
+
+    def test_exports_onnx_artifacts_when_requested(
+        self,
+        pipeline_factory,
+        dummy_train_parquet,
+        monkeypatch,
+    ):
+        """Ensure save_pretrained exports ONNX artifacts when requested."""
+        pipeline = pipeline_factory(
+            dummy_train_parquet,
+            export_onnx=True,
+            wrap_peft=True,
+            model_checkpoint="dummy-checkpoint",
+            trust_remote_code=True,
+        )
+
+        fake_trainer = MagicMock()
+        pipeline.updated_trainer = fake_trainer
+        get_num_labels_mock = MagicMock(return_value=2)
+        export_onnx_mock = MagicMock()
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.save_tokenizer_artifacts",
+            MagicMock(),
+        )
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.get_num_labels",
+            get_num_labels_mock,
+        )
+        monkeypatch.setattr(
+            "tlmtc.finetune_pipeline.export_onnx_model",
+            export_onnx_mock,
+        )
+
+        pipeline.save_pretrained()
+
+        get_num_labels_mock.assert_called_once_with(pipeline.paths.train_data_path)
+        assert pipeline.num_labels == 2
+        export_onnx_mock.assert_called_once_with(
+            model_dir=pipeline.paths.model_dir,
+            onnx_model_dir=pipeline.paths.onnx_model_dir,
+            checkpoint="dummy-checkpoint",
+            num_labels=2,
+            wrap_peft=True,
             trust_remote_code=True,
         )
