@@ -71,6 +71,25 @@ class TestTrainRunMeta:
         assert meta.threshold_optimization is False
         assert meta.scale_learning_rate is True
         assert meta.wrap_peft is False
+        assert meta.model_backends == ["torch"]
+
+    def test_accepts_onnx_model_backend(self, train_meta: TrainRunMeta) -> None:
+        """Ensure metadata can record ONNX export availability."""
+        data = train_meta.model_dump(mode="python")
+        data["model_backends"] = ["torch", "onnx"]
+
+        meta = TrainRunMeta.model_validate(data)
+
+        assert meta.model_backends == ["torch", "onnx"]
+
+    def test_defaults_model_backends_for_existing_metadata(self, train_meta: TrainRunMeta) -> None:
+        """Ensure metadata missing model_backends remains readable."""
+        data = train_meta.model_dump(mode="python")
+        data.pop("model_backends")
+
+        meta = TrainRunMeta.model_validate(data)
+
+        assert meta.model_backends == ["torch"]
 
     def test_accepts_missing_label_names(self, train_meta: TrainRunMeta) -> None:
         """Ensure metadata supports training runs without evaluation-derived labels."""
@@ -93,6 +112,7 @@ class TestTrainRunMeta:
             ("sequence_length", 0),
             ("sequence_length", -1),
             ("threshold_type", "invalid_mode"),
+            ("model_backends", ["torch", "invalid_backend"]),
         ],
     )
     def test_rejects_invalid_values(self, train_meta: TrainRunMeta, field: str, invalid_value: Any) -> None:
