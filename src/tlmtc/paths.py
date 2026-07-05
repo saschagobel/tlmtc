@@ -14,6 +14,7 @@ DEFAULT_DATA_DIRNAME: Final[str] = "data"
 DEFAULT_LOGS_DIRNAME: Final[str] = "logs"
 DEFAULT_HPO_CHECKPOINTS_DIRNAME: Final[str] = "hpo_checkpoints"
 DEFAULT_MODEL_DIRNAME: Final[str] = "model"
+DEFAULT_ONNX_MODEL_DIRNAME: Final[str] = "onnx"
 DEFAULT_EVAL_DIRNAME: Final[str] = "evaluation"
 TRAIN_RUN_META_FILENAME: Final[str] = "train_run_meta.json"
 BEST_HYPERPARAMETERS_FILENAME: Final[str] = "best_hyperparameters.json"
@@ -54,6 +55,7 @@ class RunPaths:
                     logs/
                         hpo_checkpoints/
                     model/
+                        onnx/
                     evaluation/
 
     Attributes:
@@ -67,6 +69,7 @@ class RunPaths:
         logs_dir: Directory for training logs and HPO artifacts.
         hpo_checkpoints_dir: Directory for Trainer checkpoints created during HPO.
         model_dir: Directory for saved model artifacts.
+        onnx_model_dir: Directory for optional ONNX model artifacts.
         eval_dir: Directory for evaluation metrics, tables, and figures.
         train_data_path: Path to the prepared training split.
         val_data_path: Path to the prepared validation split.
@@ -97,6 +100,7 @@ class RunPaths:
     logs_dir: Path
     hpo_checkpoints_dir: Path
     model_dir: Path
+    onnx_model_dir: Path
     eval_dir: Path
 
     train_data_path: Path
@@ -145,6 +149,7 @@ def resolve_paths(
     logs_dirname: str = DEFAULT_LOGS_DIRNAME,
     hpo_checkpoints_dirname: str = DEFAULT_HPO_CHECKPOINTS_DIRNAME,
     model_dirname: str = DEFAULT_MODEL_DIRNAME,
+    onnx_model_dirname: str = DEFAULT_ONNX_MODEL_DIRNAME,
     eval_dirname: str = DEFAULT_EVAL_DIRNAME,
 ) -> RunPaths:
     """Resolve input and artifact paths for a tlmtc training run.
@@ -159,6 +164,7 @@ def resolve_paths(
         logs_dirname: Name of the logs directory under `run_dir`.
         hpo_checkpoints_dirname: Name of the HPO checkpoint directory under `logs_dir`.
         model_dirname: Name of the model directory under `run_dir`.
+        onnx_model_dirname: Name of the optional ONNX model directory under `model_dir`.
         eval_dirname: Name of the evaluation directory under `run_dir`.
 
     Returns:
@@ -176,6 +182,7 @@ def resolve_paths(
     logs_dir = run_dir / logs_dirname
     hpo_checkpoints_dir = logs_dir / hpo_checkpoints_dirname
     model_dir = run_dir / model_dirname
+    onnx_model_dir = model_dir / onnx_model_dirname
     eval_dir = run_dir / eval_dirname
 
     return RunPaths(
@@ -189,6 +196,7 @@ def resolve_paths(
         logs_dir=logs_dir,
         hpo_checkpoints_dir=hpo_checkpoints_dir,
         model_dir=model_dir,
+        onnx_model_dir=onnx_model_dir,
         eval_dir=eval_dir,
         train_data_path=data_dir / "train.parquet",
         val_data_path=data_dir / "val.parquet",
