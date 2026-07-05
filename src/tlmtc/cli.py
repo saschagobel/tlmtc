@@ -150,6 +150,11 @@ def train_command(
         "--wrap-peft/--no-wrap-peft",
         help="Use parameter-efficient fine-tuning with LoRA adapters.",
     ),
+    export_onnx: bool | None = typer.Option(
+        None,
+        "--export-onnx/--no-export-onnx",
+        help="Export an ONNX inference artifact after fine-tuning.",
+    ),
     proxy_checkpoint: str | None = typer.Option(
         None,
         "--proxy-checkpoint",
@@ -284,6 +289,7 @@ def train_command(
         threshold_type=UNSET if threshold_type is None else threshold_type,
         scale_learning_rate=UNSET if scale_learning_rate is None else scale_learning_rate,
         wrap_peft=UNSET if wrap_peft is None else wrap_peft,
+        export_onnx=UNSET if export_onnx is None else export_onnx,
         proxy_checkpoint=UNSET if proxy_checkpoint is None else proxy_checkpoint,
         checkpoint=UNSET if checkpoint is None else checkpoint,
         sequence_length=UNSET if sequence_length is None else sequence_length,

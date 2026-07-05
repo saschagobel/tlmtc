@@ -62,6 +62,7 @@ def train_tlmtc(
     threshold_type: str | Unset = UNSET,
     scale_learning_rate: bool | Unset = UNSET,
     wrap_peft: bool | Unset = UNSET,
+    export_onnx: bool | Unset = UNSET,
     proxy_checkpoint: str | Unset = UNSET,
     checkpoint: str | Unset = UNSET,
     sequence_length: int | Unset = UNSET,
@@ -121,6 +122,7 @@ def train_tlmtc(
         scale_learning_rate: Whether to scale a proxy-tuned learning rate for the target checkpoint.
             Defaults to `False`.
         wrap_peft: Whether to use parameter-efficient fine-tuning with LoRA adapters. Defaults to `True`.
+        export_onnx: Whether to export an ONNX inference artifact after fine-tuning. Defaults to `False`.
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
             hyperparameter tuning. Defaults to `"microsoft/deberta-v3-small"`. If `checkpoint`
             is supplied and `proxy_checkpoint` is omitted, the proxy checkpoint defaults to the
@@ -227,6 +229,7 @@ def train_tlmtc(
                 "transfer_learning": transfer_learning,
                 "scale_learning_rate": scale_learning_rate,
                 "wrap_peft": wrap_peft,
+                "export_onnx": export_onnx,
             },
             "training": {
                 "batch_size": batch_size,
@@ -349,6 +352,7 @@ def train_tlmtc(
             threshold_optimization=settings.workflow.threshold_optimization,
             scale_learning_rate=settings.workflow.scale_learning_rate,
             wrap_peft=settings.workflow.wrap_peft,
+            model_backends=settings.workflow.model_backends,
         ),
         path=paths.train_run_meta_path,
     )
