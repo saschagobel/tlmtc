@@ -14,6 +14,7 @@ from tlmtc.paths import (
     DEFAULT_HPO_CHECKPOINTS_DIRNAME,
     DEFAULT_LOGS_DIRNAME,
     DEFAULT_MODEL_DIRNAME,
+    DEFAULT_ONNX_MODEL_DIRNAME,
     DEFAULT_PREDICTION_OUTPUTS_DIRNAME,
     DEFAULT_TRAIN_OUTPUTS_DIRNAME,
     TRAIN_RUN_META_FILENAME,
@@ -141,6 +142,7 @@ class TestResolvePaths:
         assert paths.logs_dir == expected_run_dir / DEFAULT_LOGS_DIRNAME
         assert paths.hpo_checkpoints_dir == paths.logs_dir / DEFAULT_HPO_CHECKPOINTS_DIRNAME
         assert paths.model_dir == expected_run_dir / DEFAULT_MODEL_DIRNAME
+        assert paths.onnx_model_dir == paths.model_dir / DEFAULT_ONNX_MODEL_DIRNAME
 
         assert paths.train_data_path == paths.data_dir / "train.parquet"
         assert paths.val_data_path == paths.data_dir / "val.parquet"
@@ -269,6 +271,7 @@ class TestRunPaths:
         assert paths.logs_dir.is_dir()
         assert paths.hpo_checkpoints_dir.is_dir()
         assert paths.model_dir.is_dir()
+        assert not paths.onnx_model_dir.exists()
 
     def test_ensure_dirs_does_not_create_labeled_input_parent_dirs(self, tmp_path: Path) -> None:
         """Ensure ensure_dirs only creates artifact directories, not labeled input locations."""

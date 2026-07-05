@@ -192,6 +192,7 @@ class WorkflowSettings(BaseModel):
         transfer_learning: Whether to fine-tune a pretrained checkpoint.
         scale_learning_rate: Whether to scale proxy-tuned learning rates for the target checkpoint.
         wrap_peft: Whether to apply PEFT/LoRA wrapping.
+        export_onnx: Whether to export an ONNX inference artifact after fine-tuning.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -201,6 +202,23 @@ class WorkflowSettings(BaseModel):
     transfer_learning: bool = True
     scale_learning_rate: bool = False
     wrap_peft: bool = True
+    export_onnx: bool = False
+
+    @model_validator(mode="after")
+    def reject_onnx_export_without_transfer_learning(self) -> Self:
+        """Ensure ONNX export is only requested when a trained model artifact exists."""
+        if self.export_onnx and not self.transfer_learning:
+            raise ValueError("ONNX export requires transfer_learning=True.")
+
+        return self
+
+    @property
+    def model_backends(self) -> list[Literal["torch", "onnx"]]:
+        """Return model artifact backends produced by this workflow."""
+        if self.export_onnx:
+            return ["torch", "onnx"]
+
+        return ["torch"]
 
 
 class TrainingSettings(BaseModel):

@@ -32,6 +32,7 @@ class TrainRunMeta(BaseModel):
         threshold_optimization: Whether validation-set threshold optimization was enabled.
         scale_learning_rate: Whether proxy-tuned learning rates were scaled for the target checkpoint.
         wrap_peft: Whether PEFT/LoRA wrapping was enabled.
+        model_backends: Model artifact backends available for downstream inference.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -56,6 +57,7 @@ class TrainRunMeta(BaseModel):
     threshold_optimization: bool
     scale_learning_rate: bool
     wrap_peft: bool
+    model_backends: list[Literal["torch", "onnx"]] = Field(default=["torch"])
 
 
 def write_run_meta(

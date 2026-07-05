@@ -55,6 +55,9 @@ full = [
     "peft >= 0.18,<1.0",
     "accelerate >= 1.13,<2.0",
 ]
+onnx = [
+    "olive-ai[cpu] >= 0.13,<1.0",
+]
 
 [dependency-groups]
 test = ["pytest>=9.0,<10.0"]

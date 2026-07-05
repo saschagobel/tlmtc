@@ -365,6 +365,17 @@ class TestBundleSettings:
         assert settings.transfer_learning is True
         assert settings.scale_learning_rate is False
         assert settings.wrap_peft is True
+        assert settings.export_onnx is False
+
+    def test_workflow_settings_rejects_onnx_export_without_transfer_learning(self) -> None:
+        """WorkflowSettings should reject impossible ONNX export configuration."""
+        with pytest.raises(ValidationError, match="ONNX export requires transfer_learning=True"):
+            WorkflowSettings(transfer_learning=False, export_onnx=True)
+
+    def test_workflow_settings_exposes_model_backends(self) -> None:
+        """WorkflowSettings should expose produced model backends."""
+        assert WorkflowSettings().model_backends == ["torch"]
+        assert WorkflowSettings(export_onnx=True).model_backends == ["torch", "onnx"]
 
     def test_training_settings_defaults(self) -> None:
         """TrainingSettings should expose the package defaults."""
@@ -506,6 +517,7 @@ class TestRunSettings:
         assert settings.model.target_name == "Target"
         assert settings.split.validation_size == 0.15
         assert settings.workflow.wrap_peft is True
+        assert settings.workflow.export_onnx is False
         assert settings.training.batch_size == 16
         assert settings.threshold.threshold_type == "label"
         assert settings.peft.lora_r == 8
@@ -575,6 +587,7 @@ class TestRunSettings:
                 },
                 "workflow": {
                     "wrap_peft": False,
+                    "export_onnx": True,
                 },
                 "training": {
                     "batch_size": 32,
@@ -594,6 +607,7 @@ class TestRunSettings:
         assert settings.split.test_size == 0.15
         assert settings.workflow.wrap_peft is False
         assert settings.workflow.transfer_learning is True
+        assert settings.workflow.export_onnx is True
         assert settings.training.batch_size == 32
         assert settings.training.learning_rate == 2e-5
         assert settings.hpo.optuna_space.model_dump(mode="python") == {
