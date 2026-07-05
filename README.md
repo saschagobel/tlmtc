@@ -36,6 +36,7 @@ In applied settings, text classification is rarely a simple single-label task or
 - Comprehensive evaluation suite with global and label-specific multi-label metrics
 - Publication-ready reporting through tables and graphs
 - End-to-end prediction workflow that reloads trained models, metadata, labels, and thresholds automatically
+- Optional ONNX export artifacts for production inference deployment
 - Automatic persistence and reuse of data splits, Optuna studies, trained models, thresholds, and run metadata
 - Highly configurable through a small workflow-oriented Python API and CLI
 - CPU and DDP-safe multi-GPU training and prediction support
