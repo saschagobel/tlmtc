@@ -164,19 +164,23 @@ class TestTrainCliApp:
         assert "--trainer-args" in output
         assert "--use-cpu" in output
         assert "--verbosity" in output
+        assert "--export-onnx" in output
         assert "--trust-remote-co" in output
 
     @pytest.mark.parametrize(
-        "flag, expected",
+        ("flag", "kwarg", "expected"),
         [
-            ("--transfer-learning", True),
-            ("--no-transfer-learning", False),
+            ("--transfer-learning", "transfer_learning", True),
+            ("--no-transfer-learning", "transfer_learning", False),
+            ("--export-onnx", "export_onnx", True),
+            ("--no-export-onnx", "export_onnx", False),
         ],
     )
     def test_train_boolean_flag_pairs_parse_explicit_values(
         self,
         runner: CliRunner,
         flag: str,
+        kwarg: str,
         expected: bool,
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
@@ -184,7 +188,7 @@ class TestTrainCliApp:
         result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", flag])
 
         assert result.exit_code == 0
-        assert stub_train_tlmtc["kwargs"]["transfer_learning"] is expected
+        assert stub_train_tlmtc["kwargs"][kwarg] is expected
 
     @pytest.mark.parametrize(
         ("flag", "expected"),
@@ -261,6 +265,7 @@ class TestTrainCliApp:
         assert kwargs["trust_remote_code"] is True
         assert kwargs["threshold_type"] is UNSET
         assert kwargs["use_cpu"] is UNSET
+        assert kwargs["export_onnx"] is UNSET
 
     def test_train_forwards_config_path(
         self,

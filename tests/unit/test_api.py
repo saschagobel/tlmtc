@@ -371,6 +371,7 @@ def _assert_default_train_meta(path: Path) -> None:
     assert run_meta.threshold_optimization is True
     assert run_meta.scale_learning_rate is False
     assert run_meta.wrap_peft is True
+    assert run_meta.model_backends == ["torch"]
     assert run_meta.trust_remote_code is False
 
 
@@ -589,6 +590,7 @@ class TestTrainTlmtc:
 
             workflow:
               wrap_peft: false
+              export_onnx: true
 
             hpo:
               optuna_space:
@@ -614,7 +616,11 @@ class TestTrainTlmtc:
 
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["workflow"].wrap_peft is False
+        assert finetune_kwargs["workflow"].export_onnx is True
         assert finetune_kwargs["hpo"].optuna_space.batch_sizes == [4, 8]
+
+        run_meta = read_run_meta(result.paths.train_run_meta_path)
+        assert run_meta.model_backends == ["torch", "onnx"]
 
     def test_explicit_arguments_override_config_path_settings(
         self,
@@ -652,6 +658,7 @@ class TestTrainTlmtc:
             sequence_length=32,
             batch_size=8,
             wrap_peft=True,
+            export_onnx=False,
             trust_remote_code=True,
         )
 
@@ -665,6 +672,7 @@ class TestTrainTlmtc:
         _, finetune_kwargs = pipelines.finetune_pipeline_cls.call_args
         assert finetune_kwargs["training"].batch_size == 8
         assert finetune_kwargs["workflow"].wrap_peft is True
+        assert finetune_kwargs["workflow"].export_onnx is False
 
     def test_persists_paired_text_metadata(
         self,
