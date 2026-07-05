@@ -150,9 +150,7 @@ def _onnx_probabilities(
     session = _load_onnx_session(onnx_model_dir)
     input_names = {input_.name for input_ in session.get_inputs()}
     session_inputs = {
-        name: tensor.detach().cpu().numpy()
-        for name, tensor in encoded_inputs.items()
-        if name in input_names
+        name: tensor.detach().cpu().numpy() for name, tensor in encoded_inputs.items() if name in input_names
     }
 
     logits = session.run(None, session_inputs)[0]
