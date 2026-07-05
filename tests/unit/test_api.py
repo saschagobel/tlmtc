@@ -12,6 +12,8 @@ import pandas as pd
 import pytest
 
 import tlmtc.api as api_mod
+import tlmtc.api.predict as predict_api_mod
+import tlmtc.api.train as train_api_mod
 from tlmtc.data_contracts import InputMode
 from tlmtc.meta import TrainRunMeta, read_run_meta, write_run_meta
 
@@ -152,7 +154,8 @@ def paired_prediction_csv(tmp_path: Path) -> Path:
 def configure_runtime_output_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     """Mock runtime-output configuration for API orchestration tests."""
     mock = MagicMock()
-    monkeypatch.setattr(api_mod, "configure_runtime_output", mock)
+    monkeypatch.setattr(train_api_mod, "configure_runtime_output", mock)
+    monkeypatch.setattr(predict_api_mod, "configure_runtime_output", mock)
     return mock
 
 
@@ -172,7 +175,8 @@ def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     distributed_context_cls = MagicMock()
     distributed_context_cls.create.return_value = context
 
-    monkeypatch.setattr(api_mod, "DistributedContext", distributed_context_cls)
+    monkeypatch.setattr(train_api_mod, "DistributedContext", distributed_context_cls)
+    monkeypatch.setattr(predict_api_mod, "DistributedContext", distributed_context_cls)
     return context
 
 
@@ -217,9 +221,9 @@ def _mock_successful_pipelines(
     evaluation_pipeline.label_names = LABEL_NAMES if label_names is None else label_names
     evaluation_pipeline_cls = MagicMock(return_value=evaluation_pipeline)
 
-    monkeypatch.setattr(api_mod, "DataPipeline", data_pipeline_cls)
-    monkeypatch.setattr(api_mod, "FinetunePipeline", finetune_pipeline_cls)
-    monkeypatch.setattr(api_mod, "EvaluationPipeline", evaluation_pipeline_cls)
+    monkeypatch.setattr(train_api_mod, "DataPipeline", data_pipeline_cls)
+    monkeypatch.setattr(train_api_mod, "FinetunePipeline", finetune_pipeline_cls)
+    monkeypatch.setattr(train_api_mod, "EvaluationPipeline", evaluation_pipeline_cls)
 
     return MockedPipelines(
         data_pipeline_cls=data_pipeline_cls,
@@ -314,11 +318,11 @@ def _mock_prediction_operations(
     load_prediction_model_mock = MagicMock(return_value=model)
     predict_probabilities_mock = MagicMock(return_value=probability_values)
 
-    monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
-    monkeypatch.setattr(api_mod, "create_prediction_dataset", create_prediction_dataset_mock)
-    monkeypatch.setattr(api_mod, "tokenize_prediction_dataset", tokenize_prediction_dataset_mock)
-    monkeypatch.setattr(api_mod, "load_prediction_model", load_prediction_model_mock)
-    monkeypatch.setattr(api_mod, "predict_probabilities", predict_probabilities_mock)
+    monkeypatch.setattr(predict_api_mod, "read_prediction_data", read_prediction_data_mock)
+    monkeypatch.setattr(predict_api_mod, "create_prediction_dataset", create_prediction_dataset_mock)
+    monkeypatch.setattr(predict_api_mod, "tokenize_prediction_dataset", tokenize_prediction_dataset_mock)
+    monkeypatch.setattr(predict_api_mod, "load_prediction_model", load_prediction_model_mock)
+    monkeypatch.setattr(predict_api_mod, "predict_probabilities", predict_probabilities_mock)
 
     return MockedPredictionOps(
         read_prediction_data=read_prediction_data_mock,
@@ -695,12 +699,12 @@ class TestTrainTlmtc:
     ) -> None:
         data_pipeline = _chainable_mock(DATA_PIPELINE_METHODS)
         data_pipeline.split_data.side_effect = ValueError("split failed")
-        monkeypatch.setattr(api_mod, "DataPipeline", MagicMock(return_value=data_pipeline))
+        monkeypatch.setattr(train_api_mod, "DataPipeline", MagicMock(return_value=data_pipeline))
 
         finetune_pipeline_cls = MagicMock()
         evaluation_pipeline_cls = MagicMock()
-        monkeypatch.setattr(api_mod, "FinetunePipeline", finetune_pipeline_cls)
-        monkeypatch.setattr(api_mod, "EvaluationPipeline", evaluation_pipeline_cls)
+        monkeypatch.setattr(train_api_mod, "FinetunePipeline", finetune_pipeline_cls)
+        monkeypatch.setattr(train_api_mod, "EvaluationPipeline", evaluation_pipeline_cls)
 
         with pytest.raises(ValueError, match="split failed"):
             api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="run_fail")
@@ -748,7 +752,7 @@ class TestTrainTlmtc:
         assert pipelines.evaluation_pipeline.save_metrics in guarded_fns
         assert pipelines.evaluation_pipeline.render_tables in guarded_fns
         assert pipelines.evaluation_pipeline.render_figures in guarded_fns
-        assert api_mod.write_run_meta in guarded_fns
+        assert train_api_mod.write_run_meta in guarded_fns
 
     def test_non_main_rank_skips_training_artifact_writes_but_runs_compute(
         self,
@@ -1035,7 +1039,7 @@ class TestPredictTlmtc:
             transfer_learning=False,
         )
         read_prediction_data_mock = MagicMock()
-        monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
+        monkeypatch.setattr(predict_api_mod, "read_prediction_data", read_prediction_data_mock)
 
         with pytest.raises(RuntimeError, match="transfer_learning=True"):
             api_mod.predict_tlmtc(
@@ -1058,7 +1062,7 @@ class TestPredictTlmtc:
             trust_remote_code=True,
         )
         read_prediction_data_mock = MagicMock()
-        monkeypatch.setattr(api_mod, "read_prediction_data", read_prediction_data_mock)
+        monkeypatch.setattr(predict_api_mod, "read_prediction_data", read_prediction_data_mock)
 
         with pytest.raises(RuntimeError, match="trust_remote_code=True"):
             api_mod.predict_tlmtc(
