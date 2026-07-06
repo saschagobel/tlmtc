@@ -1,10 +1,11 @@
 """Tests for runtime console output policy."""
 
 import logging
+import sys
 from collections.abc import Iterator
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import optuna
 import pytest
 from transformers import Trainer
 from transformers.trainer_callback import PrinterCallback, ProgressCallback
@@ -87,6 +88,14 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
 ) -> None:
     """Ensure third-party routine output is suppressed through official library controls."""
     calls: list[object] = []
+    optuna_warning_level = object()
+    optuna_stub = SimpleNamespace(
+        logging=SimpleNamespace(
+            WARNING=optuna_warning_level,
+            set_verbosity=lambda level: calls.append(("optuna_logging", level)),
+        )
+    )
+    monkeypatch.setitem(sys.modules, "optuna", optuna_stub)
 
     monkeypatch.setattr(
         runtime_output.transformers_logging,
@@ -118,12 +127,6 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
         "disable_progress_bars",
         lambda: calls.append("hub_progress"),
     )
-    monkeypatch.setattr(
-        runtime_output.optuna.logging,
-        "set_verbosity",
-        lambda level: calls.append(("optuna_logging", level)),
-    )
-
     runtime_output._apply_third_party_suppression()
 
     assert calls == [
@@ -133,7 +136,7 @@ def test_apply_third_party_suppression_calls_official_suppression_controls(
         "datasets_progress",
         "hub_logging",
         "hub_progress",
-        ("optuna_logging", optuna.logging.WARNING),
+        ("optuna_logging", optuna_warning_level),
     ]
 
 
