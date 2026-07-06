@@ -130,9 +130,9 @@ def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
 
     import tlmtc
 
+    extra = name.removesuffix("_tlmtc")
     expected_msg = (
-        f"`torch`, `peft`, and `accelerate` are required for `tlmtc.{name}`. "
-        "Install them with: `pip install 'tlmtc[full]'`."
+        f"Optional dependencies are required for `{name}`. Install them with: `pip install 'tlmtc[{extra}]'`."
     )
 
     real_import_module = importlib.import_module
