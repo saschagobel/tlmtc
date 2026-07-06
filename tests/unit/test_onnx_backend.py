@@ -186,7 +186,7 @@ def test_export_onnx_model_requires_onnx_extra(
 
     monkeypatch.setattr(builtins, "__import__", import_without_olive)
 
-    with pytest.raises(RuntimeError, match=r"tlmtc\[full,onnx\]"):
+    with pytest.raises(RuntimeError, match=r"tlmtc\[train,onnx\]"):
         export_onnx_model(
             model_dir=tmp_path / "model",
             onnx_model_dir=tmp_path / "model" / "onnx",

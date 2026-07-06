@@ -19,6 +19,17 @@ from tlmtc.prediction import (
 )
 
 
+def test_prediction_module_does_not_expose_torch_prediction_imports() -> None:
+    """Ensure the Torch prediction stack stays out of prediction module globals."""
+    import tlmtc.prediction as prediction_mod
+
+    assert not hasattr(prediction_mod, "Accelerator")
+    assert not hasattr(prediction_mod, "AutoModelForSequenceClassification")
+    assert not hasattr(prediction_mod, "DataLoader")
+    assert not hasattr(prediction_mod, "PeftModel")
+    assert not hasattr(prediction_mod, "torch")
+
+
 class DeterministicPredictionModel(torch.nn.Module):
     """Tiny model that returns deterministic logits from input IDs."""
 
@@ -41,7 +52,7 @@ class TestLoadPredictionModel:
     ) -> None:
         loaded_model = object()
         from_pretrained = Mock(return_value=loaded_model)
-        monkeypatch.setattr("tlmtc.prediction.AutoModelForSequenceClassification.from_pretrained", from_pretrained)
+        monkeypatch.setattr("transformers.AutoModelForSequenceClassification.from_pretrained", from_pretrained)
 
         result = load_prediction_model(
             model_dir=tmp_path / "model",
@@ -70,10 +81,10 @@ class TestLoadPredictionModel:
         peft_from_pretrained = Mock(return_value=loaded_model)
 
         monkeypatch.setattr(
-            "tlmtc.prediction.AutoModelForSequenceClassification.from_pretrained",
+            "transformers.AutoModelForSequenceClassification.from_pretrained",
             auto_from_pretrained,
         )
-        monkeypatch.setattr("tlmtc.prediction.PeftModel.from_pretrained", peft_from_pretrained)
+        monkeypatch.setattr("peft.PeftModel.from_pretrained", peft_from_pretrained)
 
         result = load_prediction_model(
             model_dir=tmp_path / "adapter",

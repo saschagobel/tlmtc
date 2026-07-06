@@ -25,22 +25,11 @@ classifiers = [
     "Topic :: Text Processing :: Linguistic",
 ]
 dependencies = [
-    "datasets >=4.4,<5.0",
-    "iterative-stratification >=0.1,<1.0",
-    "numpy >=2.3,<3.0",
-    "optuna >=4.6,<5.0",
+    "numpy>=2.3,<3.0",
     "pandas>=2.2,<4.0",
-    "pandera[pandas] >=0.31,<1.0",
-    "pyarrow>=22.0,<24.0",
-    "pyyaml >=6.0,<7.0",
-    "pydantic >=2.0,<3.0",
-    "scikit-learn >=1.7,<2.0",
-    "transformers >=5.0,<6.0",
+    "pyyaml>=6.0,<7.0",
+    "pydantic>=2.0,<3.0",
     "typer>=0.12,<1",
-    "great-tables>=0.20,<1.0",
-    "matplotlib>=3.10,<4",
-    "seaborn>=0.13,<1.0",
-    "huggingface-hub>=1.12.0,<2.0",
 ]
 
 [project.urls]
@@ -50,13 +39,28 @@ Issues = "https://github.com/saschagobel/tlmtc/issues"
 Changelog = "https://github.com/saschagobel/tlmtc/releases"
 
 [project.optional-dependencies]
-full = [
-    "torch >= 2.9,<3.0",
-    "peft >= 0.18,<1.0",
-    "accelerate >= 1.13,<2.0",
+predict = [
+    "accelerate>=1.13,<2.0",
+    "datasets>=4.4,<5.0",
+    "huggingface-hub>=1.12.0,<2.0",
+    "pandera[pandas]>=0.31,<1.0",
+    "peft>=0.18,<1.0",
+    "torch>=2.9,<3.0",
+    "transformers>=5.0,<6.0",
+]
+train = [
+    # Training uses the same Torch/Hugging Face runtime stack needed for prediction.
+    "tlmtc[predict]",
+    "great-tables>=0.20,<1.0",
+    "iterative-stratification>=0.1,<1.0",
+    "matplotlib>=3.10,<4",
+    "optuna>=4.6,<5.0",
+    "pyarrow>=22.0,<24.0",
+    "scikit-learn>=1.7,<2.0",
+    "seaborn>=0.13,<1.0",
 ]
 onnx = [
-    "olive-ai[cpu] >= 0.13,<1.0",
+    "olive-ai[cpu]>=0.13,<1.0",
 ]
 
 [dependency-groups]

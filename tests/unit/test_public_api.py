@@ -25,6 +25,8 @@ def _reset_public_api_import_state(monkeypatch: pytest.MonkeyPatch) -> None:
     import tlmtc
 
     monkeypatch.delitem(sys.modules, "tlmtc.api", raising=False)
+    monkeypatch.delitem(sys.modules, "tlmtc.api.predict", raising=False)
+    monkeypatch.delitem(sys.modules, "tlmtc.api.train", raising=False)
     monkeypatch.delitem(tlmtc.__dict__, "api", raising=False)
 
     for name in PUBLIC_ENTRYPOINTS:
@@ -32,8 +34,9 @@ def _reset_public_api_import_state(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _install_dummy_api_module(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Install a lightweight `tlmtc.api` module so API tests do not import heavy ML deps."""
-    mod = ModuleType("tlmtc.api")
+    """Install lightweight API modules so API tests do not import heavy ML deps."""
+    predict_mod = ModuleType("tlmtc.api.predict")
+    train_mod = ModuleType("tlmtc.api.train")
 
     def predict_tlmtc(*_args: object, **_kwargs: object) -> str:
         return "predict-ok"
@@ -41,10 +44,11 @@ def _install_dummy_api_module(monkeypatch: pytest.MonkeyPatch) -> None:
     def train_tlmtc(*_args: object, **_kwargs: object) -> str:
         return "train-ok"
 
-    mod.predict_tlmtc = predict_tlmtc  # type: ignore[attr-defined]
-    mod.train_tlmtc = train_tlmtc  # type: ignore[attr-defined]
+    predict_mod.predict_tlmtc = predict_tlmtc  # type: ignore[attr-defined]
+    train_mod.train_tlmtc = train_tlmtc  # type: ignore[attr-defined]
 
-    monkeypatch.setitem(sys.modules, "tlmtc.api", mod)
+    monkeypatch.setitem(sys.modules, "tlmtc.api.predict", predict_mod)
+    monkeypatch.setitem(sys.modules, "tlmtc.api.train", train_mod)
 
 
 def test_public_api_exports_version() -> None:
@@ -126,15 +130,16 @@ def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
 
     import tlmtc
 
+    extra = name.removesuffix("_tlmtc")
     expected_msg = (
-        f"`torch`, `peft`, and `accelerate` are required for `tlmtc.{name}`. "
-        "Install them with: `pip install 'tlmtc[full]'`."
+        f"Optional dependencies are required for `{name}`. Install them with: `pip install 'tlmtc[{extra}]'`."
     )
 
     real_import_module = importlib.import_module
+    target_module_path = f"tlmtc.api.{name.removesuffix('_tlmtc')}"
 
     def fake_import_module(module_path: str, package: str | None = None) -> ModuleType:
-        if module_path == "tlmtc.api":
+        if module_path == target_module_path:
             raise ModuleNotFoundError(f"No module named {missing!r}", name=missing)
         return real_import_module(module_path, package)
 
@@ -155,7 +160,7 @@ def test_public_api_reraises_unexpected_missing_module(
     real_import_module = importlib.import_module
 
     def fake_import_module(module_path: str, package: str | None = None) -> ModuleType:
-        if module_path == "tlmtc.api":
+        if module_path == "tlmtc.api.train":
             raise ModuleNotFoundError("No module named 'some_other_dependency'", name="some_other_dependency")
         return real_import_module(module_path, package)
 

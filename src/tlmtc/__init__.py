@@ -18,33 +18,16 @@ __all__ = [
 
 logging.getLogger("tlmtc").addHandler(logging.NullHandler())
 
-_LAZY: dict[str, tuple[str, str]] = {
-    "predict_tlmtc": ("tlmtc.api", "predict_tlmtc"),
-    "train_tlmtc": ("tlmtc.api", "train_tlmtc"),
-}
+_API_EXPORTS = ("predict_tlmtc", "train_tlmtc")
 
 
 def __getattr__(
     name: str,
 ) -> Any:
-    try:
-        module_path, attr = _LAZY[name]
-    except KeyError as exc:
-        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+    if name not in _API_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-    try:
-        value = getattr(importlib.import_module(module_path), attr)
-    except ModuleNotFoundError as exc:
-        missing = getattr(exc, "name", None)
-
-        if missing in {"torch", "peft", "accelerate"}:
-            raise ImportError(
-                f"`torch`, `peft`, and `accelerate` are required for `tlmtc.{name}`. "
-                "Install them with: `pip install 'tlmtc[full]'`."
-            ) from exc
-
-        raise
-
+    value = getattr(importlib.import_module("tlmtc.api"), name)
     globals()[name] = value
     return value
 

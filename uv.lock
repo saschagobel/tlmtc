@@ -2691,33 +2691,43 @@ name = "tlmtc"
 version = "0.3.1"
 source = { editable = "." }
 dependencies = [
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "typer" },
+]
+
+[package.optional-dependencies]
+onnx = [
+    { name = "olive-ai", extra = ["cpu"] },
+]
+predict = [
+    { name = "accelerate" },
+    { name = "datasets" },
+    { name = "huggingface-hub" },
+    { name = "pandera", extra = ["pandas"] },
+    { name = "peft" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version < '3.15' and sys_platform == 'darwin'" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version >= '3.15' or sys_platform != 'darwin'" },
+    { name = "transformers" },
+]
+train = [
+    { name = "accelerate" },
     { name = "datasets" },
     { name = "great-tables" },
     { name = "huggingface-hub" },
     { name = "iterative-stratification" },
     { name = "matplotlib" },
-    { name = "numpy" },
     { name = "optuna" },
-    { name = "pandas" },
     { name = "pandera", extra = ["pandas"] },
+    { name = "peft" },
     { name = "pyarrow" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "seaborn" },
-    { name = "transformers" },
-    { name = "typer" },
-]
-
-[package.optional-dependencies]
-full = [
-    { name = "accelerate" },
-    { name = "peft" },
     { name = "torch", version = "2.12.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version < '3.15' and sys_platform == 'darwin'" },
     { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "python_full_version >= '3.15' or sys_platform != 'darwin'" },
-]
-onnx = [
-    { name = "olive-ai", extra = ["cpu"] },
+    { name = "transformers" },
 ]
 
 [package.dev-dependencies]
@@ -2734,28 +2744,29 @@ type = [
 
 [package.metadata]
 requires-dist = [
-    { name = "accelerate", marker = "extra == 'full'", specifier = ">=1.13,<2.0" },
-    { name = "datasets", specifier = ">=4.4,<5.0" },
-    { name = "great-tables", specifier = ">=0.20,<1.0" },
-    { name = "huggingface-hub", specifier = ">=1.12.0,<2.0" },
-    { name = "iterative-stratification", specifier = ">=0.1,<1.0" },
-    { name = "matplotlib", specifier = ">=3.10,<4" },
+    { name = "accelerate", marker = "extra == 'predict'", specifier = ">=1.13,<2.0" },
+    { name = "datasets", marker = "extra == 'predict'", specifier = ">=4.4,<5.0" },
+    { name = "great-tables", marker = "extra == 'train'", specifier = ">=0.20,<1.0" },
+    { name = "huggingface-hub", marker = "extra == 'predict'", specifier = ">=1.12.0,<2.0" },
+    { name = "iterative-stratification", marker = "extra == 'train'", specifier = ">=0.1,<1.0" },
+    { name = "matplotlib", marker = "extra == 'train'", specifier = ">=3.10,<4" },
     { name = "numpy", specifier = ">=2.3,<3.0" },
     { name = "olive-ai", extras = ["cpu"], marker = "extra == 'onnx'", specifier = ">=0.13,<1.0" },
-    { name = "optuna", specifier = ">=4.6,<5.0" },
+    { name = "optuna", marker = "extra == 'train'", specifier = ">=4.6,<5.0" },
     { name = "pandas", specifier = ">=2.2,<4.0" },
-    { name = "pandera", extras = ["pandas"], specifier = ">=0.31,<1.0" },
-    { name = "peft", marker = "extra == 'full'", specifier = ">=0.18,<1.0" },
-    { name = "pyarrow", specifier = ">=22.0,<24.0" },
+    { name = "pandera", extras = ["pandas"], marker = "extra == 'predict'", specifier = ">=0.31,<1.0" },
+    { name = "peft", marker = "extra == 'predict'", specifier = ">=0.18,<1.0" },
+    { name = "pyarrow", marker = "extra == 'train'", specifier = ">=22.0,<24.0" },
     { name = "pydantic", specifier = ">=2.0,<3.0" },
     { name = "pyyaml", specifier = ">=6.0,<7.0" },
-    { name = "scikit-learn", specifier = ">=1.7,<2.0" },
-    { name = "seaborn", specifier = ">=0.13,<1.0" },
-    { name = "torch", marker = "extra == 'full'", specifier = ">=2.9,<3.0", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = ">=5.0,<6.0" },
+    { name = "scikit-learn", marker = "extra == 'train'", specifier = ">=1.7,<2.0" },
+    { name = "seaborn", marker = "extra == 'train'", specifier = ">=0.13,<1.0" },
+    { name = "tlmtc", extras = ["predict"], marker = "extra == 'train'" },
+    { name = "torch", marker = "extra == 'predict'", specifier = ">=2.9,<3.0", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", marker = "extra == 'predict'", specifier = ">=5.0,<6.0" },
     { name = "typer", specifier = ">=0.12,<1" },
 ]
-provides-extras = ["full", "onnx"]
+provides-extras = ["predict", "train", "onnx"]
 
 [package.metadata.requires-dev]
 lint = [{ name = "ruff", specifier = ">=0.14,<1.0" }]
