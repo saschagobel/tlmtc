@@ -1,17 +1,19 @@
 """Prediction operations for Hugging Face multi-label text classification."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-import torch
-from accelerate import Accelerator
-from datasets import Dataset
-from peft import PeftModel
-from torch.utils.data import DataLoader
-from transformers import AutoModelForSequenceClassification, PreTrainedModel
 
 from tlmtc.data_contracts import DataContractError
+
+if TYPE_CHECKING:
+    from datasets import Dataset
+    from peft import PeftModel
+    from transformers import PreTrainedModel
 
 
 def load_prediction_model(
@@ -34,6 +36,9 @@ def load_prediction_model(
     Returns:
         Loaded sequence-classification model.
     """
+    from peft import PeftModel
+    from transformers import AutoModelForSequenceClassification
+
     if wrap_peft:
         base_model = AutoModelForSequenceClassification.from_pretrained(
             checkpoint,
@@ -74,6 +79,10 @@ def predict_probabilities(
     Returns:
         Probability matrix with shape `(n_rows, n_labels)`.
     """
+    import torch
+    from accelerate import Accelerator
+    from torch.utils.data import DataLoader
+
     accelerator = Accelerator(cpu=use_cpu)
     dataloader = DataLoader(dataset, batch_size=batch_size)
 
