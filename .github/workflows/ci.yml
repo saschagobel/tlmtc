@@ -63,8 +63,8 @@ jobs:
       - name: Check lockfile is current
         run: uv lock --check
 
-      - name: Install type-check dependencies
-        run: uv sync --group type --frozen
+      - name: Install type-check dependencies and train extra
+        run: uv sync --group type --extra train --frozen
 
       - name: Run mypy
         run: uv run mypy src/tlmtc
@@ -124,4 +124,3 @@ jobs:
 
       - name: Build package
         run: uv build
-
