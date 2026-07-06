@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from datasets import Dataset, Features, Value
-from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 from transformers import AutoTokenizer, BatchEncoding, PreTrainedTokenizerBase
 
 from tlmtc.data_contracts import (
@@ -89,6 +88,8 @@ def df_split(
     Raises:
         ValueError: If no valid split preserves positive examples for every label.
     """
+    from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
+
     max_split_attempts = 3
     grouped_split = SPLIT_GROUP_COL in df.columns
     label_cols = [col for col in df.columns if col.startswith(LABEL_PREFIX)]
