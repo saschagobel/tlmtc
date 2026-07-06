@@ -6,7 +6,6 @@ from typing import Final, Literal
 
 import datasets
 import huggingface_hub
-import optuna
 from transformers import Trainer
 from transformers.trainer_callback import PrinterCallback, ProgressCallback
 from transformers.utils import logging as transformers_logging
@@ -94,6 +93,16 @@ def _apply_third_party_suppression() -> None:
 
     huggingface_hub.logging.set_verbosity_error()
     huggingface_hub.utils.disable_progress_bars()  # type: ignore[attr-defined]
+
+    _suppress_optuna_output()
+
+
+def _suppress_optuna_output() -> None:
+    """Suppress Optuna output when the optional training dependency is installed."""
+    try:
+        import optuna
+    except ImportError:
+        return
 
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
