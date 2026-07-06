@@ -96,7 +96,7 @@ jobs:
         run: uv lock --check
 
       - name: Install test dependencies
-        run: uv sync --python ${{ matrix.python-version }} --group test --extra full --frozen
+        run: uv sync --python ${{ matrix.python-version }} --group test --extra train --frozen
 
       - name: Run unit tests
         run: uv run --python ${{ matrix.python-version }} --frozen pytest -q -m "not integration"
