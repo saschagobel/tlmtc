@@ -61,7 +61,7 @@ def export_onnx_model(
     except ImportError as exc:
         raise RuntimeError(
             "ONNX export requires the optional ONNX dependencies. "
-            "Install the training and ONNX extras with `tlmtc[full,onnx]`."
+            "Install the training and ONNX extras with `tlmtc[train,onnx]`."
         ) from exc
 
     onnx_model_dir.mkdir(parents=True, exist_ok=True)

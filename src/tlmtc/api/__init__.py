@@ -17,7 +17,29 @@ _LAZY: dict[str, tuple[str, str]] = {
     "train_tlmtc": ("tlmtc.api.train", "train_tlmtc"),
 }
 
-_OPTIONAL_DEPENDENCIES = ("torch", "peft", "accelerate")
+_OPTIONAL_DEPENDENCIES = (
+    "accelerate",
+    "datasets",
+    "great_tables",
+    "huggingface_hub",
+    "iterstrat",
+    "matplotlib",
+    "numpy",
+    "optuna",
+    "pandera",
+    "peft",
+    "pyarrow",
+    "seaborn",
+    "sklearn",
+    "torch",
+    "transformers",
+)
+_INSTALL_EXTRAS = {
+    "PredictResult": "predict",
+    "TrainResult": "train",
+    "predict_tlmtc": "predict",
+    "train_tlmtc": "train",
+}
 
 
 def __getattr__(
@@ -34,9 +56,9 @@ def __getattr__(
         missing = getattr(exc, "name", None)
 
         if missing in _OPTIONAL_DEPENDENCIES:
+            extra = _INSTALL_EXTRAS[name]
             raise ImportError(
-                f"`torch`, `peft`, and `accelerate` are required for `tlmtc.{name}`. "
-                "Install them with: `pip install 'tlmtc[full]'`."
+                f"Optional dependencies are required for `{name}`. Install them with: `pip install 'tlmtc[{extra}]'`."
             ) from exc
 
         raise
