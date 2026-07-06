@@ -43,13 +43,13 @@ In applied settings, text classification is rarely a simple single-label task or
 
 ## Installation
 
-Install **tlmtc** into your active Python environment with the `full` extra:
+Install **tlmtc** into your active Python environment with the `train` extra:
 
 ```bash
-pip install "tlmtc[full]"
+pip install "tlmtc[train]"
 ```
 
-The `full` extra installs the optional deep-learning dependencies required for training and prediction, including PyTorch, PEFT, and Accelerate.
+The `train` extra installs the dependencies required for the full training workflow and includes the Torch-backed prediction runtime.
 
 <details>
 <summary><strong>Using uv?</strong></summary>
@@ -57,13 +57,13 @@ The `full` extra installs the optional deep-learning dependencies required for t
 To install into an existing uv-managed environment, use:
 
 ```bash
-uv pip install "tlmtc[full]"
+uv pip install "tlmtc[train]"
 ```
 
 If you are adding **tlmtc** as a dependency to a uv-managed Python project, use:
 
 ```bash
-uv add "tlmtc[full]"
+uv add "tlmtc[train]"
 ```
 
 </details>
@@ -74,19 +74,19 @@ uv add "tlmtc[full]"
 Install the latest development version directly from GitHub:
 
 ```bash
-pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
 ```
 
 With uv, install into the active environment with:
 
 ```bash
-uv pip install "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+uv pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
 ```
 
 Or add it to a uv-managed project:
 
 ```bash
-uv add "tlmtc[full] @ git+https://github.com/saschagobel/tlmtc.git"
+uv add "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
 ```
 
 </details>
