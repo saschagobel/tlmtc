@@ -16,6 +16,7 @@ def train_meta() -> TrainRunMeta:
     """Create representative training-run metadata."""
     return TrainRunMeta(
         run_id="run123",
+        tlmtc_version="0.4.0",
         target_name="Issue Type",
         checkpoint="microsoft/deberta-v3-base",
         proxy_checkpoint="microsoft/deberta-v3-small",
@@ -30,6 +31,7 @@ def train_meta() -> TrainRunMeta:
         threshold_optimization=True,
         scale_learning_rate=False,
         wrap_peft=True,
+        model_backends=["torch"],
     )
 
 
@@ -40,6 +42,7 @@ class TestTrainRunMeta:
         """Ensure metadata preserves resolved training-run state."""
         meta = TrainRunMeta(
             run_id="run123",
+            tlmtc_version="0.4.0",
             target_name="Issue Type",
             checkpoint="microsoft/deberta-v3-base",
             proxy_checkpoint="microsoft/deberta-v3-small",
@@ -54,9 +57,11 @@ class TestTrainRunMeta:
             threshold_optimization=False,
             scale_learning_rate=True,
             wrap_peft=False,
+            model_backends=["torch"],
         )
 
         assert meta.run_id == "run123"
+        assert meta.tlmtc_version == "0.4.0"
         assert meta.target_name == "Issue Type"
         assert meta.checkpoint == "microsoft/deberta-v3-base"
         assert meta.proxy_checkpoint == "microsoft/deberta-v3-small"
@@ -82,14 +87,13 @@ class TestTrainRunMeta:
 
         assert meta.model_backends == ["torch", "onnx"]
 
-    def test_defaults_model_backends_for_existing_metadata(self, train_meta: TrainRunMeta) -> None:
-        """Ensure metadata missing model_backends remains readable."""
+    def test_rejects_missing_model_backends(self, train_meta: TrainRunMeta) -> None:
+        """Ensure metadata requires explicit model backend availability."""
         data = train_meta.model_dump(mode="python")
         data.pop("model_backends")
 
-        meta = TrainRunMeta.model_validate(data)
-
-        assert meta.model_backends == ["torch"]
+        with pytest.raises(ValidationError):
+            TrainRunMeta.model_validate(data)
 
     def test_accepts_missing_label_names(self, train_meta: TrainRunMeta) -> None:
         """Ensure metadata supports training runs without evaluation-derived labels."""
@@ -164,6 +168,7 @@ class TestTrainRunMetaIO:
             {
                 "run_id": "run123",
                 "created_at": "2026-05-06T20:00:00+00:00",
+                "tlmtc_version": "0.4.0",
                 "target_name": "Issue Type",
                 "checkpoint": "checkpoint",
                 "proxy_checkpoint": "proxy",
@@ -176,7 +181,8 @@ class TestTrainRunMetaIO:
                 "hyperparameter_tuning": false,
                 "threshold_optimization": true,
                 "scale_learning_rate": false,
-                "wrap_peft": false
+                "wrap_peft": false,
+                "model_backends": ["torch"]
             }
             """,
             encoding="utf-8",

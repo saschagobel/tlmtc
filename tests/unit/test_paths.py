@@ -38,6 +38,7 @@ def _write_train_run_meta(
         meta=TrainRunMeta(
             run_id=run_id,
             created_at=created_at,
+            tlmtc_version="0.4.0",
             target_name="Target",
             checkpoint="checkpoint",
             proxy_checkpoint="proxy-checkpoint",
@@ -52,6 +53,7 @@ def _write_train_run_meta(
             threshold_optimization=False,
             scale_learning_rate=False,
             wrap_peft=False,
+            model_backends=["torch"],
         ),
         path=run_dir / TRAIN_RUN_META_FILENAME,
     )

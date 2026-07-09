@@ -265,6 +265,7 @@ def _write_prediction_ready_train_run(
     write_run_meta(
         meta=TrainRunMeta(
             run_id=run_id,
+            tlmtc_version="0.4.0",
             target_name="Target",
             checkpoint="test-checkpoint",
             proxy_checkpoint="test-proxy-checkpoint",
@@ -367,6 +368,7 @@ def _assert_default_train_meta(path: Path) -> None:
     run_meta = read_run_meta(path)
 
     assert run_meta.run_id == "run_123"
+    assert run_meta.tlmtc_version == train_api_mod.__version__
     assert run_meta.target_name == "Target"
     assert run_meta.input_mode is InputMode.SINGLE_TEXT
     assert run_meta.label_names == LABEL_NAMES
