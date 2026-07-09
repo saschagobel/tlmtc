@@ -27,6 +27,7 @@ def _stage_merged_peft_model(
     """
     peft_model = load_prediction_model(
         model_dir=model_dir,
+        inference_backend="torch",
         checkpoint=checkpoint,
         num_labels=num_labels,
         wrap_peft=True,
@@ -61,7 +62,7 @@ def export_onnx_model(
     except ImportError as exc:
         raise RuntimeError(
             "ONNX export requires the optional ONNX dependencies. "
-            "Install the training and ONNX extras with `tlmtc[train,onnx]`."
+            "Install the training and ONNX export extras with `tlmtc[train,onnx-export]`."
         ) from exc
 
     onnx_model_dir.mkdir(parents=True, exist_ok=True)

@@ -2699,8 +2699,15 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-onnx = [
+onnx-export = [
     { name = "olive-ai", extra = ["cpu"] },
+]
+onnx-runtime = [
+    { name = "datasets" },
+    { name = "huggingface-hub" },
+    { name = "onnxruntime" },
+    { name = "pandera", extra = ["pandas"] },
+    { name = "transformers" },
 ]
 predict = [
     { name = "accelerate" },
@@ -2745,15 +2752,19 @@ type = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'predict'", specifier = ">=1.13,<2.0" },
+    { name = "datasets", marker = "extra == 'onnx-runtime'", specifier = ">=4.4,<5.0" },
     { name = "datasets", marker = "extra == 'predict'", specifier = ">=4.4,<5.0" },
     { name = "great-tables", marker = "extra == 'train'", specifier = ">=0.20,<1.0" },
+    { name = "huggingface-hub", marker = "extra == 'onnx-runtime'", specifier = ">=1.12.0,<2.0" },
     { name = "huggingface-hub", marker = "extra == 'predict'", specifier = ">=1.12.0,<2.0" },
     { name = "iterative-stratification", marker = "extra == 'train'", specifier = ">=0.1,<1.0" },
     { name = "matplotlib", marker = "extra == 'train'", specifier = ">=3.10,<4" },
     { name = "numpy", specifier = ">=2.3,<3.0" },
-    { name = "olive-ai", extras = ["cpu"], marker = "extra == 'onnx'", specifier = ">=0.13,<1.0" },
+    { name = "olive-ai", extras = ["cpu"], marker = "extra == 'onnx-export'", specifier = ">=0.13,<1.0" },
+    { name = "onnxruntime", marker = "extra == 'onnx-runtime'", specifier = ">=1.27,<2.0" },
     { name = "optuna", marker = "extra == 'train'", specifier = ">=4.6,<5.0" },
     { name = "pandas", specifier = ">=2.2,<4.0" },
+    { name = "pandera", extras = ["pandas"], marker = "extra == 'onnx-runtime'", specifier = ">=0.31,<1.0" },
     { name = "pandera", extras = ["pandas"], marker = "extra == 'predict'", specifier = ">=0.31,<1.0" },
     { name = "peft", marker = "extra == 'predict'", specifier = ">=0.18,<1.0" },
     { name = "pyarrow", marker = "extra == 'train'", specifier = ">=22.0,<24.0" },
@@ -2763,10 +2774,11 @@ requires-dist = [
     { name = "seaborn", marker = "extra == 'train'", specifier = ">=0.13,<1.0" },
     { name = "tlmtc", extras = ["predict"], marker = "extra == 'train'" },
     { name = "torch", marker = "extra == 'predict'", specifier = ">=2.9,<3.0", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", marker = "extra == 'onnx-runtime'", specifier = ">=5.0,<6.0" },
     { name = "transformers", marker = "extra == 'predict'", specifier = ">=5.0,<6.0" },
     { name = "typer", specifier = ">=0.12,<1" },
 ]
-provides-extras = ["predict", "train", "onnx"]
+provides-extras = ["predict", "onnx-runtime", "train", "onnx-export"]
 
 [package.metadata.requires-dev]
 lint = [{ name = "ruff", specifier = ">=0.14,<1.0" }]

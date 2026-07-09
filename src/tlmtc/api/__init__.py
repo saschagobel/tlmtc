@@ -34,11 +34,13 @@ _OPTIONAL_DEPENDENCIES = (
     "torch",
     "transformers",
 )
-_INSTALL_EXTRAS = {
-    "PredictResult": "predict",
-    "TrainResult": "train",
-    "predict_tlmtc": "predict",
-    "train_tlmtc": "train",
+_INSTALL_HINTS = {
+    "PredictResult": "`pip install 'tlmtc[predict]'` for torch prediction or "
+    "`pip install 'tlmtc[onnx-runtime]'` for ONNX prediction",
+    "TrainResult": "`pip install 'tlmtc[train]'`",
+    "predict_tlmtc": "`pip install 'tlmtc[predict]'` for torch prediction or "
+    "`pip install 'tlmtc[onnx-runtime]'` for ONNX prediction",
+    "train_tlmtc": "`pip install 'tlmtc[train]'`",
 }
 
 
@@ -56,9 +58,8 @@ def __getattr__(
         missing = getattr(exc, "name", None)
 
         if missing in _OPTIONAL_DEPENDENCIES:
-            extra = _INSTALL_EXTRAS[name]
             raise ImportError(
-                f"Optional dependencies are required for `{name}`. Install them with: `pip install 'tlmtc[{extra}]'`."
+                f"Optional dependencies are required for `{name}`. Install them with {_INSTALL_HINTS[name]}."
             ) from exc
 
         raise
