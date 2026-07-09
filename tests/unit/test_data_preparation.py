@@ -558,3 +558,22 @@ class TestTokenizePredictionDataset:
         assert "attention_mask" in tokenized.column_names
         assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]
         assert tokenized[0]["attention_mask"].tolist() == [1, 1, 1]
+
+    def test_uses_numpy_format_for_onnx_backend(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        tokenizer = RecordingTokenizer()
+        monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", lambda *_, **__: tokenizer)
+
+        tokenized = tokenize_prediction_dataset(
+            dataset=Dataset.from_dict({TEXT_COL: ["first text"]}),
+            checkpoint="test-checkpoint",
+            input_mode=InputMode.SINGLE_TEXT,
+            sequence_length=32,
+            trust_remote_code=False,
+            inference_backend="onnx",
+        )
+
+        assert isinstance(tokenized[0]["input_ids"], np.ndarray)
+        assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]

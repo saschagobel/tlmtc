@@ -1,5 +1,6 @@
 """Tests for prediction operations."""
 
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -56,6 +57,7 @@ class TestLoadPredictionModel:
 
         result = load_prediction_model(
             model_dir=tmp_path / "model",
+            inference_backend="torch",
             checkpoint="base-checkpoint",
             num_labels=2,
             wrap_peft=False,
@@ -88,6 +90,7 @@ class TestLoadPredictionModel:
 
         result = load_prediction_model(
             model_dir=tmp_path / "adapter",
+            inference_backend="torch",
             checkpoint="base-checkpoint",
             num_labels=3,
             wrap_peft=True,
@@ -109,6 +112,49 @@ class TestLoadPredictionModel:
             low_cpu_mem_usage=True,
         )
 
+    def test_loads_onnx_runtime_session_from_single_exported_model(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        onnx_model = tmp_path / "model" / "onnx" / "model.onnx"
+        onnx_model.parent.mkdir(parents=True)
+        onnx_model.touch()
+        inference_session = Mock(return_value="session")
+        monkeypatch.setitem(sys.modules, "onnxruntime", SimpleNamespace(InferenceSession=inference_session))
+
+        result = load_prediction_model(
+            model_dir=tmp_path / "model",
+            inference_backend="onnx",
+            checkpoint="base-checkpoint",
+            num_labels=2,
+            wrap_peft=False,
+            trust_remote_code=False,
+        )
+
+        assert result == "session"
+        inference_session.assert_called_once_with(
+            str(onnx_model),
+            providers=["CPUExecutionProvider"],
+        )
+
+    def test_raises_error_when_onnx_export_count_is_not_one(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "onnxruntime", SimpleNamespace(InferenceSession=Mock()))
+
+        with pytest.raises(RuntimeError, match="Expected exactly one ONNX model"):
+            load_prediction_model(
+                model_dir=tmp_path / "model",
+                inference_backend="onnx",
+                checkpoint="base-checkpoint",
+                num_labels=2,
+                wrap_peft=False,
+                trust_remote_code=False,
+            )
+
 
 class TestPredictProbabilities:
     """Test suite for probability prediction."""
@@ -129,11 +175,43 @@ class TestPredictProbabilities:
             dataset=dataset,
             batch_size=2,
             use_cpu=True,
+            inference_backend="torch",
         )
 
         expected_logits = np.array([[0.0, -0.0], [1.0, -1.0], [2.0, -2.0]], dtype=np.float32)
         np.testing.assert_allclose(result, 1.0 / (1.0 + np.exp(-expected_logits)), rtol=1e-6)
         assert model.training is False
+
+    def test_predicts_sigmoid_probabilities_with_onnx_runtime_session(self) -> None:
+        dataset = Dataset.from_dict(
+            {
+                "input_ids": [[0], [1], [2]],
+                "attention_mask": [[1], [1], [1]],
+                "unused": [[10], [20], [30]],
+            }
+        )
+        dataset.set_format("numpy")
+
+        class DeterministicOnnxSession:
+            def get_inputs(self) -> list[SimpleNamespace]:
+                return [SimpleNamespace(name="input_ids"), SimpleNamespace(name="attention_mask")]
+
+            def run(self, output_names: None, inputs: dict[str, np.ndarray]) -> list[np.ndarray]:
+                assert output_names is None
+                assert set(inputs) == {"input_ids", "attention_mask"}
+                values = inputs["input_ids"][:, 0].astype(np.float32)
+                return [np.column_stack((values, -values))]
+
+        result = predict_probabilities(
+            model=DeterministicOnnxSession(),  # type: ignore[arg-type]
+            dataset=dataset,
+            batch_size=2,
+            use_cpu=True,
+            inference_backend="onnx",
+        )
+
+        expected_logits = np.array([[0.0, -0.0], [1.0, -1.0], [2.0, -2.0]], dtype=np.float32)
+        np.testing.assert_allclose(result, 1.0 / (1.0 + np.exp(-expected_logits)), rtol=1e-6)
 
 
 class TestApplyThresholds:

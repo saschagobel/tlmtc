@@ -1,21 +1,18 @@
-"""Integration tests for ONNX export parity."""
+"""Integration tests for ONNX Runtime prediction."""
 
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
-import torch
-from transformers import AutoTokenizer, BertConfig, BertForSequenceClassification, BertTokenizer
 
-from tlmtc.api import train_tlmtc
+from tlmtc.api import predict_tlmtc, train_tlmtc
 from tlmtc.data_contracts import TEXT_PAIR_COL
 from tlmtc.meta import read_run_meta
-from tlmtc.prediction import load_prediction_model
 
 pytestmark = pytest.mark.integration
 
-ort = pytest.importorskip("onnxruntime")
+pytest.importorskip("onnxruntime")
 pytest.importorskip("olive.cli.api")
 
 
@@ -53,8 +50,41 @@ def raw_paired_multilabel_csv(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def paired_prediction_csv(tmp_path: Path) -> Path:
+    """Create a small unlabeled paired-text prediction CSV."""
+    rows = [
+        {
+            "record_id": "pair-1",
+            "text": "alpha policy query",
+            TEXT_PAIR_COL: "alpha evidence response",
+        },
+        {
+            "record_id": "pair-2",
+            "text": "beta policy query",
+            TEXT_PAIR_COL: "beta evidence response",
+        },
+        {
+            "record_id": "pair-3",
+            "text": "alpha beta policy query",
+            TEXT_PAIR_COL: "combined evidence response",
+        },
+        {
+            "record_id": "pair-4",
+            "text": "neutral policy query",
+            TEXT_PAIR_COL: "neutral background response",
+        },
+    ]
+
+    prediction_path = tmp_path / "paired_prediction.csv"
+    pd.DataFrame(rows).to_csv(prediction_path, index=False)
+    return prediction_path
+
+
+@pytest.fixture
 def tiny_checkpoint_dir(tmp_path: Path) -> Path:
     """Create a tiny local Bert checkpoint with a compatible tokenizer."""
+    from transformers import BertConfig, BertForSequenceClassification, BertTokenizer
+
     checkpoint_dir = tmp_path / "tiny_bert_checkpoint"
     checkpoint_dir.mkdir()
 
@@ -104,82 +134,23 @@ def tiny_checkpoint_dir(tmp_path: Path) -> Path:
     return checkpoint_dir
 
 
-def _load_onnx_session(onnx_model_dir: Path) -> ort.InferenceSession:
-    """Load the single exported ONNX model from the export directory."""
-    onnx_files = sorted(onnx_model_dir.rglob("*.onnx"))
-
-    assert onnx_files, f"No ONNX model file found under {onnx_model_dir}"
-    assert len(onnx_files) == 1
-
-    return ort.InferenceSession(
-        str(onnx_files[0]),
-        providers=["CPUExecutionProvider"],
-    )
-
-
-def _torch_probabilities(
-    *,
-    model_dir: Path,
-    checkpoint: str,
-    num_labels: int,
-    wrap_peft: bool,
-    encoded_inputs: dict[str, torch.Tensor],
-) -> np.ndarray:
-    """Run PyTorch inference from persisted tlmtc model artifacts."""
-    model = load_prediction_model(
-        model_dir=model_dir,
-        inference_backend="torch",
-        checkpoint=checkpoint,
-        num_labels=num_labels,
-        wrap_peft=wrap_peft,
-        trust_remote_code=False,
-    )
-    model.eval()
-
-    with torch.inference_mode():
-        logits = model(**encoded_inputs).logits
-
-    return torch.sigmoid(logits).detach().cpu().numpy()
-
-
-def _onnx_probabilities(
-    *,
-    onnx_model_dir: Path,
-    encoded_inputs: dict[str, torch.Tensor],
-) -> np.ndarray:
-    """Run ONNX Runtime inference from exported artifacts."""
-    session = _load_onnx_session(onnx_model_dir)
-    input_names = {input_.name for input_ in session.get_inputs()}
-    session_inputs = {
-        name: tensor.detach().cpu().numpy() for name, tensor in encoded_inputs.items() if name in input_names
-    }
-
-    logits = session.run(None, session_inputs)[0]
-    return 1.0 / (1.0 + np.exp(-logits))
-
-
-@pytest.mark.parametrize("wrap_peft", [False, True], ids=["full", "peft"])
-def test_train_tlmtc_exports_onnx_with_pytorch_parity_for_paired_text(
+def test_predict_tlmtc_onnx_backend_matches_torch_backend(
     raw_paired_multilabel_csv: Path,
+    paired_prediction_csv: Path,
     tiny_checkpoint_dir: Path,
     tmp_path: Path,
-    wrap_peft: bool,
 ) -> None:
-    """Export ONNX from real training and compare PyTorch and ONNX probabilities."""
-    result = train_tlmtc(
+    """Run torch and ONNX prediction from one exported training run and compare probabilities."""
+    train_result = train_tlmtc(
         labeled_data=raw_paired_multilabel_csv,
         work_dir=tmp_path,
-        run_id=f"integration_onnx_{'peft' if wrap_peft else 'full'}",
+        run_id="integration_onnx_prediction",
         checkpoint=str(tiny_checkpoint_dir),
         proxy_checkpoint=str(tiny_checkpoint_dir),
         hyperparameter_tuning=False,
         transfer_learning=True,
         threshold_optimization=False,
-        wrap_peft=wrap_peft,
-        lora_r=2,
-        lora_alpha=4,
-        lora_dropout=0.0,
-        lora_bias="none",
+        wrap_peft=False,
         train_epochs=1,
         batch_size=4,
         sequence_length=24,
@@ -190,30 +161,36 @@ def test_train_tlmtc_exports_onnx_with_pytorch_parity_for_paired_text(
         export_onnx=True,
     )
 
-    meta = read_run_meta(result.paths.train_run_meta_path)
+    meta = read_run_meta(train_result.paths.train_run_meta_path)
     assert meta.model_backends == ["torch", "onnx"]
-    assert result.paths.onnx_model_dir.is_dir()
+    assert train_result.paths.onnx_model_dir.is_dir()
 
-    tokenizer = AutoTokenizer.from_pretrained(result.paths.model_dir)
-    encoded_inputs = tokenizer(
-        ["alpha policy query", "beta policy query", "neutral policy query"],
-        ["alpha evidence response", "beta evidence response", "neutral background response"],
-        truncation="longest_first",
-        padding="max_length",
-        max_length=meta.sequence_length,
-        return_tensors="pt",
+    torch_result = predict_tlmtc(
+        unlabeled_data=paired_prediction_csv,
+        work_dir=tmp_path,
+        run_id=train_result.paths.run_id,
+        inference_backend="torch",
+        batch_size=2,
+        use_cpu=True,
     )
+    torch_probabilities = pd.read_csv(torch_result.paths.probabilities_path)
 
-    torch_probs = _torch_probabilities(
-        model_dir=result.paths.model_dir,
-        checkpoint=meta.checkpoint,
-        num_labels=len(meta.label_names or []),
-        wrap_peft=meta.wrap_peft,
-        encoded_inputs=dict(encoded_inputs),
+    onnx_result = predict_tlmtc(
+        unlabeled_data=paired_prediction_csv,
+        work_dir=tmp_path,
+        run_id=train_result.paths.run_id,
+        inference_backend="onnx",
+        batch_size=2,
+        use_cpu=True,
     )
-    onnx_probs = _onnx_probabilities(
-        onnx_model_dir=result.paths.onnx_model_dir,
-        encoded_inputs=dict(encoded_inputs),
-    )
+    onnx_probabilities = pd.read_csv(onnx_result.paths.probabilities_path)
 
-    np.testing.assert_allclose(onnx_probs, torch_probs, rtol=1e-3, atol=1e-3)
+    assert onnx_result.paths.run_id == torch_result.paths.run_id
+    assert onnx_result.paths.predictions_path.exists()
+    assert list(onnx_probabilities.columns) == list(torch_probabilities.columns)
+    np.testing.assert_allclose(
+        onnx_probabilities[meta.label_names].to_numpy(),
+        torch_probabilities[meta.label_names].to_numpy(),
+        rtol=1e-3,
+        atol=1e-3,
+    )

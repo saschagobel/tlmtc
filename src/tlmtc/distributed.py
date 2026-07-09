@@ -1,23 +1,37 @@
 """Distributed process coordination for tlmtc workflows."""
 
+from __future__ import annotations
+
+import os
 import warnings
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Any, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, Self, TypeVar
 from uuid import uuid4
 
-import torch
-import torch.distributed as dist
-from accelerate import PartialState
-
-try:
-    from accelerate.utils import broadcast_object_list as _accelerate_broadcast_object_list
-except ImportError:
-    _accelerate_broadcast_object_list = None
+if TYPE_CHECKING:
+    from accelerate import PartialState
 
 R = TypeVar("R")
 T = TypeVar("T")
+
+
+@dataclass(frozen=True, slots=True)
+class LocalContext:
+    """Single-process policy for local prediction workflows."""
+
+    is_main_process: bool = True
+
+    def run_on_main(
+        self,
+        fn: Callable[..., R],
+        *args: Any,
+        sync: bool = False,
+        **kwargs: Any,
+    ) -> R:
+        """Run a callable immediately in local execution."""
+        return fn(*args, **kwargs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +47,8 @@ class DistributedContext:
         use_cpu: bool,
     ) -> Self:
         """Create a distributed context for the current workflow."""
+        from accelerate import PartialState
+
         return cls(state=PartialState(cpu=use_cpu))
 
     @property
@@ -75,9 +91,16 @@ class DistributedContext:
 
         objects: list[T | None] = [value if self.is_main_process else None]
 
-        if _accelerate_broadcast_object_list is not None:
-            _accelerate_broadcast_object_list(objects, from_process=0)
+        try:
+            from accelerate.utils import broadcast_object_list
+        except ImportError:
+            broadcast_object_list = None
+
+        if broadcast_object_list is not None:
+            broadcast_object_list(objects, from_process=0)
         else:
+            import torch.distributed as dist
+
             if not dist.is_available() or not dist.is_initialized():
                 raise RuntimeError("torch.distributed is not initialized; cannot broadcast distributed value.")
 
@@ -139,6 +162,8 @@ class DistributedContext:
         use_cpu: bool,
     ) -> None:
         """Warn when multiple CUDA devices are visible without distributed launch."""
+        import torch
+
         if use_cpu or self.is_distributed or not torch.cuda.is_available():
             return
 
@@ -147,3 +172,17 @@ class DistributedContext:
                 "Multiple CUDA devices are visible, but tlmtc does not detect a distributed launcher. "
                 "For modern multi-GPU execution, launch tlmtc with torchrun or accelerate launch."
             )
+
+
+def create_prediction_context(
+    *,
+    inference_backend: Literal["torch", "onnx"],
+    use_cpu: bool,
+) -> LocalContext | DistributedContext:
+    """Create the process context for a prediction backend."""
+    if inference_backend == "onnx":
+        if int(os.environ.get("WORLD_SIZE", "1")) > 1:
+            raise RuntimeError("ONNX prediction backend does not support distributed launch.")
+        return LocalContext()
+
+    return DistributedContext.create(use_cpu=use_cpu)

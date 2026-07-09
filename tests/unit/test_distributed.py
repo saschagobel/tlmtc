@@ -1,13 +1,15 @@
 """Tests for distributed process coordination."""
 
+import sys
 import warnings
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
+from types import ModuleType
 
 import pytest
 
 import tlmtc.distributed as distributed_module
-from tlmtc.distributed import DistributedContext
+from tlmtc.distributed import DistributedContext, LocalContext, create_prediction_context
 
 
 @dataclass(slots=True)
@@ -58,11 +60,45 @@ def test_create_initializes_partial_state_inside_factory(monkeypatch: pytest.Mon
             super().__init__()
             self.cpu = cpu
 
-    monkeypatch.setattr(distributed_module, "PartialState", FakePartialState)
+    accelerate_module = ModuleType("accelerate")
+    accelerate_module.PartialState = FakePartialState
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
 
     context = DistributedContext.create(use_cpu=True)
 
     assert isinstance(context.state, FakePartialState)
+    assert context.state.cpu is True
+
+
+def test_create_prediction_context_returns_local_context_for_onnx(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("WORLD_SIZE", raising=False)
+
+    context = create_prediction_context(inference_backend="onnx", use_cpu=False)
+
+    assert isinstance(context, LocalContext)
+    assert context.run_on_main(lambda value: value + 1, 1) == 2
+
+
+def test_create_prediction_context_rejects_distributed_onnx(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WORLD_SIZE", "2")
+
+    with pytest.raises(RuntimeError, match="ONNX prediction backend does not support distributed launch"):
+        create_prediction_context(inference_backend="onnx", use_cpu=False)
+
+
+def test_create_prediction_context_uses_distributed_context_for_torch(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakePartialState(FakeState):
+        def __init__(self, *, cpu: bool) -> None:
+            super().__init__()
+            self.cpu = cpu
+
+    accelerate_module = ModuleType("accelerate")
+    accelerate_module.PartialState = FakePartialState
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+
+    context = create_prediction_context(inference_backend="torch", use_cpu=True)
+
+    assert isinstance(context, DistributedContext)
     assert context.state.cpu is True
 
 
@@ -122,11 +158,12 @@ def test_broadcast_value_uses_accelerate_helper(monkeypatch: pytest.MonkeyPatch)
         seen_values.append(objects[0])
         objects[0] = "broadcast-run-id"
 
-    monkeypatch.setattr(
-        distributed_module,
-        "_accelerate_broadcast_object_list",
-        fake_broadcast_object_list,
-    )
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    utils_module.broadcast_object_list = fake_broadcast_object_list
+    accelerate_module.utils = utils_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
     context, _ = make_context(
         is_main_process=False,
         num_processes=2,
@@ -148,11 +185,12 @@ def test_broadcast_value_raises_when_broadcast_returns_none(monkeypatch: pytest.
     ) -> None:
         return None
 
-    monkeypatch.setattr(
-        distributed_module,
-        "_accelerate_broadcast_object_list",
-        fake_broadcast_object_list,
-    )
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    utils_module.broadcast_object_list = fake_broadcast_object_list
+    accelerate_module.utils = utils_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
     context, _ = make_context(
         is_main_process=False,
         num_processes=2,
@@ -164,9 +202,19 @@ def test_broadcast_value_raises_when_broadcast_returns_none(monkeypatch: pytest.
 
 
 def test_broadcast_value_has_clear_torch_fallback_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(distributed_module, "_accelerate_broadcast_object_list", None)
-    monkeypatch.setattr(distributed_module.dist, "is_available", lambda: True)
-    monkeypatch.setattr(distributed_module.dist, "is_initialized", lambda: False)
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    accelerate_module.utils = utils_module
+    torch_module = ModuleType("torch")
+    dist_module = ModuleType("torch.distributed")
+    torch_module.__path__ = []
+    dist_module.is_available = lambda: True
+    dist_module.is_initialized = lambda: False
+    torch_module.distributed = dist_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
+    monkeypatch.setitem(sys.modules, "torch.distributed", dist_module)
 
     context, _ = make_context(
         is_main_process=True,
@@ -191,10 +239,20 @@ def test_broadcast_value_uses_torch_fallback(monkeypatch: pytest.MonkeyPatch) ->
         seen_values.append(objects[0])
         objects[0] = "fallback-run-id"
 
-    monkeypatch.setattr(distributed_module, "_accelerate_broadcast_object_list", None)
-    monkeypatch.setattr(distributed_module.dist, "is_available", lambda: True)
-    monkeypatch.setattr(distributed_module.dist, "is_initialized", lambda: True)
-    monkeypatch.setattr(distributed_module.dist, "broadcast_object_list", fake_broadcast_object_list)
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    accelerate_module.utils = utils_module
+    torch_module = ModuleType("torch")
+    dist_module = ModuleType("torch.distributed")
+    torch_module.__path__ = []
+    dist_module.is_available = lambda: True
+    dist_module.is_initialized = lambda: True
+    dist_module.broadcast_object_list = fake_broadcast_object_list
+    torch_module.distributed = dist_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
+    monkeypatch.setitem(sys.modules, "torch.distributed", dist_module)
 
     context, _ = make_context(
         is_main_process=False,
@@ -234,11 +292,12 @@ def test_resolve_run_id_broadcasts_generated_main_process_value(monkeypatch: pyt
         calls.append((from_process, objects[0]))
 
     monkeypatch.setattr(distributed_module, "uuid4", FakeUuid)
-    monkeypatch.setattr(
-        distributed_module,
-        "_accelerate_broadcast_object_list",
-        fake_broadcast_object_list,
-    )
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    utils_module.broadcast_object_list = fake_broadcast_object_list
+    accelerate_module.utils = utils_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
 
     context, _ = make_context(
         is_main_process=True,
@@ -260,11 +319,12 @@ def test_resolve_run_id_rejects_mismatched_explicit_distributed_value(
     ) -> None:
         objects[0] = "rank-zero-run"
 
-    monkeypatch.setattr(
-        distributed_module,
-        "_accelerate_broadcast_object_list",
-        fake_broadcast_object_list,
-    )
+    accelerate_module = ModuleType("accelerate")
+    utils_module = ModuleType("accelerate.utils")
+    utils_module.broadcast_object_list = fake_broadcast_object_list
+    accelerate_module.utils = utils_module
+    monkeypatch.setitem(sys.modules, "accelerate", accelerate_module)
+    monkeypatch.setitem(sys.modules, "accelerate.utils", utils_module)
 
     context, _ = make_context(
         is_main_process=False,
@@ -322,8 +382,11 @@ def test_warn_once_skips_non_main_process() -> None:
 def test_warn_if_multi_gpu_without_launcher_emits_on_main_process(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(distributed_module.torch.cuda, "is_available", lambda: True)
-    monkeypatch.setattr(distributed_module.torch.cuda, "device_count", lambda: 2)
+    torch_module = ModuleType("torch")
+    torch_module.cuda = ModuleType("torch.cuda")
+    torch_module.cuda.is_available = lambda: True
+    torch_module.cuda.device_count = lambda: 2
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
 
     context, _ = make_context(
         is_main_process=True,
@@ -351,8 +414,11 @@ def test_warn_if_multi_gpu_without_launcher_skips_when_not_applicable(
     cuda_available: bool,
     device_count: int,
 ) -> None:
-    monkeypatch.setattr(distributed_module.torch.cuda, "is_available", lambda: cuda_available)
-    monkeypatch.setattr(distributed_module.torch.cuda, "device_count", lambda: device_count)
+    torch_module = ModuleType("torch")
+    torch_module.cuda = ModuleType("torch.cuda")
+    torch_module.cuda.is_available = lambda: cuda_available
+    torch_module.cuda.device_count = lambda: device_count
+    monkeypatch.setitem(sys.modules, "torch", torch_module)
 
     context, _ = make_context(
         is_main_process=True,
