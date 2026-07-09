@@ -464,6 +464,7 @@ class PredictionSettings(ResolvableSettings):
 
     Attributes:
         unlabeled_data: Path to unlabeled prediction data, or an in-memory unlabeled DataFrame.
+        inference_backend: Runtime backend used for prediction.
         batch_size: Prediction batch size used for batched inference.
         trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom remote code.
         use_cpu: Whether to force CPU execution.
@@ -474,6 +475,7 @@ class PredictionSettings(ResolvableSettings):
     unlabeled_data: Path | pd.DataFrame
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None
+    inference_backend: Literal["torch", "onnx"] = "torch"
     batch_size: PositiveInt = 32
     trust_remote_code: bool = False
     hardware: HardwareSettings = Field(default_factory=HardwareSettings)

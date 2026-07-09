@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 
 from tlmtc.data_preparation import create_prediction_dataset, read_prediction_data, tokenize_prediction_dataset
-from tlmtc.distributed import DistributedContext
+from tlmtc.distributed import create_prediction_context
 from tlmtc.meta import read_run_meta
 from tlmtc.paths import PredictionPaths, resolve_prediction_paths
 from tlmtc.prediction import (
@@ -36,6 +36,7 @@ def predict_tlmtc(
     work_dir: str | Path | Unset = UNSET,
     config_path: str | Path | Unset = UNSET,
     run_id: str | None | Unset = UNSET,
+    inference_backend: str | Unset = UNSET,
     batch_size: int | Unset = UNSET,
     trust_remote_code: bool | Unset = UNSET,
     use_cpu: bool | Unset = UNSET,
@@ -59,6 +60,7 @@ def predict_tlmtc(
             the trained model or adapter artifacts for this run with `trust_remote_code=False`;
             artifacts that require custom remote code are not supported. Only use saved model
             artifacts and adapters you trust.
+        inference_backend: Runtime backend used for prediction. Defaults to `"torch"`.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
         trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom
             remote code during prediction. Defaults to `False`. Required for runs trained with
@@ -77,6 +79,7 @@ def predict_tlmtc(
             "unlabeled_data": unlabeled_data,
             "work_dir": work_dir,
             "run_id": run_id,
+            "inference_backend": inference_backend,
             "batch_size": batch_size,
             "trust_remote_code": trust_remote_code,
             "hardware": {
@@ -88,7 +91,10 @@ def predict_tlmtc(
         },
     )
 
-    distributed = DistributedContext.create(use_cpu=settings.hardware.use_cpu)
+    distributed = create_prediction_context(
+        inference_backend=settings.inference_backend,
+        use_cpu=settings.hardware.use_cpu,
+    )
     configure_runtime_output(
         settings.runtime.verbosity,
         is_main_process=distributed.is_main_process,
@@ -128,6 +134,9 @@ def predict_tlmtc(
     assert input_mode is not None
     assert label_names is not None
 
+    if settings.inference_backend == "onnx" and "onnx" not in meta.model_backends:
+        raise RuntimeError(f"Training run '{meta.run_id}' does not provide an ONNX model backend.")
+
     emit_progress("Reading prediction inputs")
 
     assert isinstance(settings.unlabeled_data, pd.DataFrame) or paths.unlabeled_data_path is not None
@@ -148,10 +157,12 @@ def predict_tlmtc(
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
         trust_remote_code=settings.trust_remote_code,
+        inference_backend=settings.inference_backend,
     )
     emit_progress("Loading fine-tuned prediction model")
     model = load_prediction_model(
         model_dir=paths.train_run_model_dir,
+        inference_backend=settings.inference_backend,
         checkpoint=meta.checkpoint,
         num_labels=len(label_names),
         wrap_peft=meta.wrap_peft,
@@ -163,6 +174,7 @@ def predict_tlmtc(
         dataset=tokenized_dataset,
         batch_size=settings.batch_size,
         use_cpu=settings.hardware.use_cpu,
+        inference_backend=settings.inference_backend,
     )
     probability_df = make_prediction_frame(
         input_df=input_df,

@@ -346,6 +346,11 @@ def predict_command(
         "--run-id",
         help="Training run identifier to use for prediction. If omitted, the latest completed training run is used.",
     ),
+    inference_backend: str | None = typer.Option(
+        None,
+        "--inference-backend",
+        help='Runtime backend used for prediction. Supported values: "torch", "onnx".',
+    ),
     batch_size: int | None = typer.Option(
         None,
         "--batch-size",
@@ -375,6 +380,7 @@ def predict_command(
         work_dir=UNSET if work_dir is None else work_dir,
         config_path=UNSET if config_path is None else config_path,
         run_id=UNSET if run_id is None else run_id,
+        inference_backend=UNSET if inference_backend is None else inference_backend,
         batch_size=UNSET if batch_size is None else batch_size,
         trust_remote_code=UNSET if trust_remote_code is None else trust_remote_code,
         use_cpu=UNSET if use_cpu is None else use_cpu,
