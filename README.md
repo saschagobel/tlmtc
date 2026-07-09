@@ -36,7 +36,7 @@ In applied settings, text classification is rarely a simple single-label task or
 - Comprehensive evaluation suite with global and label-specific multi-label metrics
 - Publication-ready reporting through tables and graphs
 - End-to-end prediction workflow that reloads trained models, metadata, labels, and thresholds automatically
-- Optional ONNX export artifacts for production inference deployment
+- Optional ONNX export and ONNX Runtime prediction backend for production inference deployment
 - Automatic persistence and reuse of data splits, Optuna studies, trained models, thresholds, and run metadata
 - Highly configurable through a small workflow-oriented Python API and CLI
 - CPU and DDP-safe multi-GPU training and prediction support
@@ -51,45 +51,47 @@ pip install "tlmtc[train]"
 
 The `train` extra installs the dependencies required for the full training workflow and includes the Torch-backed prediction runtime.
 
-<details>
-<summary><strong>Using uv?</strong></summary>
+> [!TIP]
+> <details>
+> <summary><strong>Using uv?</strong></summary>
+>
+> To install into an existing uv-managed environment, use:
+>
+> ```bash
+> uv pip install "tlmtc[train]"
+> ```
+>
+> If you are adding **tlmtc** as a dependency to a uv-managed Python project, use:
+>
+> ```bash
+> uv add "tlmtc[train]"
+> ```
+>
+> </details>
 
-To install into an existing uv-managed environment, use:
-
-```bash
-uv pip install "tlmtc[train]"
-```
-
-If you are adding **tlmtc** as a dependency to a uv-managed Python project, use:
-
-```bash
-uv add "tlmtc[train]"
-```
-
-</details>
-
-<details>
-<summary><strong>Installing from source?</strong></summary>
-
-Install the latest development version directly from GitHub:
-
-```bash
-pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
-```
-
-With uv, install into the active environment with:
-
-```bash
-uv pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
-```
-
-Or add it to a uv-managed project:
-
-```bash
-uv add "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
-```
-
-</details>
+> [!TIP]
+> <details>
+> <summary><strong>Installing from source?</strong></summary>
+>
+> Install the latest development version directly from GitHub:
+>
+> ```bash
+> pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
+> ```
+>
+> With uv, install into the active environment with:
+>
+> ```bash
+> uv pip install "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
+> ```
+>
+> Or add it to a uv-managed project:
+>
+> ```bash
+> uv add "tlmtc[train] @ git+https://github.com/saschagobel/tlmtc.git"
+> ```
+>
+> </details>
 
 ## Quickstart
 
@@ -110,23 +112,24 @@ curl -L -o paired_example_unlabeled.csv \
 
 The code below assumes that both CSV files are in your current working directory. If you save them somewhere else, adjust the file paths accordingly.
 
-<details>
-<summary><strong>Using Windows PowerShell?</strong></summary>
-
-```powershell
-New-Item -ItemType Directory -Force -Path tlmtc-quickstart
-Set-Location tlmtc-quickstart
-
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example.csv" `
-  -OutFile "paired_example.csv"
-
-Invoke-WebRequest `
-  -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example_unlabeled.csv" `
-  -OutFile "paired_example_unlabeled.csv"
-```
-
-</details>
+> [!TIP]
+> <details>
+> <summary><strong>Using Windows PowerShell?</strong></summary>
+>
+> ```powershell
+> New-Item -ItemType Directory -Force -Path tlmtc-quickstart
+> Set-Location tlmtc-quickstart
+>
+> Invoke-WebRequest `
+>   -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example.csv" `
+>   -OutFile "paired_example.csv"
+>
+> Invoke-WebRequest `
+>   -Uri "https://raw.githubusercontent.com/saschagobel/tlmtc/main/examples/paired_example_unlabeled.csv" `
+>   -OutFile "paired_example_unlabeled.csv"
+> ```
+>
+> </details>
 
 Fine-tune a model:
 
@@ -157,39 +160,43 @@ predict_tlmtc(
 
 **tlmtc** writes training artifacts to `train_outputs/` and prediction artifacts to `prediction_outputs/`. Evaluation reports are written to `train_outputs/<run_id>/evaluation/`.
 
-<details>
-<summary><strong>Prefer the CLI?</strong></summary>
+For production inference, trained models can also be exported to ONNX and run through the ONNX Runtime prediction backend via the `tlmtc onnx-export` and `tlmtc onnx-runtime` commands.
 
-```bash
-tlmtc train \
-  --labeled-data paired_example.csv \
-  --target-name "Requirements Evidence Alignment" \
-  --checkpoint google/bert_uncased_L-2_H-128_A-2 \
-  --tuning-trials 5 \
-  --use-cpu
+> [!TIP]
+> <details>
+> <summary><strong>Prefer the CLI?</strong></summary>
+>
+> ```bash
+> tlmtc train \
+>   --labeled-data paired_example.csv \
+>   --target-name "Requirements Evidence Alignment" \
+>   --checkpoint google/bert_uncased_L-2_H-128_A-2 \
+>   --tuning-trials 5 \
+>   --use-cpu
+>
+> tlmtc predict \
+>   --unlabeled-data paired_example_unlabeled.csv \
+>   --use-cpu
+> ```
+>
+> </details>
 
-tlmtc predict \
-  --unlabeled-data paired_example_unlabeled.csv \
-  --use-cpu
-```
-
-</details>
-
-<details>
-<summary><strong>Try your own data</strong></summary>
-
-Your labeled data must include:
-
-- a `text` column
-- at least two binary `label_`-prefixed columns
-
-Add a `text_pair` column for paired-input classification. **tlmtc** detects and handles this automatically.
-
-Add a `split_group` column when semantically related rows must not cross train, validation, and test splits.
-
-For prediction, provide unlabeled data with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
-
-</details>
+> [!TIP]
+> <details>
+> <summary><strong>Try your own data</strong></summary>
+>
+> Your labeled data must include:
+>
+> - a `text` column
+> - at least two binary `label_`-prefixed columns
+>
+> Add a `text_pair` column for paired-input classification. **tlmtc** detects and handles this automatically.
+>
+> Add a `split_group` column when semantically related rows must not cross train, validation, and test splits.
+>
+> For prediction, provide unlabeled data with the same input columns used during training. For a paired-text model, this means both `text` and `text_pair`.
+>
+> </details>
 
 ## Contributing
 
