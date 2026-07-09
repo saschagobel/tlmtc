@@ -68,8 +68,7 @@ The `train` extra installs the dependencies required for the full training workf
 > ```
 >
 > </details>
-
-> [!TIP]
+>
 > <details>
 > <summary><strong>Installing from source?</strong></summary>
 >
@@ -180,8 +179,7 @@ For production inference, trained models can also be exported to ONNX and run th
 > ```
 >
 > </details>
-
-> [!TIP]
+>
 > <details>
 > <summary><strong>Try your own data</strong></summary>
 >
