@@ -1,7 +1,7 @@
 """Data-preparation operations for Hugging Face multi-label text classification training and prediction."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -253,6 +253,7 @@ def tokenize_prediction_dataset(
     input_mode: InputMode,
     sequence_length: int,
     trust_remote_code: bool,
+    inference_backend: Literal["torch", "onnx"] = "torch",
 ) -> Dataset:
     """Tokenize prediction inputs.
 
@@ -262,6 +263,7 @@ def tokenize_prediction_dataset(
         input_mode: Input mode persisted by the training run.
         sequence_length: Maximum tokenized sequence length.
         trust_remote_code: Whether Hugging Face tokenizer loading may execute custom remote code.
+        inference_backend: Runtime backend used for prediction.
 
     Returns:
         Tokenized prediction dataset.
@@ -281,5 +283,5 @@ def tokenize_prediction_dataset(
         batched=True,
         remove_columns=dataset.column_names,
     )
-    tokenized_dataset.set_format("torch")
+    tokenized_dataset.set_format("numpy" if inference_backend == "onnx" else "torch")
     return tokenized_dataset
