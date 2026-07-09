@@ -155,6 +155,7 @@ def test_stage_merged_peft_model_merges_adapter_and_reuses_persisted_tokenizer(
 
     load_prediction_model.assert_called_once_with(
         model_dir=model_dir,
+        inference_backend="torch",
         checkpoint="base-checkpoint",
         num_labels=4,
         wrap_peft=True,
@@ -186,7 +187,7 @@ def test_export_onnx_model_requires_onnx_extra(
 
     monkeypatch.setattr(builtins, "__import__", import_without_olive)
 
-    with pytest.raises(RuntimeError, match=r"tlmtc\[train,onnx\]"):
+    with pytest.raises(RuntimeError, match=r"tlmtc\[train,onnx-export\]"):
         export_onnx_model(
             model_dir=tmp_path / "model",
             onnx_model_dir=tmp_path / "model" / "onnx",

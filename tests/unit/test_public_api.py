@@ -13,11 +13,10 @@ PUBLIC_ENTRYPOINTS: tuple[str, ...] = (
     "train_tlmtc",
 )
 
-OPTIONAL_DEPENDENCIES: tuple[str, ...] = (
-    "torch",
-    "peft",
-    "accelerate",
-)
+OPTIONAL_DEPENDENCIES_BY_ENTRYPOINT: dict[str, tuple[str, ...]] = {
+    "predict_tlmtc": ("datasets", "pandera", "transformers"),
+    "train_tlmtc": ("torch", "peft", "accelerate"),
+}
 
 
 def _reset_public_api_import_state(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -118,8 +117,14 @@ def test_public_api_rejects_unknown_attribute() -> None:
         _ = tlmtc.not_a_real_symbol  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("name", PUBLIC_ENTRYPOINTS)
-@pytest.mark.parametrize("missing", OPTIONAL_DEPENDENCIES)
+@pytest.mark.parametrize(
+    ("name", "missing"),
+    [
+        (name, missing)
+        for name, missing_dependencies in OPTIONAL_DEPENDENCIES_BY_ENTRYPOINT.items()
+        for missing in missing_dependencies
+    ],
+)
 def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
     monkeypatch: pytest.MonkeyPatch,
     name: str,
@@ -130,10 +135,12 @@ def test_public_api_surfaces_helpful_error_when_optional_dependency_missing(
 
     import tlmtc
 
-    extra = name.removesuffix("_tlmtc")
-    expected_msg = (
-        f"Optional dependencies are required for `{name}`. Install them with: `pip install 'tlmtc[{extra}]'`."
+    install_hint = (
+        "`pip install 'tlmtc[predict]'` for torch prediction or `pip install 'tlmtc[onnx-runtime]'` for ONNX prediction"
+        if name == "predict_tlmtc"
+        else "`pip install 'tlmtc[train]'`"
     )
+    expected_msg = f"Optional dependencies are required for `{name}`. Install them with {install_hint}."
 
     real_import_module = importlib.import_module
     target_module_path = f"tlmtc.api.{name.removesuffix('_tlmtc')}"
