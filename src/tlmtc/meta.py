@@ -18,6 +18,7 @@ class TrainRunMeta(BaseModel):
     Attributes:
         run_id: Run identifier used to name the training-run directory.
         created_at: UTC timestamp at which the metadata file was created.
+        tlmtc_version: Installed tlmtc package version used for the training run.
         target_name: Display name for the classification target.
         checkpoint: Target checkpoint used for final fine-tuning.
         proxy_checkpoint: Proxy checkpoint used during hyperparameter tuning.
@@ -39,6 +40,7 @@ class TrainRunMeta(BaseModel):
 
     run_id: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    tlmtc_version: str
 
     target_name: str
     checkpoint: str
@@ -57,7 +59,7 @@ class TrainRunMeta(BaseModel):
     threshold_optimization: bool
     scale_learning_rate: bool
     wrap_peft: bool
-    model_backends: list[Literal["torch", "onnx"]] = Field(default=["torch"])
+    model_backends: list[Literal["torch", "onnx"]]
 
 
 def write_run_meta(

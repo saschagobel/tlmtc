@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from tlmtc import __version__
 from tlmtc.data_pipeline import DataPipeline
 from tlmtc.distributed import DistributedContext
 from tlmtc.evaluation_pipeline import EvaluationPipeline
@@ -320,6 +321,7 @@ def train_tlmtc(
         write_run_meta,
         meta=TrainRunMeta(
             run_id=resolved_run_id,
+            tlmtc_version=__version__,
             target_name=settings.model.target_name,
             checkpoint=settings.model.checkpoint,
             proxy_checkpoint=settings.model.proxy_checkpoint,
