@@ -176,7 +176,7 @@ def distributed_context_mock(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     distributed_context_cls.create.return_value = context
 
     monkeypatch.setattr(train_api_mod, "DistributedContext", distributed_context_cls)
-    monkeypatch.setattr(predict_api_mod, "DistributedContext", distributed_context_cls)
+    monkeypatch.setattr(predict_api_mod, "create_prediction_context", MagicMock(return_value=context))
     return context
 
 
@@ -250,6 +250,7 @@ def _write_prediction_ready_train_run(
     transfer_learning: bool = True,
     wrap_peft: bool = False,
     trust_remote_code: bool = False,
+    model_backends: list[str] | None = None,
 ) -> None:
     """Write minimal training artifacts required by predict_tlmtc."""
     train_run_dir = work_dir / "train_outputs" / run_id
@@ -278,6 +279,7 @@ def _write_prediction_ready_train_run(
             threshold_optimization=True,
             scale_learning_rate=False,
             wrap_peft=wrap_peft,
+            model_backends=["torch"] if model_backends is None else model_backends,
             **meta_kwargs,
         ),
         path=train_run_dir / "train_run_meta.json",
@@ -386,6 +388,7 @@ def _assert_prediction_operations_called(
     input_mode: InputMode,
     batch_size: int,
     use_cpu: bool,
+    inference_backend: str = "torch",
     trust_remote_code: bool = False,
 ) -> None:
     """Assert predict_tlmtc wires prediction operations with resolved metadata and settings."""
@@ -404,9 +407,11 @@ def _assert_prediction_operations_called(
         input_mode=input_mode,
         sequence_length=16,
         trust_remote_code=trust_remote_code,
+        inference_backend=inference_backend,
     )
     ops.load_prediction_model.assert_called_once_with(
         model_dir=result.paths.train_run_model_dir,
+        inference_backend=inference_backend,
         checkpoint="test-checkpoint",
         num_labels=len(LABEL_NAMES),
         wrap_peft=False,
@@ -417,6 +422,7 @@ def _assert_prediction_operations_called(
         dataset=ops.tokenized_dataset,
         batch_size=batch_size,
         use_cpu=use_cpu,
+        inference_backend=inference_backend,
     )
 
 
@@ -1001,6 +1007,59 @@ class TestPredictTlmtc:
             use_cpu=False,
         )
         _assert_prediction_outputs(result=result, ops=ops)
+
+    def test_uses_onnx_prediction_backend_when_requested(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="onnx_run",
+            model_backends=["torch", "onnx"],
+        )
+        ops = _mock_prediction_operations(monkeypatch)
+
+        result = api_mod.predict_tlmtc(
+            prediction_csv,
+            work_dir=tmp_path,
+            run_id="onnx_run",
+            inference_backend="onnx",
+        )
+
+        _assert_prediction_operations_called(
+            result=result,
+            ops=ops,
+            input_mode=InputMode.SINGLE_TEXT,
+            batch_size=32,
+            use_cpu=False,
+            inference_backend="onnx",
+        )
+        _assert_prediction_outputs(result=result, ops=ops)
+
+    def test_rejects_onnx_prediction_backend_when_training_run_has_no_onnx_model(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        prediction_csv: Path,
+    ) -> None:
+        _write_prediction_ready_train_run(
+            work_dir=tmp_path,
+            run_id="torch_only_run",
+        )
+        read_prediction_data_mock = MagicMock()
+        monkeypatch.setattr(predict_api_mod, "read_prediction_data", read_prediction_data_mock)
+
+        with pytest.raises(RuntimeError, match="does not provide an ONNX model backend"):
+            api_mod.predict_tlmtc(
+                prediction_csv,
+                work_dir=tmp_path,
+                run_id="torch_only_run",
+                inference_backend="onnx",
+            )
+
+        read_prediction_data_mock.assert_not_called()
 
     def test_applies_global_prediction_threshold(
         self,

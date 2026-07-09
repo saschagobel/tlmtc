@@ -375,6 +375,7 @@ class TestPredictCliApp:
         assert result.exit_code == 0
         assert "--unlabeled-data" in output
         assert "--run-id" in output
+        assert "--inference-back" in output
         assert "--batch-size" in output
         assert "--trust-remote-co" in output
         assert "--use-cpu" in output
@@ -457,6 +458,8 @@ class TestPredictCliApp:
                 "work",
                 "--run-id",
                 "test-run",
+                "--inference-backend",
+                "onnx",
                 "--batch-size",
                 "8",
                 "--trust-remote-code",
@@ -474,6 +477,7 @@ class TestPredictCliApp:
         assert kwargs["unlabeled_data"] == "prediction.csv"
         assert kwargs["work_dir"] == "work"
         assert kwargs["run_id"] == "test-run"
+        assert kwargs["inference_backend"] == "onnx"
         assert kwargs["batch_size"] == 8
         assert kwargs["trust_remote_code"] is True
         assert kwargs["use_cpu"] is True
@@ -515,6 +519,7 @@ class TestPredictCliApp:
         assert kwargs["work_dir"] is UNSET
         assert kwargs["config_path"] is UNSET
         assert kwargs["run_id"] is UNSET
+        assert kwargs["inference_backend"] is UNSET
         assert kwargs["batch_size"] is UNSET
         assert kwargs["trust_remote_code"] is UNSET
         assert kwargs["use_cpu"] is UNSET

@@ -755,6 +755,7 @@ class TestPredictionSettings:
         assert settings.unlabeled_data == Path("predict.csv")
         assert settings.work_dir == Path.cwd()
         assert settings.run_id is None
+        assert settings.inference_backend == "torch"
         assert settings.batch_size == 32
         assert isinstance(settings.hardware, HardwareSettings)
         assert settings.hardware.use_cpu is False
@@ -781,6 +782,7 @@ class TestPredictionSettings:
             unlabeled_data=tmp_path / "predict.csv",
             work_dir=tmp_path / "workspace",
             run_id="manual-run",
+            inference_backend="onnx",
             batch_size=64,
             trust_remote_code=True,
             hardware={"use_cpu": True},
@@ -790,6 +792,7 @@ class TestPredictionSettings:
         assert settings.unlabeled_data == tmp_path / "predict.csv"
         assert settings.work_dir == tmp_path / "workspace"
         assert settings.run_id == "manual-run"
+        assert settings.inference_backend == "onnx"
         assert settings.batch_size == 64
         assert settings.trust_remote_code is True
         assert settings.hardware.use_cpu is True
@@ -802,6 +805,7 @@ class TestPredictionSettings:
                 "unlabeled_data": "from-config.csv",
                 "work_dir": "from-config-workdir",
                 "run_id": "from-config-run",
+                "inference_backend": "torch",
                 "batch_size": 16,
                 "trust_remote_code": True,
                 "runtime": {
@@ -811,6 +815,7 @@ class TestPredictionSettings:
             overrides={
                 "unlabeled_data": "from-override.csv",
                 "run_id": None,
+                "inference_backend": "onnx",
                 "hardware": {
                     "use_cpu": True,
                 },
@@ -820,6 +825,7 @@ class TestPredictionSettings:
         assert settings.unlabeled_data == Path("from-override.csv")
         assert settings.work_dir == Path("from-config-workdir")
         assert settings.run_id is None
+        assert settings.inference_backend == "onnx"
         assert settings.batch_size == 16
         assert settings.hardware.use_cpu is True
         assert settings.trust_remote_code is True
@@ -832,6 +838,7 @@ class TestPredictionSettings:
                 "unlabeled_data": "predict.csv",
                 "work_dir": "configured-workdir",
                 "run_id": "configured-run",
+                "inference_backend": "onnx",
                 "batch_size": 64,
                 "hardware": {
                     "use_cpu": True,
@@ -843,6 +850,7 @@ class TestPredictionSettings:
             overrides={
                 "work_dir": UNSET,
                 "run_id": UNSET,
+                "inference_backend": UNSET,
                 "batch_size": UNSET,
                 "hardware": {
                     "use_cpu": UNSET,
@@ -856,6 +864,7 @@ class TestPredictionSettings:
         assert settings.unlabeled_data == Path("predict.csv")
         assert settings.work_dir == Path("configured-workdir")
         assert settings.run_id == "configured-run"
+        assert settings.inference_backend == "onnx"
         assert settings.batch_size == 64
         assert settings.hardware.use_cpu is True
         assert settings.runtime.verbosity == "quiet"
