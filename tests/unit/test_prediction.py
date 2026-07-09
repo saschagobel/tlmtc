@@ -138,7 +138,13 @@ class TestLoadPredictionModel:
             providers=["CPUExecutionProvider"],
         )
 
-    def test_raises_error_when_onnx_export_count_is_not_one(self, tmp_path: Path) -> None:
+    def test_raises_error_when_onnx_export_count_is_not_one(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setitem(sys.modules, "onnxruntime", SimpleNamespace(InferenceSession=Mock()))
+
         with pytest.raises(RuntimeError, match="Expected exactly one ONNX model"):
             load_prediction_model(
                 model_dir=tmp_path / "model",
