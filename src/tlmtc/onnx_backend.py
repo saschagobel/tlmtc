@@ -78,6 +78,7 @@ def export_onnx_model(
             output_path=str(onnx_model_dir),
             device="cpu",
             exporter="dynamo_exporter",
+            trust_remote_code=trust_remote_code,
         )
     else:
         with TemporaryDirectory(prefix="tlmtc-onnx-export-") as staging_dir:
@@ -95,6 +96,7 @@ def export_onnx_model(
                 output_path=str(onnx_model_dir),
                 device="cpu",
                 exporter="dynamo_exporter",
+                trust_remote_code=trust_remote_code,
             )
 
     if not any(onnx_model_dir.rglob("*.onnx")):
