@@ -38,9 +38,11 @@ def olive_optimize(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     return optimize
 
 
+@pytest.mark.parametrize("trust_remote_code", [False, True])
 def test_export_onnx_model_exports_full_model_from_model_dir(
     tmp_path: Path,
     olive_optimize: MagicMock,
+    trust_remote_code: bool,
 ) -> None:
     """Ensure full-model exports use the persisted model directory directly."""
     model_dir = tmp_path / "model"
@@ -52,7 +54,7 @@ def test_export_onnx_model_exports_full_model_from_model_dir(
         checkpoint="base-checkpoint",
         num_labels=2,
         wrap_peft=False,
-        trust_remote_code=False,
+        trust_remote_code=trust_remote_code,
     )
 
     assert onnx_model_dir.is_dir()
@@ -62,13 +64,16 @@ def test_export_onnx_model_exports_full_model_from_model_dir(
         output_path=str(onnx_model_dir),
         device="cpu",
         exporter="dynamo_exporter",
+        trust_remote_code=trust_remote_code,
     )
 
 
+@pytest.mark.parametrize("trust_remote_code", [False, True])
 def test_export_onnx_model_exports_peft_model_from_staging_dir(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     olive_optimize: MagicMock,
+    trust_remote_code: bool,
 ) -> None:
     """Ensure PEFT exports stage a merged full model before calling Olive."""
     model_dir = tmp_path / "model"
@@ -83,7 +88,7 @@ def test_export_onnx_model_exports_peft_model_from_staging_dir(
         checkpoint="base-checkpoint",
         num_labels=3,
         wrap_peft=True,
-        trust_remote_code=True,
+        trust_remote_code=trust_remote_code,
     )
 
     assert onnx_model_dir.is_dir()
@@ -97,7 +102,7 @@ def test_export_onnx_model_exports_peft_model_from_staging_dir(
         "staging_model_dir": staging_model_dir,
         "checkpoint": "base-checkpoint",
         "num_labels": 3,
-        "trust_remote_code": True,
+        "trust_remote_code": trust_remote_code,
     }
     assert isinstance(staging_model_dir, Path)
     assert not staging_model_dir.exists()
@@ -107,6 +112,7 @@ def test_export_onnx_model_exports_peft_model_from_staging_dir(
         output_path=str(onnx_model_dir),
         device="cpu",
         exporter="dynamo_exporter",
+        trust_remote_code=trust_remote_code,
     )
 
 
