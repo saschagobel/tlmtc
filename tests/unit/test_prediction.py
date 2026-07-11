@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 import torch
 from datasets import Dataset
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 
 from tlmtc.data_contracts import TEXT_COL, DataContractError
 from tlmtc.prediction import (
@@ -154,6 +155,43 @@ class TestLoadPredictionModel:
                 wrap_peft=False,
                 trust_remote_code=False,
             )
+
+    @pytest.mark.parametrize(
+        ("trust_remote_code", "expected_default_available"),
+        [(False, False), (True, True)],
+    )
+    def test_makes_default_rope_available_only_for_trusted_remote_code(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        trust_remote_code: bool,
+        expected_default_available: bool,
+    ) -> None:
+        """Ensure default RoPE is available at trusted remote-code Torch loading."""
+        loaded_model = object()
+        original_rope_init_functions = dict(ROPE_INIT_FUNCTIONS)
+        ROPE_INIT_FUNCTIONS.pop("default", None)
+
+        def fake_from_pretrained(*_args: object, **_kwargs: object) -> object:
+            assert ("default" in ROPE_INIT_FUNCTIONS) is expected_default_available
+            return loaded_model
+
+        monkeypatch.setattr("transformers.AutoModelForSequenceClassification.from_pretrained", fake_from_pretrained)
+
+        try:
+            result = load_prediction_model(
+                model_dir=tmp_path / "model",
+                inference_backend="torch",
+                checkpoint="base-checkpoint",
+                num_labels=2,
+                wrap_peft=False,
+                trust_remote_code=trust_remote_code,
+            )
+        finally:
+            ROPE_INIT_FUNCTIONS.clear()
+            ROPE_INIT_FUNCTIONS.update(original_rope_init_functions)
+
+        assert result is loaded_model
 
 
 class TestPredictProbabilities:

@@ -6,6 +6,7 @@ import pytest
 import torch
 from pydantic import ValidationError
 from transformers import BertConfig, BertForSequenceClassification, EvalPrediction, TrainingArguments
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 
 from tlmtc.settings import TrainingSettings
 from tlmtc.training import (
@@ -234,6 +235,49 @@ def test_make_sequence_classification_model_init_creates_base_or_peft_wrapped_mo
         assert hasattr(model, "peft_config")
     else:
         assert model is patched_model_loader
+
+
+@pytest.mark.parametrize(
+    ("trust_remote_code", "expected_default_available"),
+    [(False, False), (True, True)],
+)
+def test_model_init_makes_default_rope_available_only_for_trusted_remote_code(
+    base_test_model,
+    monkeypatch,
+    trust_remote_code,
+    expected_default_available,
+):
+    """Ensure default RoPE is available at trusted remote-code model construction."""
+    original_rope_init_functions = dict(ROPE_INIT_FUNCTIONS)
+    ROPE_INIT_FUNCTIONS.pop("default", None)
+
+    def fake_from_pretrained(*_args, **_kwargs):
+        assert ("default" in ROPE_INIT_FUNCTIONS) is expected_default_available
+        return base_test_model
+
+    monkeypatch.setattr(
+        "tlmtc.training.AutoModelForSequenceClassification.from_pretrained",
+        fake_from_pretrained,
+    )
+
+    try:
+        model_init = make_model_init(
+            checkpoint="dummy",
+            num_labels=2,
+            wrap_peft=False,
+            lora_r=4,
+            lora_alpha=8,
+            lora_dropout=0.1,
+            lora_bias="none",
+            trust_remote_code=trust_remote_code,
+        )
+
+        model = model_init()
+    finally:
+        ROPE_INIT_FUNCTIONS.clear()
+        ROPE_INIT_FUNCTIONS.update(original_rope_init_functions)
+
+    assert model is base_test_model
 
 
 def test_get_scaled_lr_conservatively_scales_learning_rate_for_peft_and_non_peft_modes(tmp_path):
