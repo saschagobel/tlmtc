@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 from transformers import AutoTokenizer
 
+from tlmtc.huggingface_compat import ensure_transformers_default_rope_init_available
 from tlmtc.prediction import load_prediction_model
 
 
@@ -66,6 +67,9 @@ def export_onnx_model(
         ) from exc
 
     onnx_model_dir.mkdir(parents=True, exist_ok=True)
+
+    if trust_remote_code:
+        ensure_transformers_default_rope_init_available()
 
     if not wrap_peft:
         optimize(

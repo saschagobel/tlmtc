@@ -23,6 +23,7 @@ from transformers import (
 from transformers.modeling_outputs import ModelOutput  # type: ignore[attr-defined]
 
 from tlmtc.data_contracts import LABEL_PREFIX
+from tlmtc.huggingface_compat import ensure_transformers_default_rope_init_available
 from tlmtc.settings import TrainingSettings
 
 RESERVED_TRAINER_ARGS = frozenset(
@@ -376,6 +377,9 @@ def make_model_init(
 
         The optional positional argument is accepted for Trainer hyperparameter search compatibility.
         """
+        if trust_remote_code:
+            ensure_transformers_default_rope_init_available()
+
         model = AutoModelForSequenceClassification.from_pretrained(
             checkpoint,
             num_labels=num_labels,

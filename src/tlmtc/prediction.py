@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from tlmtc.data_contracts import DataContractError
+from tlmtc.huggingface_compat import ensure_transformers_default_rope_init_available
 
 if TYPE_CHECKING:
     from datasets import Dataset
@@ -75,6 +76,9 @@ def _load_torch_prediction_model(
     """
     from peft import PeftModel
     from transformers import AutoModelForSequenceClassification
+
+    if trust_remote_code:
+        ensure_transformers_default_rope_init_available()
 
     if wrap_peft:
         base_model = AutoModelForSequenceClassification.from_pretrained(
