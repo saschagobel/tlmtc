@@ -300,7 +300,7 @@ def train_tlmtc(
     finetune_pipeline.tune_hyperparameters()
     finetune_pipeline.fine_tune_pretrained()
     finetune_pipeline.tune_thresholds()
-    finetune_pipeline.save_pretrained()
+    distributed.run_on_main(finetune_pipeline.save_pretrained, sync=True)
 
     evaluation_pipeline = EvaluationPipeline(
         tokenized_dataset=data_pipeline.tokenized_dataset,
