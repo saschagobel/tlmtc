@@ -757,10 +757,15 @@ class TestTrainTlmtc:
         assert pipelines.finetune_pipeline.tune_hyperparameters not in guarded_fns
         assert pipelines.evaluation_pipeline.run_evaluation not in guarded_fns
 
+        assert pipelines.finetune_pipeline.save_pretrained in guarded_fns
         assert pipelines.evaluation_pipeline.save_metrics in guarded_fns
         assert pipelines.evaluation_pipeline.render_tables in guarded_fns
         assert pipelines.evaluation_pipeline.render_figures in guarded_fns
         assert train_api_mod.write_run_meta in guarded_fns
+        distributed_context_mock.run_on_main.assert_any_call(
+            pipelines.finetune_pipeline.save_pretrained,
+            sync=True,
+        )
 
     def test_non_main_rank_skips_training_artifact_writes_but_runs_compute(
         self,
@@ -778,6 +783,7 @@ class TestTrainTlmtc:
         pipelines.finetune_pipeline.tune_hyperparameters.assert_called_once()
         pipelines.finetune_pipeline.fine_tune_pretrained.assert_called_once()
         pipelines.finetune_pipeline.tune_thresholds.assert_called_once()
+        pipelines.finetune_pipeline.save_pretrained.assert_not_called()
         pipelines.evaluation_pipeline.run_evaluation.assert_called_once()
 
         pipelines.evaluation_pipeline.save_metrics.assert_not_called()
