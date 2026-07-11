@@ -7,6 +7,7 @@ from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 
 from tlmtc.onnx_backend import _stage_merged_peft_model, export_onnx_model
 
@@ -125,6 +126,42 @@ def test_export_onnx_model_raises_when_olive_writes_no_onnx_file(
             wrap_peft=False,
             trust_remote_code=False,
         )
+
+
+@pytest.mark.parametrize(
+    ("trust_remote_code", "expected_default_available"),
+    [(False, False), (True, True)],
+)
+def test_export_onnx_model_makes_default_rope_available_only_for_trusted_remote_code(
+    tmp_path: Path,
+    olive_optimize: MagicMock,
+    trust_remote_code: bool,
+    expected_default_available: bool,
+) -> None:
+    """Ensure default RoPE is available at trusted remote-code ONNX export."""
+    original_rope_init_functions = dict(ROPE_INIT_FUNCTIONS)
+    ROPE_INIT_FUNCTIONS.pop("default", None)
+
+    def fake_optimize(**kwargs: object) -> None:
+        assert ("default" in ROPE_INIT_FUNCTIONS) is expected_default_available
+        output_path = Path(str(kwargs["output_path"]))
+        output_path.mkdir(parents=True, exist_ok=True)
+        (output_path / "model.onnx").write_bytes(b"placeholder")
+
+    olive_optimize.side_effect = fake_optimize
+
+    try:
+        export_onnx_model(
+            model_dir=tmp_path / "model",
+            onnx_model_dir=tmp_path / "model" / "onnx",
+            checkpoint="base-checkpoint",
+            num_labels=2,
+            wrap_peft=False,
+            trust_remote_code=trust_remote_code,
+        )
+    finally:
+        ROPE_INIT_FUNCTIONS.clear()
+        ROPE_INIT_FUNCTIONS.update(original_rope_init_functions)
 
 
 def test_stage_merged_peft_model_merges_adapter_and_reuses_persisted_tokenizer(
