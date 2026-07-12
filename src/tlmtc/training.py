@@ -305,9 +305,47 @@ def infer_modules_to_save(
 
     Returns:
         Top-level module names that should be saved alongside LoRA adapters.
+
+    Raises:
+        ValueError: If PEFT's suffix matching would also select a module outside
+            the inferred task head.
     """
     top_level_modules = dict(model.named_children())
-    return [name for name in SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE if name in top_level_modules]
+    base_model = getattr(model, "base_model", model)
+    base_model_prefix = getattr(model, "base_model_prefix", None)
+    backbone_name = next(
+        (name for name, module in top_level_modules.items() if module is base_model),
+        None,
+    )
+
+    if (
+        base_model is not model
+        and backbone_name is not None
+        and (not base_model_prefix or backbone_name == base_model_prefix)
+    ):
+        modules_to_save = [
+            name
+            for name, module in top_level_modules.items()
+            if name != backbone_name and next(module.parameters(recurse=True), None) is not None
+        ]
+    else:
+        modules_to_save = [name for name in SEQUENCE_CLASSIFICATION_MODULES_TO_SAVE if name in top_level_modules]
+
+    inferred_modules = set(modules_to_save)
+    for target_name in modules_to_save:
+        unexpected_matches = [
+            name
+            for name, _ in model.named_modules(remove_duplicate=False)
+            if name.endswith(target_name) and name not in inferred_modules
+        ]
+        if unexpected_matches:
+            matches = ", ".join(repr(name) for name in unexpected_matches)
+            raise ValueError(
+                f"Cannot safely save top-level PEFT module {target_name!r}: "
+                f"PEFT suffix matching would also select {matches}."
+            )
+
+    return modules_to_save
 
 
 def wrap_model_with_peft(
