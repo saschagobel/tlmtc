@@ -4,8 +4,17 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from peft import PeftModel
 from pydantic import ValidationError
-from transformers import BertConfig, BertForSequenceClassification, EvalPrediction, TrainingArguments
+from transformers import (
+    BertConfig,
+    BertForSequenceClassification,
+    EvalPrediction,
+    PretrainedConfig,
+    PreTrainedModel,
+    TrainingArguments,
+)
+from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 
 from tlmtc.settings import TrainingSettings
@@ -83,6 +92,52 @@ class DummyNestedHeadNames(torch.nn.Module):
             }
         )
         self.output = torch.nn.Linear(4, 2)
+
+
+class DummySplitHeadModel(PreTrainedModel):
+    """Generic pretrained model with a parameterized split classification head."""
+
+    config_class = PretrainedConfig
+    base_model_prefix = "backbone"
+
+    def __init__(self, config):
+        """Initialize a backbone and two parameter-bearing head modules."""
+        super().__init__(config)
+        self.backbone = torch.nn.Linear(4, 4)
+        self.dense = torch.nn.Linear(4, 4)
+        self.activation = torch.nn.GELU()
+        self.classifier = torch.nn.Linear(4, config.num_labels)
+        self.post_init()
+
+    def forward(self, input_ids=None, **_kwargs):
+        """Return sequence-classification logits for the supplied features."""
+        hidden_state = self.backbone(input_ids.float())
+        hidden_state = self.activation(self.dense(hidden_state))
+        return SequenceClassifierOutput(logits=self.classifier(hidden_state))
+
+
+@pytest.fixture
+def split_head_test_model():
+    """Provide a generic split-head sequence classifier for PEFT tests."""
+    return DummySplitHeadModel(PretrainedConfig(num_labels=2))
+
+
+class DummyAmbiguousDenseHead(torch.nn.Module):
+    """Sequence classifier whose top-level head name also occurs in its backbone."""
+
+    base_model_prefix = "model"
+
+    def __init__(self):
+        """Initialize a backbone and a split top-level classification head."""
+        super().__init__()
+        self.model = torch.nn.ModuleDict({"dense": torch.nn.Linear(4, 4)})
+        self.dense = torch.nn.Linear(4, 4)
+        self.classifier = torch.nn.Linear(4, 2)
+
+    @property
+    def base_model(self):
+        """Return the pretrained backbone."""
+        return self.model
 
 
 def test_get_num_labels_counts_label_columns_from_train_split(tmp_path):
@@ -180,6 +235,19 @@ def test_infer_modules_to_save_ignores_nested_matching_module_names():
     assert infer_modules_to_save(model) == []
 
 
+def test_infer_modules_to_save_detects_complete_split_head(split_head_test_model):
+    """Ensure parameterized split-head modules are saved while the backbone and activation are excluded."""
+    assert infer_modules_to_save(split_head_test_model) == ["dense", "classifier"]
+
+
+def test_infer_modules_to_save_rejects_ambiguous_peft_suffix_matches():
+    """Ensure inferred head names cannot silently select similarly named backbone modules."""
+    model = DummyAmbiguousDenseHead()
+
+    with pytest.raises(ValueError, match=r"'dense'.*'model\.dense'"):
+        infer_modules_to_save(model)
+
+
 def test_wrap_peft_attaches_peft_config_to_model(base_test_model):
     """Ensure `_wrap_peft` wraps the base model with LoRA adapters exposing `peft_config`."""
     wrapped = wrap_model_with_peft(
@@ -208,6 +276,41 @@ def test_wrap_peft_includes_inferred_modules_to_save(base_test_model):
     peft_config = wrapped.peft_config["default"]
 
     assert set(inferred_modules).issubset(set(peft_config.modules_to_save))
+
+
+def test_peft_save_reload_and_merge_preserve_complete_split_head(tmp_path, split_head_test_model):
+    """Ensure PEFT reload and merge preserve every trained split-head weight."""
+    backbone_state = {
+        name: parameter.detach().clone() for name, parameter in split_head_test_model.backbone.state_dict().items()
+    }
+    wrapped = wrap_model_with_peft(
+        model=split_head_test_model,
+        lora_r=4,
+        lora_alpha=8,
+        lora_dropout=0.0,
+        lora_bias="none",
+    )
+    with torch.no_grad():
+        for name, parameter in wrapped.named_parameters():
+            if ".modules_to_save.default." in name:
+                parameter.fill_(0.125)
+
+    inputs = {"input_ids": torch.tensor([[1.0, 4.0, 2.0, 3.0]])}
+    wrapped.eval()
+    expected_logits = wrapped(**inputs).logits.detach().clone()
+    wrapped.save_pretrained(tmp_path, save_embedding_layers=False)
+
+    torch.manual_seed(1234)
+    reinitialized_model = DummySplitHeadModel(split_head_test_model.config)
+    reinitialized_model.backbone.load_state_dict(backbone_state)
+    reloaded = PeftModel.from_pretrained(reinitialized_model, tmp_path)
+    reloaded.eval()
+
+    assert torch.allclose(reloaded(**inputs).logits, expected_logits)
+
+    merged = reloaded.merge_and_unload()
+
+    assert torch.allclose(merged(**inputs).logits, expected_logits)
 
 
 @pytest.mark.parametrize("wrap_peft", [False, True])
