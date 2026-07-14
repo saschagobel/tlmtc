@@ -153,7 +153,7 @@ def predict_tlmtc(
     emit_progress("Tokenizing prediction inputs")
     tokenized_dataset = tokenize_prediction_dataset(
         dataset=prediction_dataset,
-        checkpoint=meta.checkpoint,
+        tokenizer_dir=paths.train_run_model_dir,
         input_mode=input_mode,
         sequence_length=meta.sequence_length,
         trust_remote_code=settings.trust_remote_code,

@@ -134,13 +134,13 @@ def tiny_checkpoint_dir(tmp_path: Path) -> Path:
     return checkpoint_dir
 
 
-def test_predict_tlmtc_onnx_backend_matches_torch_backend(
+def test_predict_tlmtc_onnx_backend_uses_persisted_tokenizer_and_matches_torch_backend(
     raw_paired_multilabel_csv: Path,
     paired_prediction_csv: Path,
     tiny_checkpoint_dir: Path,
     tmp_path: Path,
 ) -> None:
-    """Run torch and ONNX prediction from one exported training run and compare probabilities."""
+    """Run offline torch and ONNX prediction with only persisted training-run artifacts."""
     train_result = train_tlmtc(
         labeled_data=raw_paired_multilabel_csv,
         work_dir=tmp_path,
@@ -164,6 +164,8 @@ def test_predict_tlmtc_onnx_backend_matches_torch_backend(
     meta = read_run_meta(train_result.paths.train_run_meta_path)
     assert meta.model_backends == ["torch", "onnx"]
     assert train_result.paths.onnx_model_dir.is_dir()
+
+    tiny_checkpoint_dir.rename(tmp_path / "unavailable_checkpoint")
 
     torch_result = predict_tlmtc(
         unlabeled_data=paired_prediction_csv,

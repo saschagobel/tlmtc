@@ -405,7 +405,7 @@ def _assert_prediction_operations_called(
 
     ops.tokenize_prediction_dataset.assert_called_once_with(
         dataset=ops.prediction_dataset,
-        checkpoint="test-checkpoint",
+        tokenizer_dir=result.paths.train_run_model_dir,
         input_mode=input_mode,
         sequence_length=16,
         trust_remote_code=trust_remote_code,
