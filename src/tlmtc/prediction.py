@@ -196,10 +196,10 @@ def _predict_torch_probabilities(
     with torch.inference_mode():
         for batch in prepared_dataloader:
             logits = prepared_model(**batch).logits
-            probabilities.append(torch.sigmoid(logits))
+            batch_probabilities = accelerator.gather_for_metrics(torch.sigmoid(logits))
+            probabilities.append(batch_probabilities.float().cpu())
 
-    probabilities_tensor = accelerator.gather_for_metrics(torch.cat(probabilities))
-    return probabilities_tensor.float().cpu().numpy()
+    return torch.cat(probabilities).numpy()
 
 
 def _predict_onnx_probabilities(

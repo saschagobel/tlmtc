@@ -220,6 +220,67 @@ class TestPredictProbabilities:
         np.testing.assert_allclose(result, 1.0 / (1.0 + np.exp(-expected_logits)), rtol=1e-6)
         assert model.training is False
 
+    def test_gathers_distributed_probabilities_per_batch_in_input_order(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        dataset = Dataset.from_dict(
+            {
+                "input_ids": [[index] for index in range(7)],
+                "attention_mask": [[1] for _ in range(7)],
+            }
+        )
+        dataset.set_format("torch")
+
+        gathered_batches: list[torch.Tensor] = []
+
+        class FakeDistributedAccelerator:
+            def __init__(self, *, cpu: bool) -> None:
+                assert cpu is True
+
+            def prepare_model(
+                self,
+                model: DeterministicPredictionModel,
+                *,
+                evaluation_mode: bool,
+            ) -> DeterministicPredictionModel:
+                assert evaluation_mode is True
+                return model
+
+            def prepare_data_loader(self, _dataloader: object) -> list[dict[str, torch.Tensor]]:
+                return [
+                    {
+                        "input_ids": torch.tensor([[0], [1]]),
+                        "attention_mask": torch.ones((2, 1), dtype=torch.int64),
+                    },
+                    {
+                        "input_ids": torch.tensor([[4], [5]]),
+                        "attention_mask": torch.ones((2, 1), dtype=torch.int64),
+                    },
+                ]
+
+            def gather_for_metrics(self, probabilities: torch.Tensor) -> torch.Tensor:
+                gathered_batches.append(probabilities)
+                assert probabilities.shape == (2, 2)
+
+                other_rank_indices = [2, 3] if len(gathered_batches) == 1 else [6]
+                other_rank_logits = torch.tensor([[float(index), -float(index)] for index in other_rank_indices])
+                return torch.cat((probabilities, torch.sigmoid(other_rank_logits)))
+
+        monkeypatch.setattr("accelerate.Accelerator", FakeDistributedAccelerator)
+
+        result = predict_probabilities(
+            model=DeterministicPredictionModel(),
+            dataset=dataset,
+            batch_size=2,
+            use_cpu=True,
+            inference_backend="torch",
+        )
+
+        expected_logits = np.array([[index, -index] for index in range(7)], dtype=np.float32)
+        np.testing.assert_allclose(result, 1.0 / (1.0 + np.exp(-expected_logits)), rtol=1e-6)
+        assert len(gathered_batches) == 2
+
     def test_predicts_sigmoid_probabilities_with_onnx_runtime_session(self) -> None:
         dataset = Dataset.from_dict(
             {
