@@ -249,7 +249,7 @@ def tokenize_batch(
 
 def tokenize_prediction_dataset(
     dataset: Dataset,
-    checkpoint: str,
+    tokenizer_dir: Path,
     input_mode: InputMode,
     sequence_length: int,
     trust_remote_code: bool,
@@ -259,7 +259,7 @@ def tokenize_prediction_dataset(
 
     Args:
         dataset: Unlabeled Hugging Face prediction dataset.
-        checkpoint: Checkpoint used to load the tokenizer.
+        tokenizer_dir: Directory containing the persisted tokenizer artifacts.
         input_mode: Input mode persisted by the training run.
         sequence_length: Maximum tokenized sequence length.
         trust_remote_code: Whether Hugging Face tokenizer loading may execute custom remote code.
@@ -269,8 +269,9 @@ def tokenize_prediction_dataset(
         Tokenized prediction dataset.
     """
     tokenizer = AutoTokenizer.from_pretrained(
-        checkpoint,
+        tokenizer_dir,
         trust_remote_code=trust_remote_code,
+        local_files_only=True,
     )
 
     tokenized_dataset = dataset.map(
