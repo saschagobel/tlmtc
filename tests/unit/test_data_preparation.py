@@ -463,19 +463,23 @@ class TestTokenizeBatch:
 class TestTokenizePredictionDataset:
     """Test suite for tokenizing unlabeled prediction datasets."""
 
-    def test_loads_checkpoint_tokenizer_and_tokenizes_single_text_dataset(
+    def test_loads_persisted_tokenizer_and_tokenizes_single_text_dataset(
         self,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         tokenizer = RecordingTokenizer()
+        tokenizer_dir = tmp_path / "model"
 
         def from_pretrained(
-            checkpoint: str,
+            persisted_tokenizer_dir: Path,
             *,
             trust_remote_code: bool,
+            local_files_only: bool,
         ) -> RecordingTokenizer:
-            assert checkpoint == "test-checkpoint"
+            assert persisted_tokenizer_dir == tokenizer_dir
             assert trust_remote_code is False
+            assert local_files_only is True
             return tokenizer
 
         monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
@@ -488,7 +492,7 @@ class TestTokenizePredictionDataset:
 
         tokenized = tokenize_prediction_dataset(
             dataset=dataset,
-            checkpoint="test-checkpoint",
+            tokenizer_dir=tokenizer_dir,
             input_mode=InputMode.SINGLE_TEXT,
             sequence_length=32,
             trust_remote_code=False,
@@ -510,19 +514,23 @@ class TestTokenizePredictionDataset:
         assert tokenized[0]["input_ids"].tolist() == [1, 2, 3]
         assert tokenized[0]["attention_mask"].tolist() == [1, 1, 1]
 
-    def test_loads_checkpoint_tokenizer_and_tokenizes_paired_text_dataset(
+    def test_loads_persisted_tokenizer_and_tokenizes_paired_text_dataset(
         self,
+        tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         tokenizer = RecordingTokenizer()
+        tokenizer_dir = tmp_path / "model"
 
         def from_pretrained(
-            checkpoint: str,
+            persisted_tokenizer_dir: Path,
             *,
             trust_remote_code: bool,
+            local_files_only: bool,
         ) -> RecordingTokenizer:
-            assert checkpoint == "test-checkpoint"
+            assert persisted_tokenizer_dir == tokenizer_dir
             assert trust_remote_code is True
+            assert local_files_only is True
             return tokenizer
 
         monkeypatch.setattr("tlmtc.data_preparation.AutoTokenizer.from_pretrained", from_pretrained)
@@ -536,7 +544,7 @@ class TestTokenizePredictionDataset:
 
         tokenized = tokenize_prediction_dataset(
             dataset=dataset,
-            checkpoint="test-checkpoint",
+            tokenizer_dir=tokenizer_dir,
             input_mode=InputMode.PAIRED_TEXT,
             sequence_length=64,
             trust_remote_code=True,
@@ -568,7 +576,7 @@ class TestTokenizePredictionDataset:
 
         tokenized = tokenize_prediction_dataset(
             dataset=Dataset.from_dict({TEXT_COL: ["first text"]}),
-            checkpoint="test-checkpoint",
+            tokenizer_dir=Path("model"),
             input_mode=InputMode.SINGLE_TEXT,
             sequence_length=32,
             trust_remote_code=False,
