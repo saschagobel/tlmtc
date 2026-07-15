@@ -150,6 +150,7 @@ class TestValidateMultilabelFrame:
             {TEXT_COL: ["first text", None]},
             {TEXT_COL: ["first text", "   "]},
             {"label_a": [1, None]},
+            {"label_a": [1.0, 0.9]},
             {"label_a": [1, 2]},
             {"label_a": [1, "yes"]},
             {SPLIT_GROUP_COL: ["group_a", None]},
@@ -163,13 +164,17 @@ class TestValidateMultilabelFrame:
         with pytest.raises(DataContractError, match="multilabel data contract"):
             validate_multilabel_frame(valid_frame(**overrides))
 
-    def test_rejects_label_columns_without_positive_examples(self) -> None:
-        """Ensure every label column has at least one positive example."""
+    def test_rejects_label_column_with_empty_suffix(self, valid_frame: FrameFactory) -> None:
+        with pytest.raises(DataContractError, match="multilabel data contract"):
+            validate_multilabel_frame(valid_frame(**{"label_": [1, 0]}))
+
+    @pytest.mark.parametrize("unsupported_values", [[0, 0, 0], [1, 1, 1]])
+    def test_rejects_label_columns_without_both_classes(self, unsupported_values: list[int]) -> None:
         df = pd.DataFrame(
             {
                 TEXT_COL: ["first text", "second text", "third text"],
                 "label_a": [1, 0, 0],
-                "label_b": [0, 0, 0],
+                "label_b": unsupported_values,
             }
         )
 
