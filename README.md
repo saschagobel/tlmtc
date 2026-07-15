@@ -159,7 +159,7 @@ predict_tlmtc(
 
 **tlmtc** writes training artifacts to `train_outputs/` and prediction artifacts to `prediction_outputs/`. Evaluation reports are written to `train_outputs/<run_id>/evaluation/`.
 
-For production inference, trained models can also be exported to ONNX and run through the ONNX Runtime prediction backend via the `tlmtc onnx-export` and `tlmtc onnx-runtime` commands.
+For production inference, the optional `onnx-export` and `onnx-runtime` installation extras provide the dependencies for exporting trained models to ONNX and running the ONNX Runtime prediction backend, respectively.
 
 > [!TIP]
 > <details>
