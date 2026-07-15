@@ -1,6 +1,6 @@
 [project]
 name = "tlmtc"
-version = "0.4.0"
+version = "0.4.1"
 description = "Production Workflows for Transformer-based Multi-label Text Classification"
 readme = "README.md"
 license = "MIT"
