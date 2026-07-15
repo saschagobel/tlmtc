@@ -289,12 +289,16 @@ class TestDfSplit:
             assert train[label].nunique() == 2
             assert test[label].nunique() == 2
 
-    def test_raises_error_when_split_lacks_positive_label_support(self) -> None:
+    @pytest.mark.parametrize(
+        "rare_label_values",
+        [[1, 0, 0, 0, 0, 0, 0, 0], [0, 1, 1, 1, 1, 1, 1, 1]],
+    )
+    def test_raises_error_when_split_lacks_class_support(self, rare_label_values: list[int]) -> None:
         df = pd.DataFrame(
             {
                 "text": [f"sample {i}" for i in range(8)],
                 "label_a": [1, 1, 1, 1, 0, 0, 0, 0],
-                "label_b": [1, 0, 0, 0, 0, 0, 0, 0],
+                "label_b": rare_label_values,
             }
         )
         text_values = df["text"].values
@@ -347,8 +351,8 @@ class TestDfSplit:
             {
                 "text": [f"large {i}" for i in range(18)] + ["small 1", "small 2"],
                 SPLIT_GROUP_COL: ["large"] * 18 + ["small"] * 2,
-                "label_a": [1] * 20,
-                "label_b": [1] * 20,
+                "label_a": [1, 0] * 10,
+                "label_b": [0, 1] * 10,
             }
         )
         text_values = df["text"].values
