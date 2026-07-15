@@ -138,14 +138,14 @@ def train_tlmtc(
             values may improve the selected configuration but increase runtime. Defaults to `10`.
         optuna_space: Optional partial override for the hyperparameter tuning ranges and candidate
             values. Supported keys are `lr_low`, `lr_high`, `batch_sizes`, `wd_low`, `wd_high`,
-            `schedulers`, `epoch_low`, `epoch_high`. Missing keys are filled from the default tuning space
-            selected by `wrap_peft`.
+            `schedulers`, `epoch_low`, `epoch_high`, `lr_reference_batch_size`. Missing keys are filled
+            from the default tuning space selected by `wrap_peft`.
 
             Defaults to the PEFT search space when `wrap_peft=True`:
 
             {
-                "lr_low": 5e-5,
-                "lr_high": 4e-4,
+                "lr_low": 1e-5,
+                "lr_high": 1e-4,
                 "batch_sizes": [8, 16, 32],
                 "wd_low": 0.0,
                 "wd_high": 0.01,
@@ -159,7 +159,7 @@ def train_tlmtc(
 
             {
                 "lr_low": 1e-5,
-                "lr_high": 1e-4,
+                "lr_high": 8e-5,
                 "batch_sizes": [8, 16, 32],
                 "wd_low": 0.0,
                 "wd_high": 0.1,
