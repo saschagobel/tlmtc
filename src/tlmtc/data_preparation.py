@@ -86,14 +86,14 @@ def df_split(
         Training partition and held-out partition.
 
     Raises:
-        ValueError: If no valid split preserves positive examples for every label.
+        ValueError: If no valid split preserves both classes for every label.
     """
     from iterstrat.ml_stratifiers import MultilabelStratifiedShuffleSplit
 
     max_split_attempts = 3
     grouped_split = SPLIT_GROUP_COL in df.columns
     label_cols = [col for col in df.columns if col.startswith(LABEL_PREFIX)]
-    missing_positive_labels: list[str] = []
+    labels_without_both_classes: list[str] = []
 
     if grouped_split:
         group_labels = df.groupby(SPLIT_GROUP_COL, sort=False)[label_cols].max()
@@ -122,9 +122,11 @@ def df_split(
             train_data = df.iloc[train_idx].reset_index(drop=True)
             test_data = df.iloc[test_idx].reset_index(drop=True)
 
-        missing_positive_labels = [col for col in label_cols if train_data[col].sum() == 0 or test_data[col].sum() == 0]
+        labels_without_both_classes = [
+            col for col in label_cols if train_data[col].nunique() != 2 or test_data[col].nunique() != 2
+        ]
 
-        if not missing_positive_labels:
+        if not labels_without_both_classes:
             if grouped_split:
                 _emit_grouped_split_drift(
                     train_data=train_data,
@@ -142,10 +144,10 @@ def df_split(
 
     raise ValueError(
         f"Could not create a valid {split_kind} split after "
-        f"{max_split_attempts} attempts. The following labels have no positive examples "
-        f"in at least one split partition: {missing_positive_labels}."
+        f"{max_split_attempts} attempts. The following labels do not contain both positive and negative examples "
+        f"in every split partition: {labels_without_both_classes}."
         f"{grouped_hint} "
-        "Increase the smaller split size, provide more positive examples for rare labels, "
+        "Increase the smaller split size, provide more examples for rare label classes, "
         "or remove/merge labels with insufficient support."
     )
 

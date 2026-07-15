@@ -55,11 +55,9 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
             ],
         ),
         LABEL_REGEX: pa.Column(
-            int,
             regex=True,
             nullable=False,
             required=True,
-            coerce=True,
             checks=pa.Check.isin([0, 1]),
         ),
     },
@@ -70,8 +68,15 @@ MULTILABEL_SCHEMA = pa.DataFrameSchema(
             error=f"expected at least {MIN_LABEL_COLS} '{LABEL_PREFIX}*' columns",
         ),
         pa.Check(
-            lambda df: df.loc[:, df.columns.str.startswith(LABEL_PREFIX)].sum(axis=0).gt(0).all(),
-            error=f"each '{LABEL_PREFIX}*' column must contain at least one positive example",
+            lambda df: LABEL_PREFIX not in df.columns,
+            error=f"label column names must include a non-empty suffix after '{LABEL_PREFIX}'",
+        ),
+        pa.Check(
+            lambda df: (
+                df.loc[:, df.columns.str.startswith(LABEL_PREFIX)].eq(0).any(axis=0)
+                & df.loc[:, df.columns.str.startswith(LABEL_PREFIX)].eq(1).any(axis=0)
+            ).all(),
+            error=f"each '{LABEL_PREFIX}*' column must contain positive and negative examples",
         ),
     ],
     strict=False,
@@ -129,6 +134,7 @@ def validate_multilabel_frame(
 
     input_mode = InputMode.PAIRED_TEXT if TEXT_PAIR_COL in validated.columns else InputMode.SINGLE_TEXT
     label_cols = [col for col in validated.columns if col.startswith(LABEL_PREFIX)]
+    validated = validated.astype({col: int for col in label_cols})
     text_cols = [TEXT_COL]
     if input_mode is InputMode.PAIRED_TEXT:
         text_cols.append(TEXT_PAIR_COL)
