@@ -252,7 +252,8 @@ def train_tlmtc(
         settings.runtime.verbosity,
         is_main_process=distributed.is_main_process,
     )
-    distributed.warn_if_multi_gpu_without_launcher(use_cpu=settings.hardware.use_cpu)
+    if not settings.workflow.hyperparameter_tuning:
+        distributed.warn_if_multi_gpu_without_launcher(use_cpu=settings.hardware.use_cpu)
 
     if distributed.is_distributed and settings.workflow.hyperparameter_tuning:
         raise RuntimeError(
