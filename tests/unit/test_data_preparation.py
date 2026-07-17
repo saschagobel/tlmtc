@@ -132,6 +132,7 @@ class TestDfPreprocess:
         np.testing.assert_array_equal(X, np.array(["a", "b", "c", "d"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1], [1, 0], [0, 1]]))
 
+
 class TestReadPredictionData:
     """Test suite for reading unlabeled prediction data."""
 
