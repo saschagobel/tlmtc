@@ -30,6 +30,7 @@ class TrainRunMeta(BaseModel):
         thresholds: Global or label-specific decision thresholds.
         transfer_learning: Whether target-checkpoint fine-tuning was enabled.
         hyperparameter_tuning: Whether Optuna hyperparameter tuning was enabled.
+        hpo_hyperparameters_applied: Whether HPO-produced hyperparameters were applied to final fine-tuning.
         threshold_optimization: Whether validation-set threshold optimization was enabled.
         scale_learning_rate: Whether proxy-tuned learning rates were scaled for the target checkpoint.
         wrap_peft: Whether PEFT/LoRA wrapping was enabled.
@@ -56,6 +57,7 @@ class TrainRunMeta(BaseModel):
 
     transfer_learning: bool
     hyperparameter_tuning: bool
+    hpo_hyperparameters_applied: bool
     threshold_optimization: bool
     scale_learning_rate: bool
     wrap_peft: bool

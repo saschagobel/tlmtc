@@ -333,6 +333,9 @@ def train_tlmtc(
             thresholds=finetune_pipeline.tuned_threshold.tolist(),
             transfer_learning=settings.workflow.transfer_learning,
             hyperparameter_tuning=settings.workflow.hyperparameter_tuning,
+            hpo_hyperparameters_applied=(
+                settings.workflow.transfer_learning and paths.best_hyperparameters_path.exists()
+            ),
             threshold_optimization=settings.workflow.threshold_optimization,
             scale_learning_rate=settings.workflow.scale_learning_rate,
             wrap_peft=settings.workflow.wrap_peft,
