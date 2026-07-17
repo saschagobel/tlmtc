@@ -28,6 +28,7 @@ def train_meta() -> TrainRunMeta:
         thresholds=[0.42, 0.61],
         transfer_learning=True,
         hyperparameter_tuning=True,
+        hpo_hyperparameters_applied=True,
         threshold_optimization=True,
         scale_learning_rate=False,
         wrap_peft=True,
@@ -54,6 +55,7 @@ class TestTrainRunMeta:
             thresholds=[0.5],
             transfer_learning=True,
             hyperparameter_tuning=False,
+            hpo_hyperparameters_applied=False,
             threshold_optimization=False,
             scale_learning_rate=True,
             wrap_peft=False,
@@ -73,6 +75,7 @@ class TestTrainRunMeta:
         assert meta.thresholds == [0.5]
         assert meta.transfer_learning is True
         assert meta.hyperparameter_tuning is False
+        assert meta.hpo_hyperparameters_applied is False
         assert meta.threshold_optimization is False
         assert meta.scale_learning_rate is True
         assert meta.wrap_peft is False
