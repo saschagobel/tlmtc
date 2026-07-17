@@ -149,6 +149,7 @@ class TestValidateMultilabelFrame:
         [
             {TEXT_COL: ["first text", None]},
             {TEXT_COL: ["first text", "   "]},
+            {TEXT_PAIR_COL: ["first pair", None]},
             {"label_a": [1, None]},
             {"label_a": [1.0, 0.9]},
             {"label_a": [1, 2]},
