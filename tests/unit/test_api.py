@@ -737,10 +737,24 @@ class TestTrainTlmtc:
             work_dir=tmp_path,
             run_id="quiet_run",
             verbosity="quiet",
+            hyperparameter_tuning=False,
         )
 
         configure_runtime_output_mock.assert_called_once_with("quiet", is_main_process=True)
         distributed_context_mock.warn_if_multi_gpu_without_launcher.assert_called_once_with(use_cpu=False)
+
+    def test_skips_multi_gpu_launcher_warning_for_hpo(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        raw_csv: Path,
+        distributed_context_mock: MagicMock,
+    ) -> None:
+        _mock_successful_pipelines(monkeypatch)
+
+        api_mod.train_tlmtc(raw_csv, work_dir=tmp_path, run_id="hpo_run", hyperparameter_tuning=True)
+
+        distributed_context_mock.warn_if_multi_gpu_without_launcher.assert_not_called()
 
     def test_guards_training_artifact_writes_on_main(
         self,
