@@ -277,6 +277,7 @@ def _write_prediction_ready_train_run(
             thresholds=PERSISTED_THRESHOLDS if thresholds is None else thresholds,
             transfer_learning=transfer_learning,
             hyperparameter_tuning=False,
+            hpo_hyperparameters_applied=False,
             threshold_optimization=True,
             scale_learning_rate=False,
             wrap_peft=wrap_peft,
@@ -376,6 +377,7 @@ def _assert_default_train_meta(path: Path) -> None:
     assert run_meta.thresholds == TRAIN_THRESHOLDS.tolist()
     assert run_meta.transfer_learning is True
     assert run_meta.hyperparameter_tuning is True
+    assert run_meta.hpo_hyperparameters_applied is False
     assert run_meta.threshold_optimization is True
     assert run_meta.scale_learning_rate is False
     assert run_meta.wrap_peft is True

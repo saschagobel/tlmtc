@@ -50,6 +50,7 @@ def _write_train_run_meta(
             thresholds=[0.5, 0.5],
             transfer_learning=transfer_learning,
             hyperparameter_tuning=False,
+            hpo_hyperparameters_applied=False,
             threshold_optimization=False,
             scale_learning_rate=False,
             wrap_peft=False,
