@@ -23,7 +23,7 @@ from tlmtc.runtime_output import emit_progress
 def df_preprocess(
     data: Path | pd.DataFrame,
 ) -> tuple[pd.DataFrame, list[str], np.ndarray, np.ndarray, InputMode]:
-    """Load, clean, and validate raw multi-label training data for stratified splitting.
+    """Load and validate raw multi-label training data for stratified splitting.
 
     Args:
         data: Path to a CSV, or a DataFrame with a required text column,
@@ -37,7 +37,6 @@ def df_preprocess(
     else:
         df = data
 
-    df = df.dropna().reset_index(drop=True)
     df, label_cols, input_mode = validate_multilabel_frame(df)
 
     text_values = df[TEXT_COL].values
