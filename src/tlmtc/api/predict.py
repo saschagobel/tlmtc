@@ -57,9 +57,8 @@ def predict_tlmtc(
         config_path: Path to a YAML configuration file. Defaults to no configuration file.
         run_id: Run identifier used to select the completed training run. If omitted, the latest
             completed training run is selected from persisted training metadata. Prediction reloads
-            the trained model or adapter artifacts for this run with `trust_remote_code=False`;
-            artifacts that require custom remote code are not supported. Only use saved model
-            artifacts and adapters you trust.
+            the trained model or adapter artifacts using the resolved `trust_remote_code` setting.
+            Only use saved model artifacts and adapters you trust.
         inference_backend: Runtime backend used for prediction. Defaults to `"torch"`.
         batch_size: Prediction batch size used for batched inference. Defaults to `32`.
         trust_remote_code: Whether Hugging Face tokenizer and model loading may execute custom

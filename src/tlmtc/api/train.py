@@ -259,7 +259,7 @@ def train_tlmtc(
         raise RuntimeError(
             "Hyperparameter tuning is not supported under distributed launch. "
             "Run HPO in a single-process run, then rerun distributed final training "
-            "with hyperparameter_tuning=False and the selected training settings."
+            "with hyperparameter_tuning=False using the same persisted run workspace."
         )
 
     resolved_run_id = distributed.resolve_run_id(settings.run_id)
