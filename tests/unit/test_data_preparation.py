@@ -37,7 +37,7 @@ class RecordingTokenizer:
 class TestDfPreprocess:
     """Test suite for the _df_preprocess utility function."""
 
-    def test_reads_csv_drops_missing_rows_and_extracts_arrays(self, tmp_path: Path) -> None:
+    def test_rejects_csv_with_missing_required_values(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "data.csv"
         df_in = pd.DataFrame(
             {
@@ -48,30 +48,30 @@ class TestDfPreprocess:
         )
         df_in.to_csv(csv_path, index=False)
 
-        df, label_cols, X, y, input_mode = df_preprocess(csv_path)
+        with pytest.raises(DataContractError, match="multilabel data contract"):
+            df_preprocess(csv_path)
 
-        assert label_cols == ["label_1", "label_2"]
-        assert input_mode is InputMode.SINGLE_TEXT
-        pd.testing.assert_frame_equal(
-            df,
-            pd.DataFrame(
-                {
-                    "text": ["a", "c"],
-                    "label_1": [1, 0],
-                    "label_2": [0, 1],
-                }
-            ),
-        )
-        np.testing.assert_array_equal(X, np.array(["a", "c"]))
-        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
-
-    def test_accepts_dataframe_drops_missing_rows_and_extracts_arrays(self) -> None:
+    def test_rejects_dataframe_with_missing_required_values(self) -> None:
         df_in = pd.DataFrame(
             {
                 "text": ["a", None, "c"],
                 "label_1": [1, 0, 0],
                 "label_2": [0, 1, 1],
             }
+        )
+
+        with pytest.raises(DataContractError, match="multilabel data contract"):
+            df_preprocess(df_in)
+
+    def test_accepts_missing_values_in_extra_columns_without_dropping_rows(self) -> None:
+        df_in = pd.DataFrame(
+            {
+                "text": ["a", "b", "c"],
+                "label_1": [1, 0, 0],
+                "label_2": [0, 1, 1],
+                "provenance": ["source-a", None, "source-c"],
+            },
+            index=[10, 20, 30],
         )
 
         df, label_cols, X, y, input_mode = df_preprocess(df_in)
@@ -82,14 +82,15 @@ class TestDfPreprocess:
             df,
             pd.DataFrame(
                 {
-                    "text": ["a", "c"],
-                    "label_1": [1, 0],
-                    "label_2": [0, 1],
-                }
+                    "text": ["a", "b", "c"],
+                    "label_1": [1, 0, 0],
+                    "label_2": [0, 1, 1],
+                },
+                index=[10, 20, 30],
             ),
         )
-        np.testing.assert_array_equal(X, np.array(["a", "c"]))
-        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1]]))
+        np.testing.assert_array_equal(X, np.array(["a", "b", "c"]))
+        np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1], [0, 1]]))
 
     def test_preserves_optional_text_pair_column(self, tmp_path: Path) -> None:
         csv_path = tmp_path / "data.csv"
@@ -130,21 +131,6 @@ class TestDfPreprocess:
         pd.testing.assert_frame_equal(df, df_in)
         np.testing.assert_array_equal(X, np.array(["a", "b", "c", "d"]))
         np.testing.assert_array_equal(y, np.array([[1, 0], [0, 1], [1, 0], [0, 1]]))
-
-    def test_raises_contract_error_when_no_rows_remain_after_dropping_missing_values(self, tmp_path: Path) -> None:
-        csv_path = tmp_path / "data.csv"
-        df_in = pd.DataFrame(
-            {
-                "text": [None],
-                "label_1": [1],
-                "label_2": [0],
-            }
-        )
-        df_in.to_csv(csv_path, index=False)
-
-        with pytest.raises(DataContractError, match="multilabel data contract"):
-            df_preprocess(csv_path)
-
 
 class TestReadPredictionData:
     """Test suite for reading unlabeled prediction data."""
