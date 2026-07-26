@@ -1,0 +1,13 @@
+**
+
+!.dockerignore
+!LICENSE.md
+!README.md
+!pyproject.toml
+!uv.lock
+
+!src/
+!src/**
+
+!docker/
+!docker/**
