@@ -10,9 +10,9 @@ single-process HPO on one visible GPU. The `linux/amd64` image requires the
 NVIDIA Container Toolkit, uses the ordinary `tlmtc train` entrypoint, and does
 not include ONNX export or ONNX Runtime dependencies.
 
-Images are published as `ghcr.io/saschagobel/tlmtc-hpo-gpu`. Commit-SHA tags
-identify validation images; releases additionally receive the exact project
-version tag.
+Images are published as `ghcr.io/saschagobel/tlmtc-hpo-gpu`. Candidate images
+use `<project-version>-candidate-<short-sha>-<run-id>-<attempt>` tags; releases
+use the exact project version tag.
 
 ## GPU dependency policy
 
