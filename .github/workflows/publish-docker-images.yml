@@ -1,0 +1,125 @@
+name: Publish Docker images
+
+on:
+  workflow_dispatch:
+
+  workflow_call:
+    inputs:
+      release:
+        description: "Publish final release image tags"
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-docker-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.image.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: true
+      matrix:
+        image:
+          - name: HPO GPU
+            repository: tlmtc-hpo-gpu
+            dockerfile: docker/hpo-gpu.Dockerfile
+
+    steps:
+      - name: Checkout source revision
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Resolve image reference
+        env:
+          IMAGE_REPOSITORY: ${{ matrix.image.repository }}
+          IS_RELEASE: ${{ inputs.release || false }}
+        run: |
+          set -euo pipefail
+
+          project_version="$(
+            python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          pyproject = tomllib.loads(Path("pyproject.toml").read_text())
+          print(pyproject["project"]["version"])
+          PY
+          )"
+
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${IMAGE_REPOSITORY}"
+          if [[ "${IS_RELEASE}" = "true" ]]; then
+            image_ref="${image}:${project_version}"
+          else
+            image_ref="${image}:${project_version}-candidate-${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
+
+          {
+            echo "IMAGE_REF=${image_ref}"
+            echo "PROJECT_VERSION=${project_version}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Ensure release tag is available
+        if: inputs.release
+        run: |
+          set -euo pipefail
+
+          if output="$(docker manifest inspect "${IMAGE_REF}" 2>&1)"; then
+            echo "::error::Release image tag already exists: ${IMAGE_REF}"
+            exit 1
+          fi
+
+          if ! grep -Eiq "manifest unknown|name unknown|not found" <<< "${output}"; then
+            printf '%s\n' "${output}" >&2
+            exit 1
+          fi
+
+      - name: Build image
+        env:
+          DOCKERFILE: ${{ matrix.image.dockerfile }}
+        run: |
+          set -euo pipefail
+
+          docker build \
+            --platform=linux/amd64 \
+            --file "${DOCKERFILE}" \
+            --tag "${IMAGE_REF}" \
+            --build-arg "IMAGE_VERSION=${PROJECT_VERSION}" \
+            --build-arg "VCS_REF=${GITHUB_SHA}" \
+            .
+
+      - name: Smoke-test image
+        run: docker run --rm "${IMAGE_REF}" >/dev/null
+
+      - name: Publish image
+        run: docker push "${IMAGE_REF}"
+
+      - name: Write publication summary
+        env:
+          IMAGE_NAME: ${{ matrix.image.name }}
+        run: |
+          set -euo pipefail
+
+          {
+            echo "### ${IMAGE_NAME}"
+            echo
+            echo "- Image: \`${IMAGE_REF}\`"
+            echo "- Source revision: \`${GITHUB_SHA}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
