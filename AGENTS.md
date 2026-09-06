@@ -19,6 +19,16 @@ Key architectural concerns are single- and paired-text data, configurable traini
 - Put output layout, filesystem path names, path-component validation, and path resolution in `src/tlmtc/paths.py`. Consume the resolved path objects instead of constructing output paths elsewhere.
 - Treat the public Python APIs, CLI options, configuration models, and persisted artifact formats as compatibility-sensitive interfaces. Preserve existing behavior unless the task explicitly changes it.
 
+## Implementation discipline
+
+- Make the smallest clear change that fully satisfies the requested behavior, respects the architectural ownership above, and preserves public contracts unless the task explicitly changes them.
+- Reuse existing project helpers and Python's standard library before adding custom code. Use already-declared dependencies only within the runtime extra or development dependency group that provides them.
+- Introduce abstractions, configuration, fallbacks, or compatibility layers only when required by current behavior, a supported backend or dependency version, or the explicit task.
+- Prefer readable, idiomatic Python over compressed or unnecessarily clever code.
+- Inspect the relevant execution flow and its affected callers and contracts; avoid unrelated exploration.
+- Run the narrowest tests and checks that cover the change, following the Verification section below and `CONTRIBUTING.md` when preparing a pull request.
+- Report the outcome, verification, and material risks or limitations concisely.
+
 ## Verification
 
 - Prefer the narrowest existing tests that cover the change over running the entire test suite.
