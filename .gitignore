@@ -38,3 +38,10 @@ htmlcov/
 .env.*
 !.env.example
 !.env.*.example
+
+# Terraform local artifacts
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfplan
+**/terraform.tfvars
