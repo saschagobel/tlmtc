@@ -1,0 +1,94 @@
+name: Terraform
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  TERRAFORM_VERSION: "1.10.5"
+  # Register each deployment root here; child modules are validated through their callers.
+  TERRAFORM_ROOTS: |-
+    deploy/shared/terraform/azure
+  TF_IN_AUTOMATION: "true"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  terraform:
+    name: Format and validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Detect Terraform changes
+        if: github.event_name != 'workflow_dispatch'
+        id: changes
+        uses: dorny/paths-filter@v4
+        with:
+          filters: |
+            terraform:
+              - 'deploy/**/*.tf'
+              - 'deploy/**/.terraform.lock.hcl'
+              - 'deploy/**/*.tftpl'
+              - '.github/workflows/terraform.yml'
+
+      - name: Set up Terraform
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.terraform == 'true'
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.terraform == 'true'
+        run: |
+          if [[ ! -d deploy ]]; then
+            printf 'No Terraform files to format.\n'
+            exit 0
+          fi
+
+          terraform fmt -check -diff -recursive deploy
+
+      - name: Validate Terraform configurations
+        if: github.event_name == 'workflow_dispatch' || steps.changes.outputs.terraform == 'true'
+        run: |
+          while IFS= read -r terraform_root; do
+            if [[ -z "$terraform_root" ]]; then
+              continue
+            fi
+
+            if [[ ! -d "$terraform_root" ]]; then
+              printf 'Skipping absent Terraform root: %s\n' "$terraform_root"
+              continue
+            fi
+
+            if [[ ! -f "$terraform_root/.terraform.lock.hcl" ]]; then
+              printf '::error file=%s/.terraform.lock.hcl::Missing provider lockfile. Run terraform -chdir=%s init and commit the generated lockfile.\n' \
+                "$terraform_root" \
+                "$terraform_root"
+              exit 1
+            fi
+
+            printf 'Validating %s\n' "$terraform_root"
+            terraform -chdir="$terraform_root" init \
+              -backend=false \
+              -input=false \
+              -lockfile=readonly \
+              -no-color
+            terraform -chdir="$terraform_root" validate -no-color
+          done <<< "$TERRAFORM_ROOTS"
