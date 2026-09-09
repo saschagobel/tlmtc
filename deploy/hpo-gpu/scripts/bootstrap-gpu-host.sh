@@ -10,7 +10,8 @@ readonly NVIDIA_CONTAINER_TOOLKIT_VERSION="1.19.1-1"
 readonly AZCOPY_VERSION="10.32.6"
 readonly AZCOPY_SHA256="2ec557656be1976754e97de828c0662f7df0e73ef6fc98fc52a518452a6adfbc"
 
-readonly TEMP_DIR="$(mktemp --directory)"
+TEMP_DIR="$(mktemp --directory)"
+readonly TEMP_DIR
 trap 'rm -rf -- "${TEMP_DIR:?}"' EXIT
 
 log() {
