@@ -12,6 +12,14 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
+  shell:
+    name: Scripts
+    uses: ./.github/workflows/shell.yml
+
+  terraform:
+    name: IaC
+    uses: ./.github/workflows/terraform.yml
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
