@@ -1,0 +1,78 @@
+name: Shell
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  SHFMT_VERSION: "v3.13.1"
+  SHFMT_SHA256: "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1"
+  SHELLCHECK_VERSION: "v0.11.0"
+  SHELLCHECK_SHA256: "b7af85e41cc99489dcc21d66c6d5f3685138f06d34651e6d34b42ec6d54fe6f6"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  shell:
+    name: Shell format and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect shell scripts
+        id: scripts
+        run: |
+          git ls-files -z -- '*.sh' > "$RUNNER_TEMP/shell-files"
+          if [[ -s "$RUNNER_TEMP/shell-files" ]]; then
+            printf 'found=true\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install shell tools
+        if: steps.scripts.outputs.found == 'true'
+        run: |
+          shfmt_path="$RUNNER_TEMP/shfmt"
+          curl --fail --proto '=https' --tlsv1.2 --retry 3 \
+            --location --silent --show-error \
+            "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/shfmt_${SHFMT_VERSION}_linux_amd64" \
+            --output "$shfmt_path"
+          printf '%s  %s\n' "$SHFMT_SHA256" "$shfmt_path" | sha256sum --check
+
+          shellcheck_archive="$RUNNER_TEMP/shellcheck.tar.gz"
+          curl --fail --proto '=https' --tlsv1.2 --retry 3 \
+            --location --silent --show-error \
+            "https://github.com/koalaman/shellcheck/releases/download/${SHELLCHECK_VERSION}/shellcheck-${SHELLCHECK_VERSION}.linux.x86_64.tar.gz" \
+            --output "$shellcheck_archive"
+          printf '%s  %s\n' "$SHELLCHECK_SHA256" "$shellcheck_archive" | sha256sum --check
+          tar --extract --gzip \
+            --file "$shellcheck_archive" \
+            --directory "$RUNNER_TEMP" \
+            --strip-components 1 \
+            "shellcheck-${SHELLCHECK_VERSION}/shellcheck"
+
+          chmod +x "$shfmt_path" "$RUNNER_TEMP/shellcheck"
+          printf '%s\n' "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Check shell formatting
+        if: steps.scripts.outputs.found == 'true'
+        run: xargs -0 shfmt --diff --indent 2 --case-indent --binary-next-line -- < "$RUNNER_TEMP/shell-files"
+
+      - name: Run ShellCheck
+        if: steps.scripts.outputs.found == 'true'
+        run: xargs -0 shellcheck -- < "$RUNNER_TEMP/shell-files"
