@@ -134,7 +134,7 @@ configure_docker() {
   systemctl stop docker docker.socket
   containerd config dump \
     | sed "s|^root = .*|root = \"${DATA_MOUNT}/containerd\"|" \
-    >"$TEMP_DIR/containerd.toml"
+      >"$TEMP_DIR/containerd.toml"
   install --mode 0644 "$TEMP_DIR/containerd.toml" /etc/containerd/config.toml
   systemctl restart containerd
 
