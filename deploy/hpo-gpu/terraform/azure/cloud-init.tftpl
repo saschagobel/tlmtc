@@ -1,0 +1,33 @@
+#cloud-config
+
+write_files:
+  - path: /usr/local/sbin/bootstrap-gpu-host.sh
+    owner: root:root
+    permissions: "0755"
+    encoding: b64
+    content: "${bootstrap_gpu_host_script_b64}"
+  - path: /usr/local/bin/run-hpo
+    owner: root:root
+    permissions: "0755"
+    encoding: b64
+    content: "${run_hpo_script_b64}"
+
+runcmd:
+  - |
+    set -eu
+
+    data_disk_ready=false
+    for _ in $(seq 1 120); do
+      if [ -b /dev/disk/azure/data/by-lun/0 ] || [ -b /dev/disk/azure/scsi1/lun0 ]; then
+        data_disk_ready=true
+        break
+      fi
+      sleep 5
+    done
+
+    if [ "$data_disk_ready" != true ]; then
+      printf 'Azure data disk at LUN 0 did not appear within 10 minutes.\n' >&2
+      exit 1
+    fi
+
+    /usr/local/sbin/bootstrap-gpu-host.sh
