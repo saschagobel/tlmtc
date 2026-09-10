@@ -12,6 +12,7 @@ env:
   TERRAFORM_VERSION: "1.10.5"
   # Register each deployment root here; child modules are validated through their callers.
   TERRAFORM_ROOTS: |-
+    deploy/hpo-gpu/terraform/azure
     deploy/shared/terraform/azure
   TF_IN_AUTOMATION: "true"
 
