@@ -33,6 +33,9 @@ jobs:
           - name: HPO GPU
             repository: tlmtc-hpo-gpu
             dockerfile: docker/hpo-gpu.Dockerfile
+          - name: Train GPU
+            repository: tlmtc-train-gpu
+            dockerfile: docker/train-gpu.Dockerfile
 
     steps:
       - name: Checkout source revision
