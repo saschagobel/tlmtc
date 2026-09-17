@@ -125,7 +125,7 @@ resource "azurerm_linux_virtual_machine" "hpo" {
   vtpm_enabled        = false
 
   custom_data = base64encode(templatefile("${path.module}/cloud-init.tftpl", {
-    bootstrap_gpu_host_script_b64 = filebase64("${path.module}/../../scripts/bootstrap-gpu-host.sh")
+    bootstrap_gpu_host_script_b64 = filebase64("${path.module}/../../../shared/scripts/bootstrap-gpu-host.sh")
     run_hpo_script_b64            = filebase64("${path.module}/../../scripts/run-hpo.sh")
   }))
 
