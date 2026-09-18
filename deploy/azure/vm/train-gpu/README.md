@@ -1,6 +1,6 @@
 # Train GPU runner
 
-This Terraform root provisions a disposable Azure GPU runner for tlmtc fine-tuning and ONNX export. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
+The Terraform configuration in `terraform/` provisions a disposable Azure GPU runner for tlmtc fine-tuning and ONNX export. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
 
 ## Prerequisites
 
@@ -141,4 +141,4 @@ terraform destroy
 ```
 
 > [!NOTE]
-> Destroying this Terraform root deletes the train VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.
+> Destroying this Terraform configuration deletes the train VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.

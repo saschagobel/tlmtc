@@ -1,6 +1,6 @@
 # Shared Azure storage
 
-This Terraform root provisions the persistent Azure Blob Storage handoff shared by disposable tlmtc runners. It creates one resource group, one storage account, and private containers for pipeline inputs and outputs.
+The Terraform configuration in `terraform/` provisions the persistent Azure Blob Storage handoff shared by disposable tlmtc runners. It creates one resource group, one storage account, and private containers for pipeline inputs and outputs.
 
 ## Prerequisites
 
@@ -41,4 +41,4 @@ terraform destroy
 ```
 
 > [!CAUTION]
-> Destroying this Terraform root deletes the shared storage account and its pipeline data. Destroy disposable runner infrastructure separately.
+> Destroying this Terraform configuration deletes the shared storage account and its pipeline data. Destroy disposable runner infrastructure separately.
