@@ -1,6 +1,6 @@
-# HPO GPU runner
+# Train GPU runner
 
-This Terraform root provisions a disposable Azure GPU runner for tlmtc HPO. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
+This Terraform root provisions a disposable Azure GPU runner for tlmtc fine-tuning and ONNX export. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
 
 ## Prerequisites
 
@@ -8,7 +8,7 @@ This Terraform root provisions a disposable Azure GPU runner for tlmtc HPO. It c
 - Azure CLI
 - An Azure subscription in which the signed-in identity can create compute, network, and role-assignment resources
 - Sufficient GPU quota in the target region
-- Shared storage deployed from `deploy/shared/terraform/azure`
+- Shared storage deployed from `deploy/azure/shared/terraform`
 - An SSH key pair
 
 ## Deploy
@@ -16,7 +16,7 @@ This Terraform root provisions a disposable Azure GPU runner for tlmtc HPO. It c
 From the repository or deployment bundle root:
 
 ```bash
-cd deploy/hpo-gpu/terraform/azure
+cd deploy/azure/vm/train-gpu/terraform
 
 az login
 az account set --subscription "<subscription-id-or-name>"
@@ -41,15 +41,15 @@ Then:
 
 ```bash
 terraform init
-terraform plan -out=hpo.tfplan
-terraform apply hpo.tfplan
+terraform plan -out=train.tfplan
+terraform apply train.tfplan
 ```
 
 Region, resource group names, network prefixes, admin username, VM size, and data-disk size have defaults. Override them with `TF_VAR_` environment variables, `terraform.tfvars`, or Terraform CLI options.
 
 The T4 configuration is the default example. Other NVIDIA GPU sizes, including A100 and H100 families, can be selected with `vm_size` when available and covered by the subscription's quota.
 
-Terraform can finish before cloud-init. The VM needs several minutes to bootstrap and reboots once before it is ready for HPO.
+Terraform can finish before cloud-init. The VM needs several minutes to bootstrap and reboots once before it is ready for fine-tuning.
 
 Connect using the matching private key. Replace `azureuser` if you changed `admin_username`.
 
@@ -70,9 +70,29 @@ The VM reboots once during bootstrap. If SSH disconnects, reconnect when it is a
 nvidia-smi
 ```
 
-## Run HPO
+## Run fine-tuning
 
-From a local shell, upload the labeled data to the `training-inputs` container. The blob path is arbitrary:
+`run-train` automatically detects the VM's GPU count and launches fine-tuning through `torchrun` with one worker process per GPU. The same command applies to single- and multi-GPU VMs.
+
+### Use an HPO run
+
+If the HPO workspace has already been uploaded to `hpo-workspaces`, use its run ID. The runner restores that workspace, and tlmtc reuses its train/validation/test splits and selected hyperparameters from `logs/best_hyperparameters.json`. No new data upload is needed.
+
+On the VM:
+
+```bash
+sudo run-train \
+  "<storage-account-name>" \
+  "<train-image-ref>" \
+  --labeled-data "/inputs/<blob-path>" \
+  --run-id hpo-01
+```
+
+The CLI still requires `--labeled-data`; use the same `/inputs/<blob-path>` as for HPO. When all three saved splits are present, tlmtc loads them without rereading the source data.
+
+### Start without HPO
+
+From a local shell, upload the labeled data to `training-inputs` if it is not already there. The blob path is arbitrary:
 
 ```bash
 az storage blob upload \
@@ -84,20 +104,21 @@ az storage blob upload \
   --overwrite true
 ```
 
-On the VM, run the HPO image. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`:
+On the VM, start a new run using the configured training parameters. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`:
 
 ```bash
-sudo run-hpo \
+sudo run-train \
   "<storage-account-name>" \
-  "<hpo-image-ref>" \
+  "<train-image-ref>" \
   --labeled-data "/inputs/<blob-path>" \
-  --run-id hpo-01 \
-  --tuning-trials 5
+  --run-id train-01
 ```
 
-`run-hpo` downloads the Blob inputs, runs the container, and uploads the workspace using the VM's managed identity. Use a new run ID for each experiment, or reuse one to restore its Optuna workspace and add the requested tuning trials. Confirm that `run-hpo` completes successfully before destroying the runner.
+Choose an unused run ID, or omit `--run-id` to let tlmtc generate one.
 
-Run the following lifecycle commands locally from `deploy/hpo-gpu/terraform/azure`.
+For both scenarios, `run-train` downloads the Blob inputs, runs fine-tuning with HPO disabled and ONNX export enabled, and uploads the completed run to `training-outputs` using the VM's managed identity. Confirm that `run-train` completes successfully before destroying the runner.
+
+Run the following lifecycle commands locally from `deploy/azure/vm/train-gpu/terraform`.
 
 ## Pause
 
@@ -119,5 +140,5 @@ Resume with `az vm start` using the same resource group and VM name.
 terraform destroy
 ```
 
-> [!CAUTION]
-> Destroying this Terraform root deletes the HPO VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.
+> [!NOTE]
+> Destroying this Terraform root deletes the train VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.

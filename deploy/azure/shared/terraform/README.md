@@ -13,7 +13,7 @@ This Terraform root provisions the persistent Azure Blob Storage handoff shared 
 From the repository or deployment bundle root:
 
 ```bash
-cd deploy/shared/terraform/azure
+cd deploy/azure/shared/terraform
 
 az login
 az account set --subscription "<subscription-id-or-name>"
