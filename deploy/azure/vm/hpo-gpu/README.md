@@ -1,6 +1,6 @@
 # HPO GPU runner
 
-This Terraform root provisions a disposable Azure GPU runner for tlmtc HPO. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
+The Terraform configuration in `terraform/` provisions a disposable Azure GPU runner for tlmtc HPO. It creates one resource group, an isolated virtual network with an SSH-only NSG rule, a static public IP, one GPU VM with a system-assigned identity, a data disk, cloud-init GPU-host bootstrap wiring, and least-privilege Blob access.
 
 ## Prerequisites
 
@@ -119,5 +119,5 @@ Resume with `az vm start` using the same resource group and VM name.
 terraform destroy
 ```
 
-> [!CAUTION]
-> Destroying this Terraform root deletes the HPO VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.
+> [!NOTE]
+> Destroying this Terraform configuration deletes the HPO VM, its disks, network, and public IP. Shared storage and Blob data are unaffected.
