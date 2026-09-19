@@ -36,6 +36,9 @@ jobs:
           - name: Train GPU
             repository: tlmtc-train-gpu
             dockerfile: docker/train-gpu.Dockerfile
+          - name: Predict CPU
+            repository: tlmtc-predict-cpu
+            dockerfile: docker/predict-cpu.Dockerfile
 
     steps:
       - name: Checkout source revision
