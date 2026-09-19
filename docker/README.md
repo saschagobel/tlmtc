@@ -25,6 +25,16 @@ entrypoint and preserves the application's workflow defaults.
 The intended image repository is `ghcr.io/saschagobel/tlmtc-train-gpu`, using
 the same candidate and release tag scheme as the HPO image.
 
+## CPU Prediction
+
+`predict-cpu.Dockerfile` provides `tlmtc[onnx-runtime]` for CPU batch prediction.
+The `linux/amd64` image is a lean inference runtime, uses the ordinary
+`tlmtc predict` entrypoint, and consumes persisted training runs with ONNX
+artifacts.
+
+The intended image repository is `ghcr.io/saschagobel/tlmtc-predict-cpu`, using
+the same candidate and release tag scheme as the GPU images.
+
 ## GPU dependency policy
 
 Both GPU images use Python 3.12 and pin
