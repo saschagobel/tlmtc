@@ -107,12 +107,12 @@ def train_tlmtc(
         wrap_peft: Whether to use parameter-efficient fine-tuning with LoRA adapters. Defaults to `True`.
         export_onnx: Whether to export an ONNX inference artifact after fine-tuning. Defaults to `False`.
         proxy_checkpoint: Compatible encoder-only Hugging Face checkpoint identifier used during
-            hyperparameter tuning. Defaults to `"microsoft/deberta-v3-small"`. If `checkpoint`
+            hyperparameter tuning. Defaults to `"jhu-clsp/mmBERT-small"`. If `checkpoint`
             is supplied and `proxy_checkpoint` is omitted, the proxy checkpoint defaults to the
             selected `checkpoint`. Loaded with the resolved `trust_remote_code` setting. Keep `trust_remote_code=False`
             unless you trust the checkpoint repository.
         checkpoint: Compatible encoder-only Hugging Face checkpoint identifier or local path used for
-            final fine-tuning. Defaults to `"microsoft/deberta-v3-base"`. Prediction reloads the trained model or
+            final fine-tuning. Defaults to `"jhu-clsp/mmBERT-base"`. Prediction reloads the trained model or
             adapter artifacts using the resolved prediction `trust_remote_code` setting. Keep it disabled unless you
             trust the saved artifacts and checkpoint repository.
         sequence_length: Maximum tokenized sequence length. Defaults to `128`.
