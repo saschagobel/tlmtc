@@ -149,8 +149,8 @@ class ModelSettings(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     target_name: str = "Target"
-    proxy_checkpoint: str = "microsoft/deberta-v3-small"
-    checkpoint: str = "microsoft/deberta-v3-base"
+    proxy_checkpoint: str = "jhu-clsp/mmBERT-small"
+    checkpoint: str = "jhu-clsp/mmBERT-base"
     sequence_length: PositiveInt = 128
     trust_remote_code: bool = False
 
