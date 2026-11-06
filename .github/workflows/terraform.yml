@@ -15,6 +15,7 @@ env:
     deploy/azure/shared/terraform
     deploy/azure/vm/hpo-gpu/terraform
     deploy/azure/vm/train-gpu/terraform
+    deploy/azure/vm/predict-cpu/terraform
   TF_IN_AUTOMATION: "true"
 
 defaults:

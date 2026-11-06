@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars and fill in (terraform.tfvars is gitignored).
+shared_storage_account_name = "<storage-account-name>"
+ssh_source_address_prefix   = "<current-public-ip>/32"
+admin_ssh_public_key        = "<public-ssh-key>"
