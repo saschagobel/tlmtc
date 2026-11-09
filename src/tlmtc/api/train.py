@@ -29,7 +29,7 @@ class TrainResult:
 
 
 def train_tlmtc(
-    labeled_data: str | Path | pd.DataFrame,
+    labeled_data: str | Path | pd.DataFrame | None | Unset = UNSET,
     *,
     raw_test_csv: str | Path | Unset = UNSET,
     work_dir: str | Path | Unset = UNSET,

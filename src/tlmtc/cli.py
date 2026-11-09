@@ -75,8 +75,8 @@ def main(
 
 @app.command("train")
 def train_command(
-    labeled_data: str = typer.Option(
-        ...,
+    labeled_data: str | None = typer.Option(
+        None,
         "--labeled-data",
         help="Path to labeled multi-label data with text, label_* columns, and optional text_pair.",
     ),
@@ -274,7 +274,7 @@ def train_command(
     from tlmtc.api import train_tlmtc
 
     result = train_tlmtc(
-        labeled_data=labeled_data,
+        labeled_data=UNSET if labeled_data is None else labeled_data,
         raw_test_csv=UNSET if raw_test_csv is None else raw_test_csv,
         work_dir=UNSET if work_dir is None else work_dir,
         config_path=UNSET if config_path is None else config_path,

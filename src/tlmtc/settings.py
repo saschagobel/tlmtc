@@ -415,7 +415,7 @@ class RunSettings(ResolvableSettings):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    labeled_data: Path | pd.DataFrame
+    labeled_data: Path | pd.DataFrame | None = None
     raw_test_csv: Path | None = None
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None
