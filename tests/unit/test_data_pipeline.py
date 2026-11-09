@@ -142,7 +142,7 @@ def pipeline_instance_factory(
 ) -> Callable[..., DataPipeline]:
     """Factory for DataPipeline instances using in-test RunPaths."""
 
-    def _factory(*, labeled_data: Path, raw_test_csv: Path | None) -> DataPipeline:
+    def _factory(*, labeled_data: Path | None, raw_test_csv: Path | None) -> DataPipeline:
         paths = resolve_paths(
             labeled_data=labeled_data,
             raw_test_csv=raw_test_csv,
@@ -192,6 +192,11 @@ class TestSplitData:
         else:
             assert len(train_df) + len(val_df) + len(test_df) == len(pd.read_csv(sample_raw_csv))
 
+        resumed = pipeline_instance_factory(labeled_data=None, raw_test_csv=None).split_data()
+        assert resumed.input_mode is dp.input_mode
+        for attr in ("train_data", "val_data", "test_data"):
+            pd.testing.assert_frame_equal(getattr(resumed, attr), getattr(dp, attr))
+
     def test_raises_error_when_labeled_data_missing(self, tmp_path: Path, pipeline_instance_factory: Callable):
         """Ensure split_data raises FileNotFoundError when labeled_data_path does not exist."""
         missing_raw = tmp_path / "does_not_exist.csv"
@@ -203,6 +208,22 @@ class TestSplitData:
 
         with pytest.raises(FileNotFoundError):
             dp.split_data()
+
+    @pytest.mark.parametrize("missing_split", [None, "train_data_path", "val_data_path", "test_data_path"])
+    def test_requires_labeled_data_without_complete_splits(
+        self,
+        sample_raw_csv: Path,
+        pipeline_instance_factory: Callable[..., DataPipeline],
+        missing_split: str | None,
+    ) -> None:
+        """Reject absent raw data when any or all saved splits are missing."""
+        if missing_split is not None:
+            original = pipeline_instance_factory(labeled_data=sample_raw_csv, raw_test_csv=None).split_data()
+            getattr(original.paths, missing_split).unlink()
+        resumed = pipeline_instance_factory(labeled_data=None, raw_test_csv=None)
+
+        with pytest.raises(ValueError, match="labeled_data is required"):
+            resumed.split_data()
 
     def test_splits_in_memory_labeled_data_correctly(
         self,
@@ -337,7 +358,7 @@ class TestSplitData:
         test_df.to_parquet(dp.paths.test_data_path, index=False)
 
         resumed_dp = pipeline_instance_factory(
-            labeled_data=sample_raw_csv,
+            labeled_data=None,
             raw_test_csv=None,
         )
 
@@ -398,7 +419,7 @@ class TestSplitData:
         test_df.to_parquet(dp.paths.test_data_path, index=False)
 
         resumed_dp = pipeline_instance_factory(
-            labeled_data=sample_raw_csv,
+            labeled_data=None,
             raw_test_csv=None,
         )
 
