@@ -78,12 +78,18 @@ def train_command(
     labeled_data: str | None = typer.Option(
         None,
         "--labeled-data",
-        help="Path to labeled multi-label data with text, label_* columns, and optional text_pair.",
+        help=(
+            "Path to labeled multi-label data with text, label_* columns, and optional text_pair. "
+            "Optional when --work-dir and --run-id select a workspace containing all three saved splits."
+        ),
     ),
     raw_test_csv: str | None = typer.Option(
         None,
         "--raw-test-csv",
-        help="Path to a separate raw test CSV. If omitted, a test split is created from --labeled-data.",
+        help=(
+            "Path to a separate raw test CSV. When creating new splits, omission creates "
+            "a test split from --labeled-data."
+        ),
     ),
     work_dir: str | None = typer.Option(
         None,

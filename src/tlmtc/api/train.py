@@ -77,8 +77,9 @@ def train_tlmtc(
     Args:
         labeled_data: Path to labeled multi-label training data, or an in-memory DataFrame. The data must contain
             a `text` column, at least two binary `label_*` columns, and optionally a `text_pair` column.
-        raw_test_csv: Path to a separate raw test CSV. If omitted, a test split is created
-            from `labeled_data` using `test_size`. Defaults to no separate test CSV.
+            May be omitted when the selected `work_dir` and `run_id` contain all three persisted splits.
+        raw_test_csv: Path to a separate raw test CSV. When creating new splits, omission creates
+            a test split from `labeled_data` using `test_size`. Defaults to no separate test CSV.
         work_dir: Base directory for resolving inputs and writing run artifacts. Defaults to the
             current working directory.
         config_path: Path to a YAML configuration file. Defaults to no configuration file.

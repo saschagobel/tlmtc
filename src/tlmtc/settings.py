@@ -398,7 +398,8 @@ class RunSettings(ResolvableSettings):
     """Resolved top-level settings for a tlmtc training run.
 
     Attributes:
-        labeled_data: Path to the labeled training data, or an in-memory labeled DataFrame.
+        labeled_data: Optional path or in-memory labeled DataFrame. Required unless all three
+            persisted splits exist in the selected workspace.
         raw_test_csv: Optional path to a raw test CSV.
         work_dir: Base directory for resolving inputs and writing run artifacts.
         run_id: Run identifier used to name the output directory.

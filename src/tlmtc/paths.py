@@ -63,7 +63,7 @@ class RunPaths:
         run_dir: Root output directory for the training run.
         run_id: Run identifier used to name the output directory.
         train_run_meta_path: Path to the persisted training-run metadata sidecar.
-        labeled_data_path: Resolved path to the labeled training data, or None for in-memory labeled data.
+        labeled_data_path: Resolved path to the labeled training data, or None when omitted or supplied in memory.
         raw_test_data_path: Resolved path to the optional raw test CSV.
         data_dir: Directory for prepared dataset split artifacts.
         logs_dir: Directory for training logs and HPO artifacts.
@@ -155,7 +155,7 @@ def resolve_paths(
     """Resolve input and artifact paths for a tlmtc training run.
 
     Args:
-        labeled_data: Path to the labeled training data, or None for in-memory labeled data.
+        labeled_data: Path to the labeled training data, or None when omitted or supplied in memory.
         raw_test_csv: Optional path to a raw test CSV.
         work_dir: Base directory used to resolve inputs and contain run outputs.
         run_id: Run identifier used to name the output directory.

@@ -50,8 +50,8 @@ class DataPipeline:
             paths: Run-specific filesystem layout for raw inputs and prepared split artifacts.
             split: Split configuration for validation/test partitioning and random seeding.
             model: Tokenization configuration, including checkpoint and sequence length.
-            labeled_data: Optional in-memory labeled data. When omitted, labeled data is loaded
-                from `paths.labeled_data_path`.
+            labeled_data: Optional in-memory labeled data. When creating new splits, data is required
+                either here or at `paths.labeled_data_path`.
         """
         self.paths = paths
         self.split = split
@@ -74,6 +74,7 @@ class DataPipeline:
             Updated pipeline instance.
 
         Raises:
+            ValueError: If persisted splits are incomplete and no labeled data was supplied.
             FileNotFoundError: If a required raw input file is missing.
             DataContractError: If persisted or raw splits disagree on labels or input mode.
         """
