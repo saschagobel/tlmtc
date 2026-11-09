@@ -303,7 +303,7 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Run train_tlmtc end to end with Optuna HPO enabled."""
+    """Run HPO, then fine-tune from saved splits without the source CSV."""
     monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
 
@@ -326,7 +326,7 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
             "epoch_high": 1,
             "lr_reference_batch_size": 4,
         },
-        transfer_learning=True,
+        transfer_learning=False,
         threshold_optimization=True,
         wrap_peft=False,
         train_epochs=1,
@@ -339,7 +339,7 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
     )
 
     assert result.paths.run_id == "integration_hpo"
-    assert_common_training_artifacts(result.paths)
+    assert not result.paths.global_metrics_path.exists()
 
     assert result.paths.optuna_trials_path.exists()
     assert result.paths.objective_values_plot_path.exists()
@@ -347,6 +347,25 @@ def test_train_tlmtc_runs_hpo_with_tiny_local_model(
     train_meta = read_run_meta(result.paths.train_run_meta_path)
     assert train_meta.hyperparameter_tuning is True
     assert train_meta.wrap_peft is False
+
+    raw_multilabel_csv.unlink()
+    result.paths.train_run_meta_path.unlink()
+
+    resumed = train_tlmtc(
+        work_dir=tmp_path,
+        run_id=result.paths.run_id,
+        checkpoint=str(tiny_checkpoint_dir),
+        hyperparameter_tuning=False,
+        wrap_peft=False,
+        sequence_length=16,
+        early_stopping_patience=1,
+        use_cpu=True,
+    )
+
+    assert resumed.paths.labeled_data_path is None
+    assert_common_training_artifacts(resumed.paths)
+    resumed_meta = read_run_meta(resumed.paths.train_run_meta_path)
+    assert resumed_meta.hpo_hyperparameters_applied is True
 
 
 def test_train_tlmtc_runs_peft_with_tiny_local_model(

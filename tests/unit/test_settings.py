@@ -656,12 +656,10 @@ class TestRunSettings:
         assert settings.training.learning_rate == 1e-4
         assert settings.runtime.verbosity == "quiet"
 
-    def test_run_settings_requires_labeled_data(self) -> None:
-        """RunSettings should require labeled_data."""
-        with pytest.raises(ValidationError):
-            RunSettings(
-                hpo=MINIMAL_HPO,
-            )
+    @pytest.mark.parametrize("overrides", [{}, {"labeled_data": None}])
+    def test_run_settings_allows_absent_labeled_data(self, overrides: dict) -> None:
+        """RunSettings should accept omitted or explicitly absent labeled data."""
+        assert RunSettings(**overrides).labeled_data is None
 
     def test_run_settings_synthesizes_hpo_defaults_when_omitted(self) -> None:
         """RunSettings should synthesize HPO defaults when hpo is omitted."""

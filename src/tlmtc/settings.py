@@ -398,7 +398,8 @@ class RunSettings(ResolvableSettings):
     """Resolved top-level settings for a tlmtc training run.
 
     Attributes:
-        labeled_data: Path to the labeled training data, or an in-memory labeled DataFrame.
+        labeled_data: Optional path or in-memory labeled DataFrame. Required unless all three
+            persisted splits exist in the selected workspace.
         raw_test_csv: Optional path to a raw test CSV.
         work_dir: Base directory for resolving inputs and writing run artifacts.
         run_id: Run identifier used to name the output directory.
@@ -415,7 +416,7 @@ class RunSettings(ResolvableSettings):
 
     model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True)
 
-    labeled_data: Path | pd.DataFrame
+    labeled_data: Path | pd.DataFrame | None = None
     raw_test_csv: Path | None = None
     work_dir: Path = Field(default_factory=Path.cwd)
     run_id: str | None = None

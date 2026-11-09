@@ -273,11 +273,11 @@ class TestTrainCliApp:
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure --config-path is forwarded to train_tlmtc."""
-        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv", "--config-path", "config.yaml"])
+        result = invoke_cli(runner, ["train", "--config-path", "config.yaml"])
 
         assert result.exit_code == 0
         kwargs = stub_train_tlmtc["kwargs"]
-        assert kwargs["labeled_data"] == "raw.csv"
+        assert kwargs["labeled_data"] is UNSET
         assert kwargs["config_path"] == "config.yaml"
 
     def test_train_omitted_optional_args_are_forwarded_as_unset(
@@ -286,12 +286,12 @@ class TestTrainCliApp:
         stub_train_tlmtc: dict[str, Any],
     ) -> None:
         """Ensure omitted optional flags preserve layered settings semantics via UNSET."""
-        result = invoke_cli(runner, ["train", "--labeled-data", "raw.csv"])
+        result = invoke_cli(runner, ["train"])
 
         assert result.exit_code == 0
 
         kwargs = stub_train_tlmtc["kwargs"]
-        assert kwargs["labeled_data"] == "raw.csv"
+        assert kwargs["labeled_data"] is UNSET
         assert kwargs["raw_test_csv"] is UNSET
         assert kwargs["work_dir"] is UNSET
         assert kwargs["batch_size"] is UNSET
@@ -333,15 +333,6 @@ class TestTrainCliApp:
 
         assert result.exit_code != 0
         assert "Expected a JSON object" in output
-
-    def test_train_requires_labeled_data(self, runner: CliRunner) -> None:
-        """Ensure train exits with a usage error when required args are missing."""
-        result = invoke_cli(runner, ["train"])
-        output = clean_cli_output(result.output)
-
-        assert result.exit_code != 0
-        assert "Missing option" in output
-        assert "--labeled-data" in output
 
     def test_train_propagates_downstream_exception(
         self,

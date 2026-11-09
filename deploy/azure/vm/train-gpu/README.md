@@ -84,11 +84,8 @@ On the VM:
 sudo run-train \
   "<storage-account-name>" \
   "<train-image-ref>" \
-  --labeled-data "/inputs/<blob-path>" \
   --run-id hpo-01
 ```
-
-The CLI still requires `--labeled-data`; use the same `/inputs/<blob-path>` as for HPO. When all three saved splits are present, tlmtc loads them without rereading the source data.
 
 ### Start without HPO
 

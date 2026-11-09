@@ -582,16 +582,18 @@ class TestTrainTlmtc:
 
         assert result.paths.raw_test_data_path is None
 
+    @pytest.mark.parametrize("overrides", [{}, {"labeled_data": None}])
     def test_resolves_selected_settings_from_config_path(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
-        raw_csv: Path,
+        overrides: dict,
     ) -> None:
         config_path = tmp_path / "config.yml"
         _write_yaml(
             config_path,
             """
+            labeled_data: config.csv
             run_id: config_run
 
             model:
@@ -615,12 +617,13 @@ class TestTrainTlmtc:
         pipelines = _mock_successful_pipelines(monkeypatch)
 
         result = api_mod.train_tlmtc(
-            raw_csv,
             work_dir=tmp_path,
             config_path=config_path,
+            **overrides,
         )
 
         assert result.paths.run_id == "config_run"
+        assert result.paths.labeled_data_path == (None if overrides else Path("config.csv").resolve())
 
         _, data_kwargs = pipelines.data_pipeline_cls.call_args
         assert data_kwargs["model"].target_name == "Config Target"
