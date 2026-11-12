@@ -26,17 +26,33 @@ In applied settings, text classification is rarely a simple single-label task or
 
 ## Key features
 
-- Parameter-efficient fine-tuning via LoRA (PEFT), with optional full fine-tuning
+### Data preparation
+
 - Automatic detection of single-text and paired-text inputs for encoder and cross-encoder-style classification
+- Iterative stratified data splitting for multi-label datasets, with automatic group-aware splitting
+
+### Training and optimization
+
+- Parameter-efficient fine-tuning via LoRA, with optional full fine-tuning
 - Customizable Optuna-based hyperparameter tuning, optionally on a smaller proxy model for efficiency
 - Carry-over from proxy to larger target model with optional automatic learning-rate scaling
-- Global and label-specific threshold optimization for calibrated multi-label decisions
-- Iterative stratified data splitting for multi-label datasets, with automatic group-aware splitting
 - Custom class-weighted loss for handling label imbalance
+- Global and label-specific decision threshold optimization
+
+### Evaluation and reporting
+
 - Comprehensive evaluation suite with global and label-specific multi-label metrics
 - Publication-ready reporting through tables and graphs
+
+### Prediction
+
 - End-to-end prediction workflow that reloads trained models, metadata, labels, and thresholds automatically
 - Optional ONNX export and ONNX Runtime prediction backend for production inference deployment
+
+### Deployment and operations
+
+- Docker images for GPU hyperparameter tuning, GPU training, and CPU ONNX prediction
+- Terraform configurations and runner scripts for Azure VM deployments
 - Automatic persistence and reuse of data splits, Optuna studies, trained models, thresholds, and run metadata
 - Highly configurable through a small workflow-oriented Python API and CLI
 - CPU and DDP-safe multi-GPU training and prediction support
