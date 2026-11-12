@@ -74,6 +74,8 @@ nvidia-smi
 
 `run-train` automatically detects the VM's GPU count and launches fine-tuning through `torchrun` with one worker process per GPU. The same command applies to single- and multi-GPU VMs.
 
+Replace `<train-image-ref>` with `ghcr.io/saschagobel/tlmtc-train-gpu:<tag>`, choosing a published tag from the [container registry](https://github.com/users/saschagobel/packages/container/package/tlmtc-train-gpu). See the [Docker image documentation](../../../../docker/#gpu-training) for the image definition and tag formats.
+
 ### Use an HPO run
 
 If the HPO workspace has already been uploaded to `hpo-workspaces`, use its run ID. The runner restores that workspace, and tlmtc reuses its train/validation/test splits and selected hyperparameters from `logs/best_hyperparameters.json`. No new data upload is needed.

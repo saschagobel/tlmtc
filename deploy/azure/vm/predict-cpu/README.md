@@ -79,7 +79,7 @@ az storage blob upload \
   --overwrite true
 ```
 
-On the VM, run prediction against a published training run. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`:
+On the VM, run prediction against a published training run. Replace `<predict-image-ref>` with `ghcr.io/saschagobel/tlmtc-predict-cpu:<tag>`, choosing a published tag from the [container registry](https://github.com/users/saschagobel/packages/container/package/tlmtc-predict-cpu). See the [Docker image documentation](../../../../docker/#cpu-prediction) for the image definition and tag formats. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`.
 
 ```bash
 sudo run-predict \

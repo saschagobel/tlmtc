@@ -84,7 +84,7 @@ az storage blob upload \
   --overwrite true
 ```
 
-On the VM, run the HPO image. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`:
+On the VM, run the HPO image. Replace `<hpo-image-ref>` with `ghcr.io/saschagobel/tlmtc-hpo-gpu:<tag>`, choosing a published tag from the [container registry](https://github.com/users/saschagobel/packages/container/package/tlmtc-hpo-gpu). See the [Docker image documentation](../../../../docker/#gpu-hpo) for the image definition and tag formats. Use `/inputs/<blob-path>` for data uploaded under `<blob-path>`.
 
 ```bash
 sudo run-hpo \
